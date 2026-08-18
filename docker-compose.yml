@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: interview_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ai_interview_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Java Spring Boot Backend Service
+  backend-service:
+    build: ./backend
+    container_name: interview_backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/ai_interview_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgrespassword
+      - AI_SERVICE_URL=http://ai-service:8000
+    depends_on:
+      - postgres-db
+
+  # 3. Python FastAPI AI Service (LangChain + RAG + Gemini)
+  ai-service:
+    build: ./ai-service
+    container_name: interview_ai_service
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - postgres-db
+
+  # 4. React Frontend
+  frontend:
+    build: ./frontend
+    container_name: interview_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend-service
+
+volumes:
+  postgres_data:
