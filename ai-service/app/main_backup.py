@@ -10,33 +10,17 @@ from app.rag.pipeline import run_rag_query
 from app.rag.document_loader import load_pdf_documents, split_documents
 from app.rag.vector_store import get_or_create_vector_store
 
-from app.interview.schemas import (
-    InterviewQuestionRequest,
-    InterviewQuestionResponse,
-    InterviewStartRequest,
-    InterviewStartResponse,
-    InterviewAnswerRequest,
-    InterviewAnswerResponse,
-    InterviewFinishRequest,
-    InterviewFinishResponse,
-)
-
-from app.interview.session_manager import (
-    create_session,
-    get_session,
-    add_question,
-    add_answer,
-    finish_session,
-)
-
-from app.resume.analyzer import analyze_resume
-
 from app.resume.schemas import (
     ResumeAnalysisRequest,
     ResumeAnalysisResponse,
 )
 
+from app.resume.analyzer import analyze_resume
 
+from app.interview.schemas import (
+    InterviewQuestionRequest,
+    InterviewQuestionResponse,
+)
 
 from app.interview.question_generator import generate_next_question
 
@@ -264,184 +248,7 @@ def generate_interview_question_endpoint(
             detail=f"Interview question generation failed: {str(e)}",
         )
 
-@app.post(
-    "/api/v1/interview/start",
-    response_model=InterviewStartResponse,
-    tags=["Interview Session"],
-)
-def start_interview_endpoint(req: InterviewStartRequest):
-    """
-    Start a new interview session and generate the first question.
-    """
 
-    if not req.job_description.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Job description cannot be empty.",
-        )
-
-    if not os.getenv("GEMINI_API_KEY"):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="GEMINI_API_KEY environment variable is not configured.",
-        )
-
-    try:
-        session = create_session(
-            job_description=req.job_description,
-            candidate_resume=req.candidate_resume or "",
-        )
-
-        question_request = InterviewQuestionRequest(
-            session_id=session.session_id,
-            job_description=req.job_description,
-            candidate_resume=req.candidate_resume or "",
-            previous_questions=[],
-            last_candidate_answer="",
-            question_number=1,
-        )
-
-        question = generate_next_question(question_request)
-
-        add_question(
-            session.session_id,
-            question.question,
-        )
-
-        return InterviewStartResponse(
-            session_id=session.session_id,
-            question=question,
-        )
-
-    except Exception as e:
-        print(f"[InterviewStart] Error: {e}")
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Interview start failed: {str(e)}",
-        )
-
-
-@app.post(
-    "/api/v1/interview/answer",
-    response_model=InterviewAnswerResponse,
-    tags=["Interview Session"],
-)
-def answer_interview_endpoint(req: InterviewAnswerRequest):
-    """
-    Submit candidate answer and generate the next adaptive question.
-    """
-
-    if not req.answer.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Answer cannot be empty.",
-        )
-
-    try:
-        session = get_session(req.session_id)
-
-        if session is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Interview session not found.",
-            )
-
-        if session.status != "active":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Interview session is not active.",
-            )
-
-        # Save candidate answer
-        add_answer(
-            req.session_id,
-            req.answer,
-        )
-
-        # Generate next question
-        previous_questions = session.questions
-
-        last_answer = req.answer
-
-        question_request = InterviewQuestionRequest(
-            session_id=session.session_id,
-            job_description=session.job_description,
-            candidate_resume=session.candidate_resume,
-            last_candidate_answer=last_answer,
-            previous_questions=previous_questions,
-            question_number=session.current_question_number,
-        )
-
-        question = generate_next_question(question_request)
-
-        # Save generated question
-        add_question(
-            session.session_id,
-            question.question,
-        )
-
-        return InterviewAnswerResponse(
-            session_id=session.session_id,
-            question=question,
-        )
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        print(f"[InterviewAnswer] Error: {e}")
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Interview answer processing failed: {str(e)}",
-        )
-
-
-@app.post(
-    "/api/v1/interview/finish",
-    response_model=InterviewFinishResponse,
-    tags=["Interview Session"],
-)
-def finish_interview_endpoint(req: InterviewFinishRequest):
-    """
-    Finish an active interview session.
-    """
-
-    try:
-        session = get_session(req.session_id)
-
-        if session is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Interview session not found.",
-            )
-
-        if session.status == "completed":
-            return InterviewFinishResponse(
-                session_id=session.session_id,
-                status=session.status,
-                total_questions=len(session.questions),
-            )
-
-        finished_session = finish_session(req.session_id)
-
-        return InterviewFinishResponse(
-            session_id=finished_session.session_id,
-            status=finished_session.status,
-            total_questions=len(finished_session.questions),
-        )
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        print(f"[InterviewFinish] Error: {e}")
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Interview finish failed: {str(e)}",
-        )
 
 
 
