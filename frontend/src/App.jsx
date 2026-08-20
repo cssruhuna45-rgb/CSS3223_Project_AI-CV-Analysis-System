@@ -16,7 +16,7 @@ export default function App() {
       {activeTab === 'interview' ? (
         <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
           <h3>Candidate Interview Session</h3>
-          <p style="color: #94a3b8">Spring Boot & Python FastAPI RAG AI Backend Connected</p>
+          <p style={{ color: '#94a3b8' }}>Spring Boot & Python FastAPI RAG AI Backend Connected</p>
         </div>
       ) : (
         <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px' }}>
