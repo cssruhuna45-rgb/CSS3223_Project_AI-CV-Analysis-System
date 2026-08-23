@@ -40,6 +40,13 @@ from app.resume.schemas import (
 
 from app.interview.question_generator import generate_next_question
 
+from app.skill_gap.schemas import (
+    SkillGapRequest,
+    SkillGapResponse,
+)
+
+from app.skill_gap.analyzer import analyze_skill_gap
+
 load_dotenv()
 
 app = FastAPI(
@@ -443,7 +450,56 @@ def finish_interview_endpoint(req: InterviewFinishRequest):
             detail=f"Interview finish failed: {str(e)}",
         )
 
+@app.post(
+    "/api/v1/skill-gap/analyze",
+    response_model=SkillGapResponse,
+    tags=["Skill Gap Analysis"],
+)
+def analyze_skill_gap_endpoint(
+    req: SkillGapRequest,
+):
+    """
+    Compare a candidate resume with a target job description
+    and identify job-specific skill gaps.
+    """
 
+    if not req.job_description.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job description cannot be empty.",
+        )
+
+    if not req.candidate_resume.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Candidate resume cannot be empty.",
+        )
+
+    if not os.getenv("GEMINI_API_KEY"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "GEMINI_API_KEY environment variable "
+                "is not configured."
+            ),
+        )
+
+    try:
+        return analyze_skill_gap(req)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        print(f"[SkillGapAPI] Error: {e}")
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Skill gap analysis failed: {str(e)}",
+        )
 
 if __name__ == "__main__":
     import uvicorn
