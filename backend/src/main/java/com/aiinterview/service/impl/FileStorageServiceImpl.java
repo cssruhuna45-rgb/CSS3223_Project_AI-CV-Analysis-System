@@ -5,7 +5,6 @@ import com.aiinterview.service.FileStorageService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -25,7 +24,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     public void init() {
         try {
             Files.createDirectories(this.fileStorageLocation);
-        } catch (Exception ex) {
+        } catch (IOException | SecurityException ex) {
             throw new InvalidFileException("Could not create the directory where the uploaded files will be stored.");
         }
     }

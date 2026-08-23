@@ -16,6 +16,7 @@ public class ResumeResponseDto {
     private String originalFileName;
     private Long fileSize;
     private String contentType;
+    private String extractedText;
     private LocalDateTime uploadedAt;
     private LocalDateTime updatedAt;
 }
