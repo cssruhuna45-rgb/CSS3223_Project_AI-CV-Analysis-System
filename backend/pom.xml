@@ -2,59 +2,87 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- ========================================================= -->
+    <!-- Spring Boot Parent                                       -->
+    <!-- ========================================================= -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.3</version>
+        <version>3.4.13</version>
         <relativePath/>
     </parent>
 
+    <!-- ========================================================= -->
+    <!-- Project Information                                      -->
+    <!-- ========================================================= -->
     <groupId>com.aiinterview</groupId>
     <artifactId>backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+
     <name>AI Interview Platform Backend</name>
     <description>Spring Boot Backend Service for AI Interview Platform</description>
 
+    <!-- ========================================================= -->
+    <!-- Properties                                                -->
+    <!-- ========================================================= -->
     <properties>
-        <java.version>17</java.version>
+        <java.version>23</java.version>
         <jjwt.version>0.12.5</jjwt.version>
+        <lombok.version>1.18.36</lombok.version>
     </properties>
 
+    <!-- ========================================================= -->
+    <!-- Dependencies                                               -->
+    <!-- ========================================================= -->
     <dependencies>
-        <!-- Spring Boot Starter Web -->
+
+        <!-- ===================================================== -->
+        <!-- Spring Boot Web                                       -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Spring Boot Starter Security -->
+        <!-- ===================================================== -->
+        <!-- Spring Security                                       -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- Spring Boot Starter Data JPA -->
+        <!-- ===================================================== -->
+        <!-- Spring Data JPA                                       -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Spring Boot Starter Validation -->
+        <!-- ===================================================== -->
+        <!-- Validation                                             -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- JJWT API -->
+        <!-- ===================================================== -->
+        <!-- JJWT API                                               -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <version>${jjwt.version}</version>
         </dependency>
 
-        <!-- JJWT Implementation -->
+        <!-- ===================================================== -->
+        <!-- JJWT Implementation                                    -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
@@ -62,7 +90,9 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- JJWT Jackson Integration -->
+        <!-- ===================================================== -->
+        <!-- JJWT Jackson                                           -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
@@ -70,48 +100,92 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- PostgreSQL JDBC Driver -->
+        <!-- ===================================================== -->
+        <!-- PostgreSQL                                             -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Lombok -->
+        <!-- ===================================================== -->
+        <!-- Lombok                                                 -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!-- Spring Boot Starter Test -->
+        <!-- ===================================================== -->
+        <!-- Spring Boot Test                                       -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
-        <!-- Spring Security Test -->
+        <!-- ===================================================== -->
+        <!-- Spring Security Test                                   -->
+        <!-- ===================================================== -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
 
-
-
+        <!-- ===================================================== -->
+        <!-- Apache PDFBox                                          -->
+        <!-- ===================================================== -->
         <dependency>
-    <groupId>org.apache.pdfbox</groupId>
-    <artifactId>pdfbox</artifactId>
-    <version>3.0.3</version>
-</dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
     </dependencies>
 
+    <!-- ========================================================= -->
+    <!-- Build Configuration                                       -->
+    <!-- ========================================================= -->
     <build>
         <plugins>
+
+            <!-- ================================================= -->
+            <!-- Maven Compiler Plugin                             -->
+            <!-- ================================================= -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
+
+                    <!-- Enable Lombok Annotation Processing -->
+                    <annotationProcessorPaths>
+
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- ================================================= -->
+            <!-- Spring Boot Maven Plugin                         -->
+            <!-- ================================================= -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+
                 <configuration>
                     <excludes>
                         <exclude>
@@ -120,7 +194,10 @@
                         </exclude>
                     </excludes>
                 </configuration>
+
             </plugin>
+
         </plugins>
     </build>
+
 </project>

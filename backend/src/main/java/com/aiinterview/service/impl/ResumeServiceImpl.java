@@ -184,16 +184,12 @@ public class ResumeServiceImpl implements ResumeService {
 
         return ResumeResponseDto.builder()
                 .id(resume.getId())
-                .originalFileName(
-                        resume.getOriginalFileName())
-                .fileSize(
-                        resume.getFileSize())
-                .contentType(
-                        resume.getContentType())
-                .uploadedAt(
-                        resume.getUploadedAt())
-                .updatedAt(
-                        resume.getUpdatedAt())
+                .originalFileName(resume.getOriginalFileName())
+                .fileSize(resume.getFileSize())
+                .contentType(resume.getContentType())
+                .extractedText(resume.getExtractedText())
+                .uploadedAt(resume.getUploadedAt())
+                .updatedAt(resume.getUpdatedAt())
                 .build();
     }
 }
