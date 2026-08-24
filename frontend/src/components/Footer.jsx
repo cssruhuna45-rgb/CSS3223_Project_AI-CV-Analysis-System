@@ -22,7 +22,7 @@ export default function Footer() {
         <div className="footer-main">
           <div className="footer-brand">
             <Link className="footer-logo" to="/" aria-label="AIInterview home">
-              <span className="footer-logo-mark"><Brain size={18} /></span>
+              
               <span>AI<span>Interview</span></span>
             </Link>
             <p>Build confidence. Sharpen your story. Land the opportunity.</p>

@@ -20,10 +20,20 @@ function ProtectedRoute({ user, children, recruiterOnly }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!localStorage.getItem('token') || !storedUser) return null;
+    try {
+      return JSON.parse(storedUser);
+    } catch {
+      localStorage.removeItem('user');
+      return null;
+    }
+  });
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     sessionStorage.clear();
     setUser(null);
   };
@@ -34,7 +44,7 @@ export default function App() {
         <Navbar user={user} onLogout={handleLogout} />
         <main className="app-content">
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
             <Route path="/register" element={<Register onLogin={setUser} />} />
             <Route path="/upload" element={<ProtectedRoute user={user}><CVUpload /></ProtectedRoute>} />
