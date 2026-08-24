@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './index.css';
 
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -29,18 +30,23 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Navbar user={user} onLogout={handleLogout} />
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login onLogin={setUser} />} />
-        <Route path="/register" element={<Register onLogin={setUser} />} />
-        <Route path="/upload" element={<ProtectedRoute user={user}><CVUpload /></ProtectedRoute>} />
-        <Route path="/interview" element={<ProtectedRoute user={user}><InterviewRoom /></ProtectedRoute>} />
-        <Route path="/scorecard" element={<ProtectedRoute user={user}><Scorecard /></ProtectedRoute>} />
-        <Route path="/skill-gap" element={<ProtectedRoute user={user}><SkillGap /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute user={user} recruiterOnly><RecruiterDashboard /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <div className="app-shell">
+        <Navbar user={user} onLogout={handleLogout} />
+        <main className="app-content">
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login onLogin={setUser} />} />
+            <Route path="/register" element={<Register onLogin={setUser} />} />
+            <Route path="/upload" element={<ProtectedRoute user={user}><CVUpload /></ProtectedRoute>} />
+            <Route path="/interview" element={<ProtectedRoute user={user}><InterviewRoom /></ProtectedRoute>} />
+            <Route path="/scorecard" element={<ProtectedRoute user={user}><Scorecard /></ProtectedRoute>} />
+            <Route path="/skill-gap" element={<ProtectedRoute user={user}><SkillGap /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute user={user} recruiterOnly><RecruiterDashboard /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
     </BrowserRouter>
   );
 }
