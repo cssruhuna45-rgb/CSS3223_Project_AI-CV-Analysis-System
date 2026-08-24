@@ -278,7 +278,7 @@ export default function InterviewRoom() {
           </div>
           <button className="btn btn-primary" onClick={handleNext} disabled={loading}
             style={{ width: '100%', justifyContent: 'center', padding: '13px', fontSize: 15 }}>
-            {loading ? 'Loading next question...' : qIndex + 1 >= MAX_QUESTIONS ? 'View Scorecard 🎉' : <>Next Question <ChevronRight size={16} /></>}
+            {loading ? 'Loading next question...' : qIndex + 1 >= MAX_QUESTIONS ? 'View Scorecard' : <>Next Question <ChevronRight size={16} /></>}
           </button>
         </div>
       )}
