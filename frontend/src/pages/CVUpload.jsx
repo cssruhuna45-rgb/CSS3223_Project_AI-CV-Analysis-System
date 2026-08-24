@@ -51,6 +51,7 @@ export default function CVUpload() {
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
   const [role, setRole] = useState('');
+  const [customRole, setCustomRole] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [analysis, setAnalysis] = useState(null);
@@ -147,7 +148,7 @@ export default function CVUpload() {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {JOB_ROLES.map(r => (
-            <button key={r} onClick={() => setRole(r)}
+            <button key={r} onClick={() => { setRole(r); setCustomRole(''); }}
               style={{
                 padding: '8px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
                 fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, transition: 'all 0.2s',
@@ -158,6 +159,25 @@ export default function CVUpload() {
             </button>
           ))}
         </div>
+        <label htmlFor="custom-role" style={{ display: 'block', marginTop: 18, marginBottom: 8, fontSize: 13, color: '#F5EFE7' }}>
+          Or enter another role
+        </label>
+        <input
+          id="custom-role"
+          type="text"
+          value={customRole}
+          onChange={e => {
+            const value = e.target.value;
+            setCustomRole(value);
+            setRole(value.trim());
+          }}
+          placeholder="e.g. Business Analyst"
+          style={{
+            width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 8,
+            border: '1px solid #3E5879', background: '#213555', color: '#F5EFE7',
+            fontFamily: 'inherit', fontSize: 13, outline: 'none',
+          }}
+        />
       </div>
 
       {/* Error */}

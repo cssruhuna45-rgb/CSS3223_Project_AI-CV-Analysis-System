@@ -11,8 +11,9 @@ const FEATURES = [
   { icon: <Shield size={22} />, color: '#D8C4B6', title: 'Secure & Private', desc: 'JWT-secured sessions with Spring Boot backend and encrypted data storage.' },
 ];
 
-export default function Landing() {
+export default function Landing({ user }) {
   const navigate = useNavigate();
+  const startPath = user ? (user.role === 'recruiter' ? '/dashboard' : '/upload') : '/register';
   return (
     <div>
       {/* Hero */}
@@ -40,7 +41,7 @@ export default function Landing() {
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button className="btn btn-primary" style={{ padding: '14px 28px', fontSize: 15 }}
-              onClick={() => navigate('/register')}>
+              onClick={() => navigate(startPath)}>
               Start Interview <ChevronRight size={16} />
             </button>
             <button className="btn btn-outline" style={{ padding: '14px 28px', fontSize: 15 }}
@@ -78,7 +79,7 @@ export default function Landing() {
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>Ready to start your interview?</h2>
           <p style={{ color: '#F5EFE7', fontSize: 14, marginBottom: 24 }}>Join thousands of candidates who improved their interview skills with AI feedback.</p>
           <button className="btn btn-primary" style={{ padding: '13px 32px', fontSize: 15 }}
-            onClick={() => navigate('/register')}>
+            onClick={() => navigate(startPath)}>
             Get Started Free <ChevronRight size={16} />
           </button>
         </div>

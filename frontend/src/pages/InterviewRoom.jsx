@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, MicOff, Send, Clock, ChevronRight, Brain, CheckCircle, AlertCircle, Zap } from 'lucide-react';
+import { Mic, MicOff, Send, Clock, ChevronRight, Brain, CheckCircle, AlertCircle, Zap, Volume2, VolumeX } from 'lucide-react';
 import { interviewAPI } from '../services/api';
 
 const MAX_QUESTIONS = 5;
@@ -54,9 +54,15 @@ export default function InterviewRoom() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [aiTyping, setAiTyping] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [displayedQ, setDisplayedQ] = useState('');
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
+
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+  };
 
   // Read context from CVUpload step
   const jobRole = sessionStorage.getItem('jobRole') || 'Software Developer';
@@ -66,6 +72,7 @@ export default function InterviewRoom() {
   // Typewriter effect
   useEffect(() => {
     if (!question) return;
+    stopSpeaking();
     setDisplayedQ('');
     setAiTyping(true);
     let i = 0;
@@ -76,6 +83,8 @@ export default function InterviewRoom() {
     }, 22);
     return () => clearInterval(interval);
   }, [question]);
+
+  useEffect(() => () => stopSpeaking(), []);
 
   // Countdown timer
   useEffect(() => {
@@ -121,6 +130,22 @@ export default function InterviewRoom() {
       recognitionRef.current = rec;
       setListening(true);
     }
+  };
+
+  const toggleQuestionAudio = () => {
+    if (!('speechSynthesis' in window)) {
+      setError('Text-to-speech is not supported in this browser.');
+      return;
+    }
+    if (speaking) {
+      stopSpeaking();
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(question);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
   };
 
   const handleSubmit = async () => {
@@ -222,6 +247,21 @@ export default function InterviewRoom() {
                   ))}
                 </div>
               )}
+              <button
+                type="button"
+                onClick={toggleQuestionAudio}
+                aria-label={speaking ? 'Stop listening to question' : 'Listen to question'}
+                title={speaking ? 'Stop listening' : 'Listen to question'}
+                style={{
+                  marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 10px', borderRadius: 7, border: '1px solid rgba(216,196,182,0.25)',
+                  background: speaking ? 'rgba(216,196,182,0.2)' : 'transparent',
+                  color: '#D8C4B6', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
+                }}
+              >
+                {speaking ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                {speaking ? 'Stop' : 'Listen'}
+              </button>
             </div>
             <p style={{ fontSize: 17, lineHeight: 1.7, fontWeight: 500 }}>{displayedQ}</p>
           </div>
