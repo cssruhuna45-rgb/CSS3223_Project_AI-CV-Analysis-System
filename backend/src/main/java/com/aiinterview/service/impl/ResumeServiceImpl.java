@@ -1,13 +1,17 @@
 package com.aiinterview.service.impl;
 
+import com.aiinterview.dto.ResumeAnalysisResponse;
 import com.aiinterview.dto.ResumeResponseDto;
 import com.aiinterview.entity.Resume;
+import com.aiinterview.entity.ResumeAnalysis;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.InvalidFileException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.exception.UnauthorizedAccessException;
+import com.aiinterview.repository.ResumeAnalysisRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
+import com.aiinterview.service.AiServiceClient;
 import com.aiinterview.service.FileStorageService;
 import com.aiinterview.service.PdfTextExtractionService;
 import com.aiinterview.service.ResumeService;
@@ -26,10 +30,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ResumeServiceImpl implements ResumeService {
 
-    private final ResumeRepository resumeRepository;
-    private final UserRepository userRepository;
-    private final FileStorageService fileStorageService;
-    private final PdfTextExtractionService pdfTextExtractionService;
+        private final ResumeRepository resumeRepository;
+        private final UserRepository userRepository;
+        private final FileStorageService fileStorageService;
+        private final PdfTextExtractionService pdfTextExtractionService;
+        private final AiServiceClient aiServiceClient;
+        private final ResumeAnalysisRepository resumeAnalysisRepository;
 
     @Override
     @Transactional
@@ -95,11 +101,46 @@ public class ResumeServiceImpl implements ResumeService {
                             + e.getMessage());
         }
 
-        // 8. Save resume
-        Resume savedResume = resumeRepository.save(resume);
+        // 8. Save resume first so that the database generates resume ID
+Resume savedResume = resumeRepository.save(resume);
 
-        // 9. Return response
-        return mapToDto(savedResume);
+// 9. Analyze resume using AI service
+if ("COMPLETED".equals(savedResume.getProcessingStatus())) {
+
+    try {
+
+        ResumeAnalysisResponse analysis =
+                aiServiceClient.analyzeResume(
+                        savedResume.getId(),
+                        savedResume.getExtractedText()
+                );
+
+        // 10. Save AI analysis result
+        ResumeAnalysis resumeAnalysis =
+                ResumeAnalysis.builder()
+                        .resume(savedResume)
+                        .score(analysis.getScore())
+                        .summary(analysis.getSummary())
+                        .skills(analysis.getSkills())
+                        .strengths(analysis.getStrengths())
+                        .weaknesses(analysis.getWeaknesses())
+                        .missingSkills(analysis.getMissingSkills())
+                        .recommendations(analysis.getRecommendations())
+                        .build();
+
+        resumeAnalysisRepository.save(resumeAnalysis);
+
+    } catch (Exception e) {
+
+        System.err.println(
+                "AI resume analysis failed: "
+                        + e.getMessage()
+        );
+    }
+}
+
+// 11. Return response
+return mapToDto(savedResume);
     }
 
     @Override

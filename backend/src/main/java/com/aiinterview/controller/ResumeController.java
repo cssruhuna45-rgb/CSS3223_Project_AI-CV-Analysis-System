@@ -2,6 +2,7 @@ package com.aiinterview.controller;
 
 import com.aiinterview.dto.ResumeResponseDto;
 import com.aiinterview.service.ResumeService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -15,6 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/resumes")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 public class ResumeController {
 
     private final ResumeService resumeService;
@@ -25,14 +27,24 @@ public class ResumeController {
             Authentication authentication
     ) {
         String userEmail = authentication.getName();
-        ResumeResponseDto response = resumeService.uploadResume(file, userEmail);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        ResumeResponseDto response =
+                resumeService.uploadResume(file, userEmail);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     @GetMapping
-    public ResponseEntity<List<ResumeResponseDto>> getUserResumes(Authentication authentication) {
+    public ResponseEntity<List<ResumeResponseDto>> getUserResumes(
+            Authentication authentication
+    ) {
         String userEmail = authentication.getName();
-        List<ResumeResponseDto> resumes = resumeService.getUserResumes(userEmail);
+
+        List<ResumeResponseDto> resumes =
+                resumeService.getUserResumes(userEmail);
+
         return ResponseEntity.ok(resumes);
     }
 
@@ -42,7 +54,10 @@ public class ResumeController {
             Authentication authentication
     ) {
         String userEmail = authentication.getName();
-        ResumeResponseDto resume = resumeService.getResumeById(id, userEmail);
+
+        ResumeResponseDto resume =
+                resumeService.getResumeById(id, userEmail);
+
         return ResponseEntity.ok(resume);
     }
 
@@ -52,7 +67,10 @@ public class ResumeController {
             Authentication authentication
     ) {
         String userEmail = authentication.getName();
+
         resumeService.deleteResume(id, userEmail);
+
         return ResponseEntity.noContent().build();
     }
 }
+

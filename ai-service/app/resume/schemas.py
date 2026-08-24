@@ -3,9 +3,16 @@ from pydantic import BaseModel, Field
 
 
 class ResumeAnalysisRequest(BaseModel):
-    resume_id: int = Field(..., description="Resume ID from Spring Boot/PostgreSQL")
-    text: str = Field(..., min_length=20, description="Extracted resume text")
+    resume_id: int = Field(
+        ...,
+        description="Resume ID from Spring Boot/PostgreSQL"
+    )
 
+    text: str = Field(
+        ...,
+        min_length=20,
+        description="Extracted resume text"
+    )
 
 class ExperienceItem(BaseModel):
     company: str = ""

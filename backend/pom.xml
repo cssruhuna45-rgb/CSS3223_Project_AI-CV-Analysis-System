@@ -98,12 +98,25 @@
             <scope>test</scope>
         </dependency>
 
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    <version>2.3.0</version>
+</dependency>
+
 
 
         <dependency>
     <groupId>org.apache.pdfbox</groupId>
     <artifactId>pdfbox</artifactId>
     <version>3.0.3</version>
+</dependency>
+
+<!-- Tesseract OCR -->
+<dependency>
+    <groupId>net.sourceforge.tess4j</groupId>
+    <artifactId>tess4j</artifactId>
+    <version>5.13.0</version>
 </dependency>
     </dependencies>
 
