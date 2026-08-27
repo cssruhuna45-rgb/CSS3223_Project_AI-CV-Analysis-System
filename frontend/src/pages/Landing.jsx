@@ -14,6 +14,7 @@ const FEATURES = [
 export default function Landing({ user }) {
   const navigate = useNavigate();
   const startPath = user ? (user.role === 'recruiter' ? '/dashboard' : '/upload') : '/register';
+
   return (
     <div>
       {/* Hero */}
@@ -58,15 +59,41 @@ export default function Landing({ user }) {
           <h2 style={{ fontSize: 32, fontWeight: 700, marginBottom: 10 }}>Everything you need</h2>
           <p style={{ color: '#F5EFE7', fontSize: 15 }}>A complete AI interview ecosystem for candidates and recruiters</p>
         </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
           {FEATURES.map(f => (
-            <div key={f.title} className="card" style={{ transition: 'transform 0.2s, border-color 0.2s', cursor: 'default', background: '#000000' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = f.color + '60'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = '#3E5879'; }}>
+            <div
+              key={f.title}
+              className="card"
+              style={{
+                transition: 'transform 0.2s, border-color 0.2s',
+                cursor: (f.title === 'CV Analysis' || f.title === 'AI-Powered Questions') ? 'pointer' : 'default',
+                background: '#000000'
+              }}
+              onClick={() => {
+                if (f.title === 'CV Analysis') {
+                  navigate('/upload');
+                }
+
+                if (f.title === 'AI-Powered Questions') {
+                  navigate('/interview');
+                }
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.borderColor = f.color + '60';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = '#3E5879';
+              }}
+            >
               <div style={{ width: 48, height: 48, borderRadius: 12, background: `${f.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: f.color, marginBottom: 16 }}>
                 {f.icon}
               </div>
+
               <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{f.title}</h3>
+
               <p style={{ fontSize: 13, color: '#F5EFE7', lineHeight: 1.6 }}>{f.desc}</p>
             </div>
           ))}

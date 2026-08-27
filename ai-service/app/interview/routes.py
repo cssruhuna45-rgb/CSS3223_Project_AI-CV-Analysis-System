@@ -1,26 +1,22 @@
 from fastapi import APIRouter, HTTPException
 
+from app.interview.question_generator import generate_next_question
 from app.interview.schemas import (
-    InterviewQuestionRequest,
-    InterviewQuestionResponse,
-    InterviewStartRequest,
-    InterviewStartResponse,
     InterviewAnswerRequest,
     InterviewAnswerResponse,
     InterviewFinishRequest,
     InterviewFinishResponse,
+    InterviewQuestionRequest,
+    InterviewStartRequest,
+    InterviewStartResponse,
 )
-
 from app.interview.session_manager import (
-    create_session,
-    get_session,
-    add_question,
     add_answer,
+    add_question,
+    create_session,
     finish_session,
+    get_session,
 )
-
-from app.interview.question_generator import generate_next_question
-
 
 router = APIRouter(
     prefix="/api/v1/interview",
@@ -31,6 +27,7 @@ router = APIRouter(
 # =========================================================
 # START INTERVIEW
 # =========================================================
+
 
 @router.post(
     "/start",
@@ -54,9 +51,7 @@ def start_interview(
         question_number=1,
     )
 
-    question = generate_next_question(
-        question_request
-    )
+    question = generate_next_question(question_request)
 
     add_question(
         session.session_id,
@@ -72,6 +67,7 @@ def start_interview(
 # =========================================================
 # GET INTERVIEW SESSION
 # =========================================================
+
 
 @router.get(
     "/{session_id}",
@@ -94,6 +90,7 @@ def get_interview(
 # =========================================================
 # SUBMIT ANSWER + GENERATE NEXT QUESTION
 # =========================================================
+
 
 @router.post(
     "/{session_id}/answer",
@@ -143,9 +140,7 @@ def submit_answer(
         question_number=session.current_question_number,
     )
 
-    next_question = generate_next_question(
-        question_request
-    )
+    next_question = generate_next_question(question_request)
 
     # Save generated question
     add_question(
@@ -162,6 +157,7 @@ def submit_answer(
 # =========================================================
 # FINISH INTERVIEW
 # =========================================================
+
 
 @router.post(
     "/{session_id}/finish",
@@ -186,14 +182,10 @@ def finish_interview(
             detail="Interview session not found.",
         )
 
-    finished_session = finish_session(
-        session_id
-    )
+    finished_session = finish_session(session_id)
 
     return InterviewFinishResponse(
         session_id=session_id,
         status=finished_session.status,
-        total_questions=len(
-            finished_session.questions
-        ),
+        total_questions=len(finished_session.questions),
     )

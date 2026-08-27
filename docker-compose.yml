@@ -1,6 +1,6 @@
-version: '3.8'
 
 services:
+
   # 1. PostgreSQL Database
   postgres-db:
     image: postgres:15-alpine
@@ -15,43 +15,49 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_interview_db"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # 2. Java Spring Boot Backend Service
+  # 2. Java Spring Boot Backend
   backend-service:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: interview_backend
     restart: always
     ports:
       - "8080:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/ai_interview_db
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgrespassword
-      - AI_SERVICE_URL=http://ai-service:8000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/ai_interview_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgrespassword
+      AI_SERVICE_URL: http://ai-service:8000
     depends_on:
       postgres-db:
         condition: service_healthy
 
-  # 3. Python FastAPI AI Service (LangChain + RAG + Gemini)
+  # 3. Python FastAPI AI Service
   ai-service:
-    build: ./ai-service
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
     container_name: interview_ai_service
     restart: always
     ports:
       - "8000:8000"
-    environment:
-      - GEMINI_API_KEY={[GEMINI_API_KEY]}
+    env_file:
+      - ./ai-service/.env.example
     depends_on:
       postgres-db:
         condition: service_healthy
 
   # 4. React Frontend
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: interview_frontend
     restart: always
     ports:
