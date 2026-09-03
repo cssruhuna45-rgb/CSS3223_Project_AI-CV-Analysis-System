@@ -33,3 +33,16 @@ faiss_index/
 
 # Uploaded user resumes
 backend/uploads/resumes/
+
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Java crash logs
+hs_err_pid*.log
+replay_pid*.log
+backend/hs_err_pid*.log
+backend/replay_pid*.log
+backend/startup-error.txt
