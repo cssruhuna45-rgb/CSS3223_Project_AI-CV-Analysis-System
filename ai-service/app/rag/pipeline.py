@@ -10,36 +10,39 @@ try:
     from langchain_core.prompts import PromptTemplate
     from langchain_core.runnables import RunnablePassthrough
     from langchain_core.output_parsers import StrOutputParser
+
 except ImportError:
+
     from langchain.prompts import PromptTemplate
     from langchain.schema.runnable import RunnablePassthrough
     from langchain.schema.output_parser import StrOutputParser
 
+
 from app.rag.document_loader import (
-    load_pdf_documents,
-    split_documents
+    load_all_documents,
+    split_documents,
 )
 
 from app.rag.vector_store import (
-    get_or_create_vector_store
+    get_or_create_vector_store,
 )
 
 from app.rag.retriever import (
     get_similarity_retriever,
-    retrieve_relevant_chunks
+    retrieve_relevant_chunks,
 )
 
 
-# =========================================================
+# ============================================================
 # Environment
-# =========================================================
+# ============================================================
 
 load_dotenv()
 
 
-# =========================================================
+# ============================================================
 # Configuration
-# =========================================================
+# ============================================================
 
 DEFAULT_LLM_MODEL = "gemini-flash-lite-latest"
 
@@ -52,9 +55,9 @@ DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
 
 
-# =========================================================
+# ============================================================
 # RAG Prompt
-# =========================================================
+# ============================================================
 
 PROMPT_TEMPLATE = """
 You are an objective AI Interview and Knowledge Assistant.
@@ -75,6 +78,8 @@ IMPORTANT RULES:
 5. Keep the answer concise but technically accurate.
 6. When explaining technical concepts, organize the answer
    clearly using short paragraphs or bullet points.
+7. Prefer information directly relevant to the question.
+8. Do not mention that you are an AI unless necessary.
 
 Context:
 {context}
@@ -86,18 +91,18 @@ Answer:
 """
 
 
-# =========================================================
+# ============================================================
 # Build RAG Chain
-# =========================================================
+# ============================================================
 
 def build_rag_chain(
     vector_store,
     model_name: str = DEFAULT_LLM_MODEL,
     temperature: float = DEFAULT_TEMPERATURE,
-    k: int = DEFAULT_TOP_K
+    k: int = DEFAULT_TOP_K,
 ):
     """
-    Builds the complete RAG chain.
+    Build the complete RAG chain.
 
     Architecture:
 
@@ -109,21 +114,31 @@ def build_rag_chain(
               ↓
        Relevant Chunks
               ↓
-          Prompt
+           Prompt
               ↓
          Gemini LLM
               ↓
-            Answer
+           Answer
     """
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    # --------------------------------------------------------
+    # Gemini API key
+    # --------------------------------------------------------
+
+    api_key = os.getenv(
+        "GEMINI_API_KEY"
+    )
 
     if not api_key:
+
         raise ValueError(
-            "GEMINI_API_KEY environment variable is not set."
+            "GEMINI_API_KEY environment variable "
+            "is not set."
         )
 
-    print("\n========== RAG CHAIN ==========")
+    print(
+        "\n========== RAG CHAIN =========="
+    )
 
     print(
         f"[RAG] LLM model: {model_name}"
@@ -137,178 +152,299 @@ def build_rag_chain(
         f"[RAG] Top K: {k}"
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Gemini LLM
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     llm = ChatGoogleGenerativeAI(
         model=model_name,
         google_api_key=api_key,
-        temperature=temperature
+        temperature=temperature,
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Prompt
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     prompt = PromptTemplate(
         template=PROMPT_TEMPLATE,
+
         input_variables=[
             "context",
-            "question"
-        ]
+            "question",
+        ],
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Retriever
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     retriever = get_similarity_retriever(
         vector_store,
-        k=k
+        k=k,
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Format retrieved documents
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     def format_docs(docs):
 
         if not docs:
+
             return (
                 "No relevant information was retrieved "
                 "from the knowledge base."
             )
 
-        return "\n\n---\n\n".join(
-            doc.page_content
-            for doc in docs
+        formatted = []
+
+        for index, doc in enumerate(
+            docs,
+            start=1,
+        ):
+
+            source = doc.metadata.get(
+                "source_file",
+                doc.metadata.get(
+                    "source",
+                    "unknown",
+                ),
+            )
+
+            job_field = doc.metadata.get(
+                "job_field",
+                "",
+            )
+
+            topic = doc.metadata.get(
+                "topic",
+                "",
+            )
+
+            difficulty = doc.metadata.get(
+                "difficulty",
+                "",
+            )
+
+            metadata_lines = []
+
+            if source:
+                metadata_lines.append(
+                    f"Source: {os.path.basename(str(source))}"
+                )
+
+            if job_field:
+                metadata_lines.append(
+                    f"Job Field: {job_field}"
+                )
+
+            if topic:
+                metadata_lines.append(
+                    f"Topic: {topic}"
+                )
+
+            if difficulty:
+                metadata_lines.append(
+                    f"Difficulty: {difficulty}"
+                )
+
+            metadata_text = "\n".join(
+                metadata_lines
+            )
+
+            formatted.append(
+                f"--- Retrieved Chunk #{index} ---\n"
+                f"{metadata_text}\n\n"
+                f"{doc.page_content}"
+            )
+
+        return "\n\n".join(
+            formatted
         )
 
-    # -----------------------------------------------------
-    # RAG Chain
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # RAG chain
+    # --------------------------------------------------------
 
     rag_chain = (
         {
             "context": retriever | format_docs,
-            "question": RunnablePassthrough()
+
+            "question": RunnablePassthrough(),
         }
+
         | prompt
+
         | llm
+
         | StrOutputParser()
     )
 
-    print("[RAG] RAG chain created successfully.")
-    print("================================\n")
+    print(
+        "[RAG] RAG chain created successfully."
+    )
+
+    print(
+        "================================\n"
+    )
 
     return rag_chain
 
 
-# =========================================================
+# ============================================================
 # Run RAG Query
-# =========================================================
+# ============================================================
 
 def run_rag_query(
     query: str,
     documents_dir: str = "documents",
-    force_rebuild: bool = False
+    force_rebuild: bool = False,
+    top_k: int = DEFAULT_TOP_K,
 ):
     """
-    Executes the complete RAG pipeline.
+    Execute the complete RAG pipeline.
 
     Steps:
 
-    1. Load PDF documents
-    2. Split documents into chunks
-    3. Create/load ChromaDB
-    4. Retrieve relevant chunks
-    5. Send context + question to Gemini
-    6. Return retrieved chunks and AI answer
+    1. Load Markdown and PDF documents.
+    2. Split documents into chunks.
+    3. Create/load ChromaDB.
+    4. Retrieve relevant chunks.
+    5. Send retrieved context to Gemini.
+    6. Return retrieved chunks and AI answer.
     """
 
+    # --------------------------------------------------------
+    # Validate query
+    # --------------------------------------------------------
+
     if not query or not query.strip():
+
         raise ValueError(
             "Query cannot be empty."
         )
 
-    print("\n" + "=" * 60)
-    print("[RAG PIPELINE] Starting RAG query")
-    print("=" * 60)
+    # --------------------------------------------------------
+    # Validate top_k
+    # --------------------------------------------------------
 
-    # -----------------------------------------------------
+    if top_k < 1:
+
+        top_k = DEFAULT_TOP_K
+
+    if top_k > 10:
+
+        top_k = 10
+
+    print(
+        "\n" + "=" * 70
+    )
+
+    print(
+        "[RAG PIPELINE] Starting RAG query"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    # --------------------------------------------------------
     # Project root
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     base_dir = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            ".."
+            "..",
         )
     )
 
     docs_path = os.path.join(
         base_dir,
-        documents_dir
+        documents_dir,
     )
 
     print(
         f"[RAG] Documents directory: {docs_path}"
     )
 
-    # -----------------------------------------------------
-    # Load PDFs
-    # -----------------------------------------------------
+    print(
+        f"[RAG] Top K: {top_k}"
+    )
 
-    raw_docs = load_pdf_documents(
+    print(
+        f"[RAG] Force rebuild: {force_rebuild}"
+    )
+
+    # --------------------------------------------------------
+    # Load Markdown + PDF
+    # --------------------------------------------------------
+
+    raw_docs = load_all_documents(
         docs_path
     )
 
     if not raw_docs:
 
         raise ValueError(
-            "No PDF documents were found in the "
-            f"documents directory: {docs_path}"
+            "No supported documents were found in "
+            f"the documents directory: {docs_path}. "
+            "Supported formats: .md, .markdown, .pdf"
         )
 
-    # -----------------------------------------------------
+    print(
+        f"[RAG] Loaded "
+        f"{len(raw_docs)} document(s)."
+    )
+
+    # --------------------------------------------------------
     # Split documents
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     chunks = split_documents(
         raw_docs,
+
         chunk_size=DEFAULT_CHUNK_SIZE,
-        chunk_overlap=DEFAULT_CHUNK_OVERLAP
+
+        chunk_overlap=DEFAULT_CHUNK_OVERLAP,
     )
 
     if not chunks:
 
         raise ValueError(
-            "PDF documents were loaded, but no chunks "
+            "Documents were loaded, but no chunks "
             "were generated."
         )
 
-    # -----------------------------------------------------
-    # Create / Load ChromaDB
-    # -----------------------------------------------------
-
-    vector_store = get_or_create_vector_store(
-        documents=chunks,
-        force_rebuild=force_rebuild
+    print(
+        f"[RAG] Created "
+        f"{len(chunks)} chunks."
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # Create / Load ChromaDB
+    # --------------------------------------------------------
+
+    vector_store = get_or_create_vector_store(
+
+        documents=chunks,
+
+        force_rebuild=force_rebuild,
+    )
+
+    # --------------------------------------------------------
     # Explicit retrieval
-    #
-    # This is useful for debugging and displaying
-    # retrieved knowledge in logs/API responses.
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     retrieved_chunks = retrieve_relevant_chunks(
+
         vector_store,
+
         query,
-        k=DEFAULT_TOP_K
+
+        k=top_k,
     )
 
     print(
@@ -316,24 +452,28 @@ def run_rag_query(
         f"{len(retrieved_chunks)} chunk(s)."
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Build chain
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     chain = build_rag_chain(
+
         vector_store,
+
         model_name=DEFAULT_LLM_MODEL,
+
         temperature=DEFAULT_TEMPERATURE,
-        k=DEFAULT_TOP_K
+
+        k=top_k,
     )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Generate answer
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     print(
-        "[RAG] Sending question and retrieved context "
-        "to Gemini..."
+        "[RAG] Sending question and retrieved "
+        "context to Gemini..."
     )
 
     ai_answer = chain.invoke(
@@ -344,25 +484,39 @@ def run_rag_query(
         "[RAG] Gemini response received."
     )
 
-    print("=" * 60)
+    print(
+        "=" * 70
+    )
 
     return retrieved_chunks, ai_answer
 
 
-# =========================================================
+# ============================================================
 # CLI Test
-# =========================================================
+# ============================================================
 
 def main_cli():
 
-    print("=" * 60)
-    print("🤖 AI Interview Platform — RAG Pipeline CLI Test")
-    print("=" * 60)
+    print(
+        "=" * 70
+    )
+
+    print(
+        "AI Interview Platform — RAG Pipeline CLI Test"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    # --------------------------------------------------------
+    # Gemini key
+    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
         print(
-            "❌ ERROR: GEMINI_API_KEY environment variable "
+            "ERROR: GEMINI_API_KEY environment variable "
             "is missing."
         )
 
@@ -371,6 +525,10 @@ def main_cli():
         )
 
         sys.exit(1)
+
+    # --------------------------------------------------------
+    # Query
+    # --------------------------------------------------------
 
     query = input(
         "\nEnter your question: "
@@ -384,6 +542,34 @@ def main_cli():
 
         return
 
+    # --------------------------------------------------------
+    # Top K
+    # --------------------------------------------------------
+
+    top_k_input = input(
+        "Top K [default=5]: "
+    ).strip()
+
+    if top_k_input:
+
+        try:
+
+            top_k = int(
+                top_k_input
+            )
+
+        except ValueError:
+
+            top_k = DEFAULT_TOP_K
+
+    else:
+
+        top_k = DEFAULT_TOP_K
+
+    # --------------------------------------------------------
+    # Execute
+    # --------------------------------------------------------
+
     print(
         "\nProcessing RAG pipeline..."
     )
@@ -391,29 +577,38 @@ def main_cli():
     try:
 
         chunks, ai_answer = run_rag_query(
-            query
+
+            query=query,
+
+            top_k=top_k,
+
+            force_rebuild=False,
         )
 
     except Exception as e:
 
         print(
-            f"\n❌ RAG pipeline failed: {e}"
+            f"\nRAG pipeline failed: {e}"
         )
 
         sys.exit(1)
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # Retrieved Context
-    # -----------------------------------------------------
-
-    print("\n" + "=" * 60)
+    # --------------------------------------------------------
 
     print(
-        f"📌 Retrieved Context "
-        f"(Top {len(chunks)} Chunks):"
+        "\n" + "=" * 70
     )
 
-    print("=" * 60)
+    print(
+        f"Retrieved Context "
+        f"(Top {len(chunks)} Chunks)"
+    )
+
+    print(
+        "=" * 70
+    )
 
     if not chunks:
 
@@ -425,50 +620,108 @@ def main_cli():
 
         for idx, doc in enumerate(
             chunks,
-            1
+            1,
         ):
 
             source = doc.metadata.get(
-                "source",
-                "Unknown"
+                "source_file",
+                doc.metadata.get(
+                    "source",
+                    "Unknown",
+                ),
             )
 
             page = doc.metadata.get(
-                "page",
-                "N/A"
+                "page_number",
+                doc.metadata.get(
+                    "page",
+                    "N/A",
+                ),
+            )
+
+            job_field = doc.metadata.get(
+                "job_field",
+                "N/A",
+            )
+
+            topic = doc.metadata.get(
+                "topic",
+                "N/A",
+            )
+
+            difficulty = doc.metadata.get(
+                "difficulty",
+                "N/A",
             )
 
             print(
-                f"\n--- Chunk #{idx} "
-                f"[Source: {os.path.basename(source)}, "
-                f"Page: {page}] ---"
+                f"\n--- Chunk #{idx} ---"
+            )
+
+            print(
+                f"Source     : "
+                f"{os.path.basename(str(source))}"
+            )
+
+            print(
+                f"Page       : {page}"
+            )
+
+            print(
+                f"Job Field  : {job_field}"
+            )
+
+            print(
+                f"Topic      : {topic}"
+            )
+
+            print(
+                f"Difficulty : {difficulty}"
+            )
+
+            print(
+                "-" * 50
             )
 
             preview = doc.page_content[:500]
 
             if len(doc.page_content) > 500:
+
                 preview += "..."
 
-            print(preview)
+            print(
+                preview
+            )
 
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # AI Answer
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
-    print("\n" + "=" * 60)
+    print(
+        "\n" + "=" * 70
+    )
 
-    print("💡 AI Answer:")
+    print(
+        "AI Answer:"
+    )
 
-    print("=" * 60)
+    print(
+        "=" * 70
+    )
 
-    print(ai_answer)
+    print(
+        ai_answer
+    )
 
-    print("=" * 60)
+    print(
+        "=" * 70
+    )
 
 
-# =========================================================
+# ============================================================
 # Entry Point
-# =========================================================
+# ============================================================
 
 if __name__ == "__main__":
+
     main_cli()

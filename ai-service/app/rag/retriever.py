@@ -1,6 +1,6 @@
 # app/rag/retriever.py
 
-from typing import List, Tuple
+from typing import List
 
 try:
     from langchain_chroma import Chroma
@@ -18,7 +18,6 @@ except ImportError:
 # ---------------------------------------------------------
 
 DEFAULT_K = 5
-DEFAULT_SCORE_THRESHOLD = 0.60
 
 
 # ---------------------------------------------------------
@@ -56,28 +55,18 @@ def get_similarity_retriever(
 def retrieve_relevant_chunks(
     vector_store: Chroma,
     query: str,
-    k: int = DEFAULT_K,
-    score_threshold: float = DEFAULT_SCORE_THRESHOLD
+    k: int = DEFAULT_K
 ) -> List[Document]:
     """
-    Retrieve relevant document chunks using similarity search
-    with a relevance threshold.
+    Retrieve the top-k most similar document chunks.
 
-    Args:
-        vector_store:
-            Chroma vector store.
+    Chroma's similarity_search_with_score() returns a
+    distance score where lower values indicate greater
+    similarity.
 
-        query:
-            User/interview query.
-
-        k:
-            Maximum number of chunks to retrieve.
-
-        score_threshold:
-            Minimum relevance score.
-
-    Returns:
-        List of relevant Document chunks.
+    We intentionally do not apply a hard threshold here.
+    The top-k results are passed to the RAG pipeline, where
+    the LLM can use the retrieved context.
     """
 
     if not query or not query.strip():
@@ -87,16 +76,13 @@ def retrieve_relevant_chunks(
     print("\n========== RETRIEVAL ==========")
     print(f"[Retriever] Query: {query}")
     print(f"[Retriever] Top K: {k}")
-    print(f"[Retriever] Score threshold: {score_threshold}")
 
     try:
         # -------------------------------------------------
         # Similarity search with scores
         # -------------------------------------------------
 
-        results: List[
-            Tuple[Document, float]
-        ] = vector_store.similarity_search_with_score(
+        results = vector_store.similarity_search_with_score(
             query,
             k=k
         )
@@ -109,20 +95,16 @@ def retrieve_relevant_chunks(
         relevant_chunks: List[Document] = []
 
         # -------------------------------------------------
-        # Apply relevance threshold
+        # Keep top-k results
         # -------------------------------------------------
 
         for document, score in results:
 
             print(
-                f"[Retriever] Similarity score: {score:.4f}"
+                f"[Retriever] Distance score: {score:.4f}"
             )
 
-            # Chroma similarity distance:
-            # lower distance = more similar
-            if score <= score_threshold:
-
-                relevant_chunks.append(document)
+            relevant_chunks.append(document)
 
         print(
             f"[Retriever] Retrieved "

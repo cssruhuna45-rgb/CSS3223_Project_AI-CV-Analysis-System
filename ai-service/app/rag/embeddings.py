@@ -1,33 +1,50 @@
-import os
+# app/rag/embeddings.py
 
-from dotenv import load_dotenv
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from functools import lru_cache
 
-load_dotenv()
-
-
-EMBEDDING_MODEL = "gemini-embedding-2"
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
-def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
+# ============================================================
+# Configuration
+# ============================================================
+
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+# ============================================================
+# Get Embedding Model
+# ============================================================
+
+@lru_cache(maxsize=1)
+def get_embeddings_model() -> HuggingFaceEmbeddings:
     """
-    Initialize the Gemini embedding model used by the RAG pipeline.
+    Initialize the local HuggingFace embedding model.
+
+    The embedding model runs locally and does not consume
+    Gemini API embedding quota.
     """
-
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        raise ValueError(
-            "GEMINI_API_KEY environment variable is missing. "
-            "Please set GEMINI_API_KEY in your .env file."
-        )
 
     print(
-        f"[Embeddings] Initializing "
-        f"GoogleGenerativeAIEmbeddings ({EMBEDDING_MODEL})..."
+        "\n[Embeddings] Initializing local HuggingFace "
+        f"embedding model: {EMBEDDING_MODEL}"
     )
 
-    return GoogleGenerativeAIEmbeddings(
-        model=EMBEDDING_MODEL,
-        google_api_key=api_key,
+    embeddings = HuggingFaceEmbeddings(
+        model_name=EMBEDDING_MODEL,
+
+        model_kwargs={
+            "device": "cpu",
+        },
+
+        encode_kwargs={
+            "normalize_embeddings": True,
+        },
     )
+
+    print(
+        "[Embeddings] Local embedding model initialized "
+        "successfully."
+    )
+
+    return embeddings
