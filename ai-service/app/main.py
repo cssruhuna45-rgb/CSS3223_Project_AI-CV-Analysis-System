@@ -14,11 +14,15 @@ from pydantic import BaseModel, Field
 # ============================================================
 
 from app.rag.pipeline import run_rag_query
+
 from app.rag.document_loader import (
-    load_pdf_documents,
+    load_all_documents,
     split_documents,
 )
-from app.rag.vector_store import get_or_create_vector_store
+
+from app.rag.vector_store import (
+    get_or_create_vector_store,
+)
 
 
 # ============================================================
@@ -127,6 +131,7 @@ app.add_middleware(
 
 
 class RAGQueryRequest(BaseModel):
+
     question: str = Field(
         ...,
         description=(
@@ -151,37 +156,51 @@ class RAGQueryRequest(BaseModel):
     force_rebuild: Optional[bool] = Field(
         default=False,
         description=(
-            "Whether to re-parse PDFs and "
-            "rebuild the vector store."
+            "Whether to re-parse all supported documents "
+            "(Markdown/PDF) and rebuild the vector store."
         ),
     )
 
 
 class RetrievedChunkResponse(BaseModel):
+
     content: str
+
     source: str
+
     page: Optional[int] = None
 
 
 class RAGQueryResponse(BaseModel):
+
     question: str
+
     answer: str
+
     retrieved_chunks: List[
         RetrievedChunkResponse
     ]
+
     chunk_count: int
 
 
 class IndexStatusResponse(BaseModel):
+
     status: str
+
     message: str
+
     documents_found: int
+
     chunks_indexed: int
 
 
 class HealthCheckResponse(BaseModel):
+
     status: str
+
     service: str
+
     gemini_api_configured: bool
 
 
@@ -314,14 +333,20 @@ def query_rag_pipeline(
 
                 source=os.path.basename(
                     doc.metadata.get(
-                        "source",
-                        "unknown",
+                        "source_file",
+                        doc.metadata.get(
+                            "source",
+                            "unknown",
+                        ),
                     )
                 ),
 
                 page=doc.metadata.get(
-                    "page",
-                    None,
+                    "page_number",
+                    doc.metadata.get(
+                        "page",
+                        None,
+                    ),
                 ),
             )
 
@@ -334,9 +359,14 @@ def query_rag_pipeline(
 
         return RAGQueryResponse(
             question=req.question,
+
             answer=ai_answer,
+
             retrieved_chunks=formatted_chunks,
-            chunk_count=len(formatted_chunks),
+
+            chunk_count=len(
+                formatted_chunks
+            ),
         )
 
     except Exception as e:
@@ -367,9 +397,20 @@ def query_rag_pipeline(
 )
 def reindex_knowledge_base():
     """
-    Re-scan all PDF files inside documents/,
-    extract text, split into chunks, and rebuild
-    the persistent Chroma Vector Store.
+    Re-scan all supported documents inside documents/,
+    including Markdown and PDF files.
+
+    Then:
+
+        Documents
+             ↓
+        Clean text
+             ↓
+        Split into chunks
+             ↓
+        Generate embeddings
+             ↓
+        Rebuild Chroma Vector Store
     """
 
     try:
@@ -391,24 +432,71 @@ def reindex_knowledge_base():
         )
 
         print(
+            "\n" + "=" * 70
+        )
+
+        print(
+            "[RAG Index] Starting knowledge base indexing"
+        )
+
+        print(
+            "=" * 70
+        )
+
+        print(
             f"[RAG Index] Documents path: {docs_path}"
         )
 
         # ----------------------------------------------------
-        # Load PDFs
+        # Check Documents Directory
         # ----------------------------------------------------
 
-        raw_docs = load_pdf_documents(
+        if not os.path.exists(docs_path):
+
+            os.makedirs(
+                docs_path,
+                exist_ok=True,
+            )
+
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_404_NOT_FOUND
+                ),
+                detail=(
+                    f"Documents directory does not exist. "
+                    f"Created directory at: {docs_path}. "
+                    "Please add Markdown or PDF documents."
+                ),
+            )
+
+        # ----------------------------------------------------
+        # Load Markdown + PDF
+        # ----------------------------------------------------
+
+        raw_docs = load_all_documents(
             docs_path
         )
 
         print(
             f"[RAG Index] Loaded "
-            f"{len(raw_docs)} document pages."
+            f"{len(raw_docs)} document(s)."
         )
 
+        if not raw_docs:
+
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+                detail=(
+                    "No supported documents found. "
+                    "Please add .md, .markdown, or .pdf "
+                    "files to the documents directory."
+                ),
+            )
+
         # ----------------------------------------------------
-        # Split Documents
+        # Clean + Split Documents
         # ----------------------------------------------------
 
         chunks = split_documents(
@@ -422,13 +510,45 @@ def reindex_knowledge_base():
             f"{len(chunks)} chunks."
         )
 
+        if not chunks:
+
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+                detail=(
+                    "Documents were loaded but no "
+                    "usable chunks were created."
+                ),
+            )
+
         # ----------------------------------------------------
         # Rebuild Vector Store
         # ----------------------------------------------------
 
+        print(
+            "[RAG Index] Rebuilding Chroma Vector Store..."
+        )
+
         get_or_create_vector_store(
             documents=chunks,
             force_rebuild=True,
+        )
+
+        print(
+            "[RAG Index] Chroma Vector Store rebuilt successfully."
+        )
+
+        print(
+            "=" * 70
+        )
+
+        print(
+            "[RAG Index] Indexing completed successfully."
+        )
+
+        print(
+            "=" * 70 + "\n"
         )
 
         # ----------------------------------------------------
@@ -437,13 +557,20 @@ def reindex_knowledge_base():
 
         return IndexStatusResponse(
             status="success",
+
             message=(
-                "Successfully re-indexed PDF "
+                "Successfully re-indexed Markdown/PDF "
                 "knowledge base into Chroma Vector Store."
             ),
+
             documents_found=len(raw_docs),
+
             chunks_indexed=len(chunks),
         )
+
+    except HTTPException:
+
+        raise
 
     except Exception as e:
 
@@ -521,10 +648,6 @@ def analyze_resume_endpoint(
             "Analysis completed successfully."
         )
 
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
-
         return result
 
     except ValueError as e:
@@ -565,14 +688,6 @@ def generate_interview_question_endpoint(
 ):
     """
     Generate an adaptive interview question.
-
-    This endpoint supports both:
-
-    1. Existing session-based adaptive generation
-    2. Legacy standalone question generation
-
-    Adaptive state is taken from the session whenever
-    the session exists.
     """
 
     # --------------------------------------------------------
@@ -660,6 +775,7 @@ def generate_interview_question_endpoint(
             )
 
             question = generate_next_question(
+
                 session_id=session.session_id,
 
                 job_description=session.job_description,
@@ -710,6 +826,7 @@ def generate_interview_question_endpoint(
             )
 
             question = generate_next_question(
+
                 session_id=req.session_id,
 
                 job_description=req.job_description,
@@ -740,10 +857,11 @@ def generate_interview_question_endpoint(
             )
 
         # ----------------------------------------------------
-        # Return Response
+        # Return
         # ----------------------------------------------------
 
         return InterviewQuestionResponse(
+
             session_id=question["session_id"],
 
             question=question["question"],
@@ -798,20 +916,6 @@ def start_interview_endpoint(
 ):
     """
     Start a new adaptive interview session.
-
-    Flow:
-
-        Job Description
-              +
-        Candidate Resume
-              ↓
-        Create Session
-              ↓
-        Generate First Question
-              ↓
-        Save Question + Difficulty + Topic
-              ↓
-        Return Question
     """
 
     # --------------------------------------------------------
@@ -865,9 +969,17 @@ def start_interview_endpoint(
             ),
         )
 
-        print("\n" + "=" * 70)
-        print("[InterviewStart] NEW INTERVIEW SESSION")
-        print("=" * 70)
+        print(
+            "\n" + "=" * 70
+        )
+
+        print(
+            "[InterviewStart] NEW INTERVIEW SESSION"
+        )
+
+        print(
+            "=" * 70
+        )
 
         print(
             f"Session ID: {session.session_id}"
@@ -888,6 +1000,7 @@ def start_interview_endpoint(
         # ----------------------------------------------------
 
         question = generate_first_question(
+
             session_id=session.session_id,
 
             job_description=req.job_description,
@@ -916,6 +1029,7 @@ def start_interview_endpoint(
         # ----------------------------------------------------
 
         add_question(
+
             session.session_id,
 
             question["question"],
@@ -945,11 +1059,12 @@ def start_interview_endpoint(
         )
 
         # ----------------------------------------------------
-        # Convert Question Response
+        # Convert Response
         # ----------------------------------------------------
 
         question_response = (
             InterviewQuestionResponse(
+
                 session_id=session.session_id,
 
                 question=question["question"],
@@ -967,16 +1082,23 @@ def start_interview_endpoint(
         )
 
         # ----------------------------------------------------
-        # Final Response
+        # Return
         # ----------------------------------------------------
 
-        print("=" * 70)
+        print(
+            "=" * 70
+        )
+
         print(
             "[InterviewStart] Session ready."
         )
-        print("=" * 70 + "\n")
+
+        print(
+            "=" * 70 + "\n"
+        )
 
         return InterviewStartResponse(
+
             session_id=session.session_id,
 
             question=question_response,
@@ -1018,24 +1140,6 @@ def answer_interview_endpoint(
     """
     Submit candidate answer and generate the next
     adaptive interview question.
-
-    Adaptive logic:
-
-        Weak answer
-             ↓
-        Easier question
-
-        Partial answer
-             ↓
-        Same difficulty
-
-        Strong answer
-             ↓
-        Harder question
-
-        Weak answers >= threshold
-             ↓
-        Rotate topic
     """
 
     # --------------------------------------------------------
@@ -1075,17 +1179,11 @@ def answer_interview_endpoint(
             req.session_id
         )
 
-        # ----------------------------------------------------
-        # Validate Session
-        # ----------------------------------------------------
-
         if session is None:
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "Interview session not found."
-                ),
+                detail="Interview session not found.",
             )
 
         # ----------------------------------------------------
@@ -1113,43 +1211,38 @@ def answer_interview_endpoint(
             session.current_topic
         )
 
-        previous_topic_key = (
+        previous_topic_key = getattr(
+            session,
+            "current_topic_key",
+            "",
+        )
+
+        previous_topic_history = list(
             getattr(
                 session,
-                "current_topic_key",
-                "",
+                "topic_history",
+                [],
             )
         )
-
-        previous_topic_history = (
-            list(
-                getattr(
-                    session,
-                    "topic_history",
-                    [],
-                )
-            )
-        )
-
-        # ----------------------------------------------------
-        # Current question number
-        # ----------------------------------------------------
 
         current_question_number = (
             session.current_question_number
         )
 
-        # ----------------------------------------------------
-        # Print Current State
-        # ----------------------------------------------------
-
-        print("\n" + "=" * 70)
-        print("[InterviewAnswer] ANSWER SUBMISSION")
-        print("=" * 70)
+        print(
+            "\n" + "=" * 70
+        )
 
         print(
-            f"Session ID: "
-            f"{session.session_id}"
+            "[InterviewAnswer] ANSWER SUBMISSION"
+        )
+
+        print(
+            "=" * 70
+        )
+
+        print(
+            f"Session ID: {session.session_id}"
         )
 
         print(
@@ -1222,9 +1315,7 @@ def answer_interview_endpoint(
 
         add_answer(
             req.session_id,
-
             req.answer,
-
             answer_quality=answer_quality,
         )
 
@@ -1237,19 +1328,25 @@ def answer_interview_endpoint(
         # PREVIOUS QUESTIONS
         # ====================================================
 
-        previous_questions = (
-            list(session.questions)
+        previous_questions = list(
+            session.questions
         )
 
         # ====================================================
         # GENERATE NEXT QUESTION
         # ====================================================
 
-        print("\n" + "-" * 70)
+        print(
+            "\n" + "-" * 70
+        )
+
         print(
             "[InterviewAnswer] GENERATING NEXT QUESTION"
         )
-        print("-" * 70)
+
+        print(
+            "-" * 70
+        )
 
         print(
             f"Difficulty passed to generator: "
@@ -1272,6 +1369,7 @@ def answer_interview_endpoint(
         )
 
         question = generate_next_question(
+
             session_id=session.session_id,
 
             job_description=session.job_description,
@@ -1289,10 +1387,6 @@ def answer_interview_endpoint(
             question_number=(
                 session.current_question_number
             ),
-
-            # =================================================
-            # IMPORTANT ADAPTIVE STATE
-            # =================================================
 
             difficulty=previous_difficulty,
 
@@ -1351,6 +1445,7 @@ def answer_interview_endpoint(
         # ====================================================
 
         add_question(
+
             session.session_id,
 
             question["question"],
@@ -1414,11 +1509,12 @@ def answer_interview_endpoint(
         )
 
         # ====================================================
-        # CONVERT RESPONSE
+        # RESPONSE
         # ====================================================
 
         question_response = (
             InterviewQuestionResponse(
+
                 session_id=session.session_id,
 
                 question=question["question"],
@@ -1439,11 +1535,17 @@ def answer_interview_endpoint(
         # FINAL LOG
         # ====================================================
 
-        print("\n" + "=" * 70)
+        print(
+            "\n" + "=" * 70
+        )
+
         print(
             "[InterviewAnswer] NEXT QUESTION READY"
         )
-        print("=" * 70)
+
+        print(
+            "=" * 70
+        )
 
         print(
             f"Question number: "
@@ -1475,13 +1577,12 @@ def answer_interview_endpoint(
             f"{topic_changed}"
         )
 
-        print("=" * 70 + "\n")
-
-        # ====================================================
-        # RETURN
-        # ====================================================
+        print(
+            "=" * 70 + "\n"
+        )
 
         return InterviewAnswerResponse(
+
             session_id=session.session_id,
 
             question=question_response,
@@ -1534,10 +1635,6 @@ def finish_interview_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Get Session
-        # ----------------------------------------------------
-
         session = get_session(
             req.session_id
         )
@@ -1546,18 +1643,13 @@ def finish_interview_endpoint(
 
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "Interview session not found."
-                ),
+                detail="Interview session not found.",
             )
-
-        # ----------------------------------------------------
-        # Already Completed
-        # ----------------------------------------------------
 
         if session.status == "completed":
 
             return InterviewFinishResponse(
+
                 session_id=session.session_id,
 
                 status=session.status,
@@ -1566,10 +1658,6 @@ def finish_interview_endpoint(
                     session.questions
                 ),
             )
-
-        # ----------------------------------------------------
-        # Finish Session
-        # ----------------------------------------------------
 
         finished_session = finish_session(
             req.session_id
@@ -1581,11 +1669,8 @@ def finish_interview_endpoint(
             f"{req.session_id}"
         )
 
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
-
         return InterviewFinishResponse(
+
             session_id=(
                 finished_session.session_id
             ),
@@ -1639,8 +1724,8 @@ def analyze_skill_gap_endpoint(
     req: SkillGapRequest,
 ):
     """
-    Analyze the candidate's skill gap for a predefined
-    job field from the skill catalog.
+    Analyze candidate skill gap for a predefined
+    job field.
     """
 
     # --------------------------------------------------------
@@ -1695,10 +1780,6 @@ def analyze_skill_gap_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Analyze Skill Gap
-        # ----------------------------------------------------
-
         result = analyze_skill_gap(
             req
         )
@@ -1708,10 +1789,6 @@ def analyze_skill_gap_endpoint(
             "Skill gap analysis completed for "
             f"job field: {req.job_field}"
         )
-
-        # ----------------------------------------------------
-        # Return Result
-        # ----------------------------------------------------
 
         return result
 
