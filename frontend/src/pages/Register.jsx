@@ -18,7 +18,9 @@ export default function Register({ onLogin }) {
       const data = await authAPI.register(form.name, form.email, form.password, form.role);
       // Spring Boot returns { token, user }
       localStorage.setItem('token', data.token);
-      onLogin({ name: form.name, email: form.email, role: form.role });
+      const userData = { name: form.name, email: form.email, role: form.role };
+      localStorage.setItem('user', JSON.stringify(userData));
+      onLogin(userData);
       navigate(form.role === 'recruiter' ? '/dashboard' : '/upload');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');

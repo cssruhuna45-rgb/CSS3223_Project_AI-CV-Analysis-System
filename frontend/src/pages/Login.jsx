@@ -18,7 +18,9 @@ export default function Login({ onLogin }) {
       const data = await authAPI.login(form.email, form.password);
       // Spring Boot returns { token, user: { name, email, role } }
       localStorage.setItem('token', data.token);
-      onLogin({ name: data.user?.name || form.email.split('@')[0], email: form.email, role: form.role });
+      const userData = { name: data.user?.name || form.email.split('@')[0], email: form.email, role: form.role };
+      localStorage.setItem('user', JSON.stringify(userData));
+      onLogin(userData);
       navigate(form.role === 'recruiter' ? '/dashboard' : '/upload');
     } catch (err) {
       setError(err.message || 'Invalid email or password.');

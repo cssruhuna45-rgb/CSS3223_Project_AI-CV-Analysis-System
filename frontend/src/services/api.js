@@ -60,11 +60,14 @@ export const resumeAPI = {
 
 // ── AI Resume Analysis  →  FastAPI /api/v1/resume/analyze ──────────────────
 export const aiResumeAPI = {
-  analyze: (resumeId, text) =>
+  analyze: (resumeId, resumeText) =>
     fetch(`${FASTAPI}/api/v1/resume/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resume_id: resumeId, text }),
+      body: JSON.stringify({
+        resume_id: Number(resumeId) || 1,
+        resume_text: typeof resumeText === 'string' ? resumeText : (resumeText?.text || ''),
+      }),
     }).then(handleResponse),
 };
 
@@ -97,15 +100,40 @@ export const interviewAPI = {
 
 // ── Skill Gap Analysis  →  FastAPI /api/v1/skill-gap/analyze ─────────────
 export const skillGapAPI = {
-  analyze: (jobDescription, candidateResume) =>
-    fetch(`${FASTAPI}/api/v1/skill-gap/analyze`, {
+  analyze: (resumeIdOrJobField, jobFieldOrResumeText, candidateResumeText) => {
+    let payload;
+    if (typeof resumeIdOrJobField === 'object' && resumeIdOrJobField !== null) {
+      payload = {
+        resume_id: Number(resumeIdOrJobField.resume_id || resumeIdOrJobField.resumeId || 1),
+        job_field: resumeIdOrJobField.job_field || resumeIdOrJobField.jobField || 'software_engineering',
+        candidate_resume: resumeIdOrJobField.candidate_resume || resumeIdOrJobField.candidateResume || resumeIdOrJobField.resume_text || '',
+      };
+    } else if (candidateResumeText !== undefined) {
+      // Called with (resumeId, jobField, candidateResume)
+      payload = {
+        resume_id: Number(resumeIdOrJobField) || 1,
+        job_field: String(jobFieldOrResumeText),
+        candidate_resume: String(candidateResumeText),
+      };
+    } else {
+      // Called with (jobField, candidateResume)
+      payload = {
+        resume_id: Number(sessionStorage.getItem('resumeId')) || 1,
+        job_field: String(resumeIdOrJobField),
+        candidate_resume: String(jobFieldOrResumeText),
+      };
+    }
+
+    return fetch(`${FASTAPI}/api/v1/skill-gap/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_description: jobDescription, candidate_resume: candidateResume }),
-    }).then(handleResponse),
+      body: JSON.stringify(payload),
+    }).then(handleResponse);
+  },
 };
 
 // ── Health Check  →  FastAPI /health ───────────────────────────────────────
 export const healthAPI = {
   check: () => fetch(`${FASTAPI}/health`).then(handleResponse),
 };
+
