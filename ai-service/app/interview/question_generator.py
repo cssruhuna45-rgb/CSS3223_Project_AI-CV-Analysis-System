@@ -2062,6 +2062,12 @@ def generate_question(
 
     last_error = None
 
+    # Best question that passed every deterministic check but which the
+    # LLM reviewer disliked. Used only if no attempt fully succeeds: a
+    # slightly repetitive question beats ending the candidate's
+    # interview with a 500.
+    fallback_result = None
+
     for attempt in range(
         MAX_GENERATION_RETRIES + 1
     ):
@@ -2256,6 +2262,12 @@ def generate_question(
                     "Generated question rejected."
                 )
 
+                # It already cleared basic validation, which includes
+                # the duplicate check, so it is usable if nothing
+                # better turns up.
+                if fallback_result is None:
+                    fallback_result = result
+
                 continue
 
             # =================================================
@@ -2294,6 +2306,18 @@ def generate_question(
     # ========================================================
     # Failure
     # ========================================================
+
+    if fallback_result is not None:
+
+        print(
+            "[QuestionGenerator] "
+            "No attempt satisfied the LLM reviewer; using the best "
+            "question that passed the deterministic checks."
+        )
+
+        fallback_result["session_id"] = session_id
+
+        return fallback_result
 
     raise RuntimeError(
         "Failed to generate a valid "
