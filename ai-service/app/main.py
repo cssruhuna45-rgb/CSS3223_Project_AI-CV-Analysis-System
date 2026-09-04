@@ -205,7 +205,7 @@ class HealthCheckResponse(BaseModel):
 
 
 # ============================================================
-# General Endpoints
+# GENERAL ENDPOINTS
 # ============================================================
 
 
@@ -270,23 +270,7 @@ def query_rag_pipeline(
 ):
     """
     Query the RAG Pipeline.
-
-    Flow:
-
-        User Question
-              ↓
-        Chroma Similarity Search
-              ↓
-        Retrieved Documents
-              ↓
-        Gemini
-              ↓
-        Grounded Answer
     """
-
-    # --------------------------------------------------------
-    # Validate Question
-    # --------------------------------------------------------
 
     if not req.question.strip():
 
@@ -294,10 +278,6 @@ def query_rag_pipeline(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Question string cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -313,18 +293,10 @@ def query_rag_pipeline(
 
     try:
 
-        # ----------------------------------------------------
-        # Run RAG
-        # ----------------------------------------------------
-
         chunks, ai_answer = run_rag_query(
             query=req.question,
             force_rebuild=req.force_rebuild,
         )
-
-        # ----------------------------------------------------
-        # Format Retrieved Chunks
-        # ----------------------------------------------------
 
         formatted_chunks = [
 
@@ -353,20 +325,11 @@ def query_rag_pipeline(
             for doc in chunks
         ]
 
-        # ----------------------------------------------------
-        # Return Response
-        # ----------------------------------------------------
-
         return RAGQueryResponse(
             question=req.question,
-
             answer=ai_answer,
-
             retrieved_chunks=formatted_chunks,
-
-            chunk_count=len(
-                formatted_chunks
-            ),
+            chunk_count=len(formatted_chunks),
         )
 
     except Exception as e:
@@ -397,27 +360,10 @@ def query_rag_pipeline(
 )
 def reindex_knowledge_base():
     """
-    Re-scan all supported documents inside documents/,
-    including Markdown and PDF files.
-
-    Then:
-
-        Documents
-             ↓
-        Clean text
-             ↓
-        Split into chunks
-             ↓
-        Generate embeddings
-             ↓
-        Rebuild Chroma Vector Store
+    Re-scan all supported documents inside documents/.
     """
 
     try:
-
-        # ----------------------------------------------------
-        # Documents Directory
-        # ----------------------------------------------------
 
         base_dir = os.path.abspath(
             os.path.join(
@@ -447,10 +393,6 @@ def reindex_knowledge_base():
             f"[RAG Index] Documents path: {docs_path}"
         )
 
-        # ----------------------------------------------------
-        # Check Documents Directory
-        # ----------------------------------------------------
-
         if not os.path.exists(docs_path):
 
             os.makedirs(
@@ -468,10 +410,6 @@ def reindex_knowledge_base():
                     "Please add Markdown or PDF documents."
                 ),
             )
-
-        # ----------------------------------------------------
-        # Load Markdown + PDF
-        # ----------------------------------------------------
 
         raw_docs = load_all_documents(
             docs_path
@@ -495,10 +433,6 @@ def reindex_knowledge_base():
                 ),
             )
 
-        # ----------------------------------------------------
-        # Clean + Split Documents
-        # ----------------------------------------------------
-
         chunks = split_documents(
             raw_docs,
             chunk_size=1000,
@@ -521,10 +455,6 @@ def reindex_knowledge_base():
                     "usable chunks were created."
                 ),
             )
-
-        # ----------------------------------------------------
-        # Rebuild Vector Store
-        # ----------------------------------------------------
 
         print(
             "[RAG Index] Rebuilding Chroma Vector Store..."
@@ -550,10 +480,6 @@ def reindex_knowledge_base():
         print(
             "=" * 70 + "\n"
         )
-
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
 
         return IndexStatusResponse(
             status="success",
@@ -605,20 +531,12 @@ def analyze_resume_endpoint(
     Analyze a candidate resume.
     """
 
-    # --------------------------------------------------------
-    # Validate Resume
-    # --------------------------------------------------------
-
     if not req.resume_text.strip():
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Resume text cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -633,10 +551,6 @@ def analyze_resume_endpoint(
         )
 
     try:
-
-        # ----------------------------------------------------
-        # Analyze Resume
-        # ----------------------------------------------------
 
         result = analyze_resume(
             resume_id=req.resume_id,
@@ -690,10 +604,6 @@ def generate_interview_question_endpoint(
     Generate an adaptive interview question.
     """
 
-    # --------------------------------------------------------
-    # Validate Job Description
-    # --------------------------------------------------------
-
     if not req.job_description.strip():
 
         raise HTTPException(
@@ -711,10 +621,6 @@ def generate_interview_question_endpoint(
             ),
         )
 
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
-
     if not os.getenv("GEMINI_API_KEY"):
 
         raise HTTPException(
@@ -728,10 +634,6 @@ def generate_interview_question_endpoint(
         )
 
     try:
-
-        # ----------------------------------------------------
-        # Try to load existing session
-        # ----------------------------------------------------
 
         session = None
 
@@ -811,6 +713,27 @@ def generate_interview_question_endpoint(
                 weak_answer_streak=(
                     session.weak_answer_streak
                 ),
+
+                # Skill Gap context
+                job_field=(
+                    session.job_field
+                ),
+
+                matched_skills=(
+                    list(session.matched_skills)
+                ),
+
+                related_skills=(
+                    list(session.related_skills)
+                ),
+
+                missing_skills=(
+                    list(session.missing_skills)
+                ),
+
+                additional_skills=(
+                    list(session.additional_skills)
+                ),
             )
 
         # ----------------------------------------------------
@@ -854,11 +777,19 @@ def generate_interview_question_endpoint(
                 topic_history=[],
 
                 weak_answer_streak=0,
-            )
 
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
+                # Standalone request does not currently
+                # contain Skill Gap fields.
+                job_field="",
+
+                matched_skills=[],
+
+                related_skills=[],
+
+                missing_skills=[],
+
+                additional_skills=[],
+            )
 
         return InterviewQuestionResponse(
 
@@ -918,10 +849,6 @@ def start_interview_endpoint(
     Start a new adaptive interview session.
     """
 
-    # --------------------------------------------------------
-    # Validate Job Description
-    # --------------------------------------------------------
-
     if not req.job_description.strip():
 
         raise HTTPException(
@@ -939,10 +866,6 @@ def start_interview_endpoint(
             ),
         )
 
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
-
     if not os.getenv("GEMINI_API_KEY"):
 
         raise HTTPException(
@@ -957,15 +880,36 @@ def start_interview_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Create Session
-        # ----------------------------------------------------
+        # ====================================================
+        # CREATE SESSION WITH SKILL GAP CONTEXT
+        # ====================================================
 
         session = create_session(
+
             job_description=req.job_description,
 
             candidate_resume=(
                 req.candidate_resume or ""
+            ),
+
+            job_field=(
+                req.job_field or ""
+            ),
+
+            matched_skills=(
+                req.matched_skills
+            ),
+
+            related_skills=(
+                req.related_skills
+            ),
+
+            missing_skills=(
+                req.missing_skills
+            ),
+
+            additional_skills=(
+                req.additional_skills
             ),
         )
 
@@ -986,6 +930,30 @@ def start_interview_endpoint(
         )
 
         print(
+            f"Job Field: {session.job_field}"
+        )
+
+        print(
+            f"Matched Skills: "
+            f"{session.matched_skills}"
+        )
+
+        print(
+            f"Related Skills: "
+            f"{session.related_skills}"
+        )
+
+        print(
+            f"Missing Skills: "
+            f"{session.missing_skills}"
+        )
+
+        print(
+            f"Additional Skills: "
+            f"{session.additional_skills}"
+        )
+
+        print(
             f"Initial difficulty: "
             f"{session.current_difficulty}"
         )
@@ -995,9 +963,9 @@ def start_interview_endpoint(
             f"{session.current_topic}"
         )
 
-        # ----------------------------------------------------
-        # Generate First Question
-        # ----------------------------------------------------
+        # ====================================================
+        # GENERATE FIRST QUESTION
+        # ====================================================
 
         question = generate_first_question(
 
@@ -1007,6 +975,26 @@ def start_interview_endpoint(
 
             candidate_resume=(
                 req.candidate_resume or ""
+            ),
+
+            job_field=(
+                req.job_field or ""
+            ),
+
+            matched_skills=(
+                req.matched_skills
+            ),
+
+            related_skills=(
+                req.related_skills
+            ),
+
+            missing_skills=(
+                req.missing_skills
+            ),
+
+            additional_skills=(
+                req.additional_skills
             ),
         )
 
@@ -1024,9 +1012,9 @@ def start_interview_endpoint(
             f"{question.get('category')}"
         )
 
-        # ----------------------------------------------------
-        # Save First Question
-        # ----------------------------------------------------
+        # ====================================================
+        # SAVE FIRST QUESTION
+        # ====================================================
 
         add_question(
 
@@ -1050,17 +1038,17 @@ def start_interview_endpoint(
             ),
         )
 
-        # ----------------------------------------------------
-        # Reload Session
-        # ----------------------------------------------------
+        # ====================================================
+        # RELOAD SESSION
+        # ====================================================
 
         session = get_session(
             session.session_id
         )
 
-        # ----------------------------------------------------
-        # Convert Response
-        # ----------------------------------------------------
+        # ====================================================
+        # RESPONSE
+        # ====================================================
 
         question_response = (
             InterviewQuestionResponse(
@@ -1080,10 +1068,6 @@ def start_interview_endpoint(
                 reason=question["reason"],
             )
         )
-
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
 
         print(
             "=" * 70
@@ -1142,20 +1126,12 @@ def answer_interview_endpoint(
     adaptive interview question.
     """
 
-    # --------------------------------------------------------
-    # Validate Answer
-    # --------------------------------------------------------
-
     if not req.answer.strip():
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Answer cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -1171,24 +1147,13 @@ def answer_interview_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Get Session
-        # ----------------------------------------------------
+        # ====================================================
+        # GET SESSION
+        # ====================================================
 
         session = get_session(
             req.session_id
         )
-
-        if session is None:
-
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Interview session not found.",
-            )
-
-        # ----------------------------------------------------
-        # Check Active Status
-        # ----------------------------------------------------
 
         if session.status != "active":
 
@@ -1266,6 +1231,31 @@ def answer_interview_endpoint(
         )
 
         print(
+            f"Job Field: "
+            f"{session.job_field}"
+        )
+
+        print(
+            f"Matched Skills: "
+            f"{session.matched_skills}"
+        )
+
+        print(
+            f"Related Skills: "
+            f"{session.related_skills}"
+        )
+
+        print(
+            f"Missing Skills: "
+            f"{session.missing_skills}"
+        )
+
+        print(
+            f"Additional Skills: "
+            f"{session.additional_skills}"
+        )
+
+        print(
             f"Weak streak BEFORE: "
             f"{session.weak_answer_streak}"
         )
@@ -1314,8 +1304,11 @@ def answer_interview_endpoint(
         # ====================================================
 
         add_answer(
+
             req.session_id,
+
             req.answer,
+
             answer_quality=answer_quality,
         )
 
@@ -1368,6 +1361,35 @@ def answer_interview_endpoint(
             f"{session.weak_answer_streak}"
         )
 
+        # ----------------------------------------------------
+        # Skill Gap context passed to generator
+        # ----------------------------------------------------
+
+        print(
+            f"Job field passed to generator: "
+            f"{session.job_field}"
+        )
+
+        print(
+            f"Matched skills passed to generator: "
+            f"{session.matched_skills}"
+        )
+
+        print(
+            f"Related skills passed to generator: "
+            f"{session.related_skills}"
+        )
+
+        print(
+            f"Missing skills passed to generator: "
+            f"{session.missing_skills}"
+        )
+
+        print(
+            f"Additional skills passed to generator: "
+            f"{session.additional_skills}"
+        )
+
         question = generate_next_question(
 
             session_id=session.session_id,
@@ -1398,6 +1420,30 @@ def answer_interview_endpoint(
 
             weak_answer_streak=(
                 session.weak_answer_streak
+            ),
+
+            # =================================================
+            # SKILL GAP CONTEXT
+            # =================================================
+
+            job_field=(
+                session.job_field
+            ),
+
+            matched_skills=(
+                list(session.matched_skills)
+            ),
+
+            related_skills=(
+                list(session.related_skills)
+            ),
+
+            missing_skills=(
+                list(session.missing_skills)
+            ),
+
+            additional_skills=(
+                list(session.additional_skills)
             ),
         )
 
@@ -1639,13 +1685,6 @@ def finish_interview_endpoint(
             req.session_id
         )
 
-        if session is None:
-
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Interview session not found.",
-            )
-
         if session.status == "completed":
 
             return InterviewFinishResponse(
@@ -1728,20 +1767,12 @@ def analyze_skill_gap_endpoint(
     job field.
     """
 
-    # --------------------------------------------------------
-    # Validate Job Field
-    # --------------------------------------------------------
-
     if not req.job_field.strip():
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Job field cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Resume
-    # --------------------------------------------------------
 
     if not req.candidate_resume.strip():
 
@@ -1761,10 +1792,6 @@ def analyze_skill_gap_endpoint(
                 "at least 20 characters."
             ),
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -1817,7 +1844,7 @@ def analyze_skill_gap_endpoint(
 
 
 # ============================================================
-# Run Directly
+# RUN DIRECTLY
 # ============================================================
 
 

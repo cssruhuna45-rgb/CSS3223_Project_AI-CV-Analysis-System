@@ -62,6 +62,34 @@ class InterviewStartRequest(BaseModel):
         description="Candidate resume text.",
     )
 
+    job_field: Optional[str] = Field(
+        default="",
+        description=(
+            "Selected target job field, for example "
+            "devops_cloud."
+        ),
+    )
+
+    matched_skills: List[str] = Field(
+        default_factory=list,
+        description="Skills exactly matched to the target job field.",
+    )
+
+    related_skills: List[str] = Field(
+        default_factory=list,
+        description="Candidate skills related to required skills.",
+    )
+
+    missing_skills: List[str] = Field(
+        default_factory=list,
+        description="Required skills missing from the candidate resume.",
+    )
+
+    additional_skills: List[str] = Field(
+        default_factory=list,
+        description="Candidate skills outside the target job field requirements.",
+    )
+
 
 class InterviewStartResponse(BaseModel):
     session_id: str

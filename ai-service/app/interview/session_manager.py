@@ -4,17 +4,43 @@ from uuid import uuid4
 
 
 # ============================================================
-# Interview Session
+# INTERVIEW SESSION MODEL
 # ============================================================
 
 @dataclass
 class InterviewSession:
+
+    # --------------------------------------------------------
+    # Session information
+    # --------------------------------------------------------
 
     session_id: str
 
     job_description: str
 
     candidate_resume: str = ""
+
+    # --------------------------------------------------------
+    # Skill Gap context
+    # --------------------------------------------------------
+
+    job_field: str = ""
+
+    matched_skills: List[str] = field(
+        default_factory=list
+    )
+
+    related_skills: List[str] = field(
+        default_factory=list
+    )
+
+    missing_skills: List[str] = field(
+        default_factory=list
+    )
+
+    additional_skills: List[str] = field(
+        default_factory=list
+    )
 
     # --------------------------------------------------------
     # Interview history
@@ -68,7 +94,7 @@ class InterviewSession:
 
 
 # ============================================================
-# In-memory session storage
+# IN-MEMORY SESSION STORAGE
 # ============================================================
 
 _sessions: dict[str, InterviewSession] = {}
@@ -81,6 +107,11 @@ _sessions: dict[str, InterviewSession] = {}
 def create_session(
     job_description: str,
     candidate_resume: str = "",
+    job_field: str = "",
+    matched_skills: List[str] | None = None,
+    related_skills: List[str] | None = None,
+    missing_skills: List[str] | None = None,
+    additional_skills: List[str] | None = None,
 ) -> InterviewSession:
 
     session_id = str(uuid4())
@@ -91,6 +122,24 @@ def create_session(
         job_description=job_description,
 
         candidate_resume=candidate_resume,
+
+        # ----------------------------------------------------
+        # Skill Gap context
+        # ----------------------------------------------------
+
+        job_field=job_field,
+
+        matched_skills=matched_skills or [],
+
+        related_skills=related_skills or [],
+
+        missing_skills=missing_skills or [],
+
+        additional_skills=additional_skills or [],
+
+        # ----------------------------------------------------
+        # Interview state
+        # ----------------------------------------------------
 
         current_question_number=1,
 
@@ -114,6 +163,31 @@ def create_session(
     print(
         f"[InterviewSession] Created session: "
         f"{session_id}"
+    )
+
+    print(
+        f"[InterviewSession] Job Field: "
+        f"{job_field}"
+    )
+
+    print(
+        f"[InterviewSession] Matched Skills: "
+        f"{matched_skills or []}"
+    )
+
+    print(
+        f"[InterviewSession] Related Skills: "
+        f"{related_skills or []}"
+    )
+
+    print(
+        f"[InterviewSession] Missing Skills: "
+        f"{missing_skills or []}"
+    )
+
+    print(
+        f"[InterviewSession] Additional Skills: "
+        f"{additional_skills or []}"
     )
 
     return session
@@ -166,6 +240,14 @@ def add_question(
     )
 
     # --------------------------------------------------------
+    # Update question number
+    # --------------------------------------------------------
+
+    session.current_question_number = (
+        len(session.questions) + 1
+    )
+
+    # --------------------------------------------------------
     # Update difficulty
     # --------------------------------------------------------
 
@@ -185,13 +267,6 @@ def add_question(
             topic
         )
 
-        # Keep topic history unique
-        if topic not in session.topic_history:
-
-            session.topic_history.append(
-                topic
-            )
-
     # --------------------------------------------------------
     # Update topic key
     # --------------------------------------------------------
@@ -203,24 +278,24 @@ def add_question(
         )
 
     # --------------------------------------------------------
-    # Debug
+    # Track topic history
     # --------------------------------------------------------
 
-    print(
-        f"[InterviewSession] "
-        f"Question #{len(session.questions)} "
-        f"stored | "
-        f"difficulty="
-        f"{session.current_difficulty} | "
-        f"topic="
-        f"{session.current_topic}"
-    )
+    if topic_key:
 
-    print(
-        f"[InterviewSession] "
-        f"Topic history="
-        f"{session.topic_history}"
-    )
+        if topic_key not in session.topic_history:
+
+            session.topic_history.append(
+                topic_key
+            )
+
+    elif topic:
+
+        if topic not in session.topic_history:
+
+            session.topic_history.append(
+                topic
+            )
 
     return session
 
@@ -249,15 +324,6 @@ def add_answer(
 
     # --------------------------------------------------------
     # Store answer quality
-    #
-    # IMPORTANT:
-    #
-    # Weak streak is NOT modified here.
-    #
-    # main.py is responsible for adaptive streak
-    # calculation.
-    #
-    # This prevents double increment.
     # --------------------------------------------------------
 
     if answer_quality:
@@ -266,25 +332,44 @@ def add_answer(
             answer_quality
         )
 
-    # --------------------------------------------------------
-    # Move to next question
-    # --------------------------------------------------------
+    return session
 
-    session.current_question_number += 1
+# ============================================================
+# UPDATE ANSWER QUALITY
+# ============================================================
 
-    # --------------------------------------------------------
-    # Debug
-    # --------------------------------------------------------
+def update_answer_quality(
+    session_id: str,
+    quality: str,
+) -> InterviewSession:
 
-    print(
-        f"[InterviewSession] "
-        f"Answer saved | "
-        f"quality="
-        f"{session.last_answer_quality} | "
-        f"weak_streak="
-        f"{session.weak_answer_streak} | "
-        f"next_question="
-        f"{session.current_question_number}"
+    session = get_session(
+        session_id
+    )
+
+    session.last_answer_quality = (
+        quality
+    )
+
+    return session
+
+
+# ============================================================
+# UPDATE WEAK ANSWER STREAK
+# ============================================================
+
+def update_weak_answer_streak(
+    session_id: str,
+    streak: int,
+) -> InterviewSession:
+
+    session = get_session(
+        session_id
+    )
+
+    session.weak_answer_streak = max(
+        0,
+        streak
     )
 
     return session
@@ -296,16 +381,11 @@ def add_answer(
 
 def update_interview_state(
     session_id: str,
-
     difficulty: str | None = None,
-
     topic: str | None = None,
-
     topic_key: str | None = None,
-
-    answer_quality: str | None = None,
-
     weak_answer_streak: int | None = None,
+    answer_quality: str | None = None,
 ) -> InterviewSession:
 
     session = get_session(
@@ -332,12 +412,6 @@ def update_interview_state(
             topic
         )
 
-        if topic not in session.topic_history:
-
-            session.topic_history.append(
-                topic
-            )
-
     # --------------------------------------------------------
     # Topic key
     # --------------------------------------------------------
@@ -346,6 +420,26 @@ def update_interview_state(
 
         session.current_topic_key = (
             topic_key
+        )
+
+        if (
+            topic_key
+            not in session.topic_history
+        ):
+
+            session.topic_history.append(
+                topic_key
+            )
+
+    # --------------------------------------------------------
+    # Weak answer streak
+    # --------------------------------------------------------
+
+    if weak_answer_streak is not None:
+
+        session.weak_answer_streak = max(
+            0,
+            weak_answer_streak
         )
 
     # --------------------------------------------------------
@@ -357,39 +451,6 @@ def update_interview_state(
         session.last_answer_quality = (
             answer_quality
         )
-
-    # --------------------------------------------------------
-    # Weak streak
-    # --------------------------------------------------------
-
-    if weak_answer_streak is not None:
-
-        session.weak_answer_streak = (
-            weak_answer_streak
-        )
-
-    return session
-
-
-# ============================================================
-# RESET WEAK STREAK
-# ============================================================
-
-def reset_weak_streak(
-    session_id: str,
-) -> InterviewSession:
-
-    session = get_session(
-        session_id
-    )
-
-    session.weak_answer_streak = 0
-
-    print(
-        f"[InterviewSession] "
-        f"Weak answer streak reset "
-        f"for session {session_id}"
-    )
 
     return session
 
@@ -408,9 +469,34 @@ def finish_session(
 
     session.status = "completed"
 
-    print(
-        f"[InterviewSession] "
-        f"Finished session: {session_id}"
-    )
-
     return session
+
+
+# ============================================================
+# DELETE SESSION
+# ============================================================
+
+def delete_session(
+    session_id: str,
+) -> bool:
+
+    if session_id in _sessions:
+
+        del _sessions[
+            session_id
+        ]
+
+        return True
+
+    return False
+
+
+# ============================================================
+# GET ALL SESSIONS
+# ============================================================
+
+def get_all_sessions() -> List[InterviewSession]:
+
+    return list(
+        _sessions.values()
+    )

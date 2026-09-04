@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -10,7 +9,6 @@ import {
   Brain,
   CheckCircle,
   AlertCircle,
-  Zap,
 } from 'lucide-react';
 import { interviewAPI } from '../services/api';
 import StepBar from '../components/StepBar';
@@ -19,12 +17,40 @@ const MAX_QUESTIONS = 5;
 const TOTAL_TIME = 120;
 
 
+// ============================================================
+// SAFE SESSION STORAGE JSON PARSER
+// ============================================================
+
+const getStoredJson = (key) => {
+  try {
+    const value = sessionStorage.getItem(key);
+
+    if (!value) {
+      return null;
+    }
+
+    return JSON.parse(value);
+  } catch (error) {
+    console.error(
+      `[Frontend] Failed to parse sessionStorage key "${key}":`,
+      error
+    );
+
+    return null;
+  }
+};
+
+
+// ============================================================
+// INTERVIEW ROOM
+// ============================================================
+
 export default function InterviewRoom() {
   const navigate = useNavigate();
 
-  // ============================================
+  // ==========================================================
   // STATE
-  // ============================================
+  // ==========================================================
 
   const [sessionId, setSessionId] = useState(null);
   const [question, setQuestion] = useState('');
@@ -41,9 +67,9 @@ export default function InterviewRoom() {
   const [aiTyping, setAiTyping] = useState(false);
   const [displayedQ, setDisplayedQ] = useState('');
 
-  // ============================================
+  // ==========================================================
   // REFS
-  // ============================================
+  // ==========================================================
 
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
@@ -54,9 +80,9 @@ export default function InterviewRoom() {
   // Prevent duplicate ANSWER request
   const submittingAnswerRef = useRef(false);
 
-  // ============================================
+  // ==========================================================
   // SESSION STORAGE
-  // ============================================
+  // ==========================================================
 
   const jobRole =
     sessionStorage.getItem('jobRole') ||
@@ -72,9 +98,97 @@ export default function InterviewRoom() {
     storedJobDescription.trim() ||
     `I am interviewing for a ${jobRole} position. Please ask me relevant technical and behavioral interview questions suited for this role.`;
 
-  // ============================================
+  // ==========================================================
+  // SKILL GAP CONTEXT
+  // ==========================================================
+
+  const skillGapResult =
+    getStoredJson('skillGapResult');
+
+  const selectedJobField =
+    sessionStorage.getItem('selectedJobField') ||
+    skillGapResult?.job_field ||
+    '';
+
+  const selectedJobFieldName =
+    sessionStorage.getItem('selectedJobFieldName') ||
+    skillGapResult?.job_field_name ||
+    jobRole;
+
+  const matchedSkills =
+    Array.isArray(skillGapResult?.matched_skills)
+      ? skillGapResult.matched_skills
+      : [];
+
+  const relatedSkills =
+    Array.isArray(skillGapResult?.related_skills)
+      ? skillGapResult.related_skills
+      : [];
+
+  const missingSkills =
+    Array.isArray(skillGapResult?.missing_skills)
+      ? skillGapResult.missing_skills
+      : [];
+
+  const additionalSkills =
+    Array.isArray(skillGapResult?.additional_skills)
+      ? skillGapResult.additional_skills
+      : [];
+
+  // ==========================================================
+  // DEBUG SKILL GAP CONTEXT
+  // ==========================================================
+
+  useEffect(() => {
+    console.log(
+      '================================================'
+    );
+
+    console.log(
+      '[Frontend] Interview Skill Gap Context'
+    );
+
+    console.log(
+      '[Frontend] Selected Job Field:',
+      selectedJobField
+    );
+
+    console.log(
+      '[Frontend] Selected Job Field Name:',
+      selectedJobFieldName
+    );
+
+    console.log(
+      '[Frontend] Matched Skills:',
+      matchedSkills
+    );
+
+    console.log(
+      '[Frontend] Related Skills:',
+      relatedSkills
+    );
+
+    console.log(
+      '[Frontend] Missing Skills:',
+      missingSkills
+    );
+
+    console.log(
+      '[Frontend] Additional Skills:',
+      additionalSkills
+    );
+
+    console.log(
+      '================================================'
+    );
+  }, [
+    selectedJobField,
+    selectedJobFieldName,
+  ]);
+
+  // ==========================================================
   // START INTERVIEW
-  // ============================================
+  // ==========================================================
 
   useEffect(() => {
     // Stop duplicate API call
@@ -82,6 +196,7 @@ export default function InterviewRoom() {
       console.log(
         '[Frontend] Start request already sent.'
       );
+
       return;
     }
 
@@ -103,12 +218,47 @@ export default function InterviewRoom() {
           resumeText.length
         );
 
+        console.log(
+          '[Frontend] Job field:',
+          selectedJobField
+        );
+
+        console.log(
+          '[Frontend] Matched skills:',
+          matchedSkills
+        );
+
+        console.log(
+          '[Frontend] Related skills:',
+          relatedSkills
+        );
+
+        console.log(
+          '[Frontend] Missing skills:',
+          missingSkills
+        );
+
+        console.log(
+          '[Frontend] Additional skills:',
+          additionalSkills
+        );
+
         setLoading(true);
         setError('');
 
+        // ====================================================
+        // IMPORTANT
+        // Send Skill Gap context to FastAPI
+        // ====================================================
+
         const data = await interviewAPI.start(
           jobDescription.trim(),
-          resumeText
+          resumeText,
+          selectedJobField,
+          matchedSkills,
+          relatedSkills,
+          missingSkills,
+          additionalSkills
         );
 
         console.log(
@@ -139,6 +289,12 @@ export default function InterviewRoom() {
         setSessionId(newSessionId);
         setQuestion(newQuestion);
 
+        // Store session ID
+        sessionStorage.setItem(
+          'sessionId',
+          newSessionId
+        );
+
         console.log(
           '[Frontend] Session ID:',
           newSessionId
@@ -166,11 +322,12 @@ export default function InterviewRoom() {
     };
 
     startInterview();
+
   }, []);
 
-  // ============================================
+  // ==========================================================
   // TYPEWRITER
-  // ============================================
+  // ==========================================================
 
   useEffect(() => {
     if (!question) {
@@ -195,16 +352,18 @@ export default function InterviewRoom() {
         clearInterval(interval);
         setAiTyping(false);
       }
+
     }, 22);
 
     return () => {
       clearInterval(interval);
     };
+
   }, [question]);
 
-  // ============================================
+  // ==========================================================
   // TIMER
-  // ============================================
+  // ==========================================================
 
   useEffect(() => {
     if (timerRef.current) {
@@ -229,11 +388,34 @@ export default function InterviewRoom() {
         clearInterval(timerRef.current);
       }
     };
+
   }, [qIndex]);
 
-  // ============================================
+  // ==========================================================
+  // CLEANUP MICROPHONE ON UNMOUNT
+  // ==========================================================
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.log(
+            '[Frontend] Microphone cleanup completed.'
+          );
+        }
+      }
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
+  // ==========================================================
   // MICROPHONE
-  // ============================================
+  // ==========================================================
 
   const toggleMic = () => {
     const SpeechRecognition =
@@ -244,20 +426,34 @@ export default function InterviewRoom() {
       alert(
         'Speech recognition is not supported in this browser. Please use Chrome or Edge.'
       );
+
       return;
     }
 
-    // STOP
+    // --------------------------------------------------------
+    // STOP RECORDING
+    // --------------------------------------------------------
+
     if (listening) {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.log(
+            '[Frontend] Recognition already stopped.'
+          );
+        }
       }
 
       setListening(false);
+
       return;
     }
 
-    // START
+    // --------------------------------------------------------
+    // START RECORDING
+    // --------------------------------------------------------
+
     const recognition =
       new SpeechRecognition();
 
@@ -302,19 +498,19 @@ export default function InterviewRoom() {
 
     try {
       recognition.start();
-    } catch (err) {
+    } catch (error) {
       console.error(
         '[Frontend] Microphone error:',
-        err
+        error
       );
 
       setListening(false);
     }
   };
 
-  // ============================================
+  // ==========================================================
   // SUBMIT ANSWER
-  // ============================================
+  // ==========================================================
 
   const handleSubmit = async () => {
     if (!answer.trim()) {
@@ -325,6 +521,7 @@ export default function InterviewRoom() {
       setError(
         'Interview session is not ready.'
       );
+
       return;
     }
 
@@ -338,11 +535,14 @@ export default function InterviewRoom() {
     setLoading(true);
     setError('');
 
+    // --------------------------------------------------------
     // Stop microphone
+    // --------------------------------------------------------
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (err) {
+      } catch (error) {
         console.log(
           '[Frontend] Microphone already stopped.'
         );
@@ -351,7 +551,10 @@ export default function InterviewRoom() {
 
     setListening(false);
 
+    // --------------------------------------------------------
     // Stop timer
+    // --------------------------------------------------------
+
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -371,16 +574,21 @@ export default function InterviewRoom() {
         qIndex + 1
       );
 
-      // ========================================
+      console.log(
+        '[Frontend] Answer length:',
+        answer.trim().length
+      );
+
+      // ======================================================
       // LAST QUESTION
-      // ========================================
+      // ======================================================
 
       if (qIndex + 1 >= MAX_QUESTIONS) {
         console.log(
           '[Frontend] Final question.'
         );
 
-        // Submit final answer first
+        // Submit final answer
         await interviewAPI.submitAnswer(
           sessionId,
           answer.trim()
@@ -391,14 +599,17 @@ export default function InterviewRoom() {
         );
 
         // Finish interview
-        await interviewAPI.finish(
-          sessionId
-        );
+        const finishData =
+          await interviewAPI.finish(
+            sessionId
+          );
 
         console.log(
-          '[Frontend] Interview finished.'
+          '[Frontend] Interview finished:',
+          finishData
         );
 
+        // Store session ID
         sessionStorage.setItem(
           'sessionId',
           sessionId
@@ -409,9 +620,9 @@ export default function InterviewRoom() {
         return;
       }
 
-      // ========================================
+      // ======================================================
       // NORMAL QUESTION
-      // ========================================
+      // ======================================================
 
       const data =
         await interviewAPI.submitAnswer(
@@ -461,9 +672,9 @@ export default function InterviewRoom() {
     }
   };
 
-  // ============================================
+  // ==========================================================
   // NEXT QUESTION
-  // ============================================
+  // ==========================================================
 
   const handleNext = () => {
     if (loading) {
@@ -477,9 +688,9 @@ export default function InterviewRoom() {
     handleSubmit();
   };
 
-  // ============================================
+  // ==========================================================
   // TIMER UI
-  // ============================================
+  // ==========================================================
 
   const timerPct =
     (timeLeft / TOTAL_TIME) * 100;
@@ -497,9 +708,9 @@ export default function InterviewRoom() {
     timeLeft % 60
   ).padStart(2, '0');
 
-  // ============================================
+  // ==========================================================
   // INITIAL LOADING
-  // ============================================
+  // ==========================================================
 
   if (loading && !question) {
     return (
@@ -532,10 +743,24 @@ export default function InterviewRoom() {
           style={{
             color: '#D8C4B6',
             fontSize: 12,
+            textAlign: 'center',
           }}
         >
-          Please wait while your first question is generated.
+          Your interview is being generated using
+          your selected job field and skill-gap analysis.
         </p>
+
+        {selectedJobFieldName && (
+          <p
+            style={{
+              color: '#D8C4B6',
+              fontSize: 12,
+              textAlign: 'center',
+            }}
+          >
+            Target role: {selectedJobFieldName}
+          </p>
+        )}
 
         {error && (
           <div
@@ -560,9 +785,9 @@ export default function InterviewRoom() {
     );
   }
 
-  // ============================================
+  // ==========================================================
   // MAIN UI
-  // ============================================
+  // ==========================================================
 
   return (
     <div
@@ -574,7 +799,10 @@ export default function InterviewRoom() {
     >
       <StepBar current={3} />
 
-      {/* HEADER */}
+      {/* ====================================================
+          HEADER
+      ==================================================== */}
+
       <div
         style={{
           display: 'flex',
@@ -610,7 +838,7 @@ export default function InterviewRoom() {
                 fontWeight: 500,
               }}
             >
-              Live Interview · {jobRole}
+              Live Interview · {selectedJobFieldName}
             </span>
           </div>
 
@@ -626,6 +854,7 @@ export default function InterviewRoom() {
         </div>
 
         {/* TIMER */}
+
         <div
           style={{
             textAlign: 'center',
@@ -707,7 +936,10 @@ export default function InterviewRoom() {
         </div>
       </div>
 
-      {/* PROGRESS */}
+      {/* ====================================================
+          PROGRESS
+      ==================================================== */}
+
       <div
         style={{
           height: 4,
@@ -733,7 +965,10 @@ export default function InterviewRoom() {
         />
       </div>
 
-      {/* AI QUESTION */}
+      {/* ====================================================
+          AI QUESTION
+      ==================================================== */}
+
       <div
         className="card"
         style={{
@@ -832,7 +1067,10 @@ export default function InterviewRoom() {
         </div>
       </div>
 
-      {/* ERROR */}
+      {/* ====================================================
+          ERROR
+      ==================================================== */}
+
       {error && (
         <div
           style={{
@@ -866,7 +1104,10 @@ export default function InterviewRoom() {
         </div>
       )}
 
-      {/* ANSWER */}
+      {/* ====================================================
+          ANSWER
+      ==================================================== */}
+
       {!submitted ? (
         <div
           className="card"
@@ -950,6 +1191,7 @@ export default function InterviewRoom() {
             }}
           >
             {/* MICROPHONE */}
+
             <button
               className="btn"
               onClick={toggleMic}
@@ -987,6 +1229,7 @@ export default function InterviewRoom() {
             </button>
 
             {/* SUBMIT */}
+
             <button
               className="btn btn-primary"
               onClick={() =>
@@ -1014,7 +1257,10 @@ export default function InterviewRoom() {
         </div>
       ) : (
         <div>
-          {/* ANSWER RECORDED */}
+          {/* ==================================================
+              ANSWER RECORDED
+          ================================================== */}
+
           <div
             style={{
               background:
@@ -1063,7 +1309,10 @@ export default function InterviewRoom() {
             </div>
           </div>
 
-          {/* NEXT */}
+          {/* ==================================================
+              NEXT
+          ================================================== */}
+
           <button
             className="btn btn-primary"
             onClick={handleNext}
@@ -1093,7 +1342,10 @@ export default function InterviewRoom() {
         </div>
       )}
 
-      {/* STAR TIP */}
+      {/* ====================================================
+          STAR TIP
+      ==================================================== */}
+
       <div
         style={{
           display: 'flex',
@@ -1140,6 +1392,10 @@ export default function InterviewRoom() {
         </p>
       </div>
 
+      {/* ====================================================
+          ANIMATIONS
+      ==================================================== */}
+
       <style>{`
         @keyframes pulse {
           0%, 100% {
@@ -1164,4 +1420,3 @@ export default function InterviewRoom() {
     </div>
   );
 }
-
