@@ -55,6 +55,18 @@ public class AiProxyController {
         return forward("/api/v1/resume/analyze", body, authentication);
     }
 
+    @Operation(
+            summary = "Review a CV against the written standards",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @PostMapping("/resume/feedback")
+    public ResponseEntity<JsonNode> reviewResume(
+            @RequestBody JsonNode body,
+            Authentication authentication
+    ) {
+        return forward("/api/v1/resume/feedback", body, authentication);
+    }
+
     // ========================================================
     // Skill gap
     // ========================================================

@@ -19,6 +19,7 @@ import {
   Loader,
 } from 'lucide-react';
 import { resumeAPI, aiResumeAPI } from '../services/api';
+import CVFeedback from '../components/CVFeedback';
 import StepBar from '../components/StepBar';
 import { PREDEFINED_JOB_FIELDS, getJobFieldName } from '../constants/jobFields';
 
@@ -31,6 +32,9 @@ export default function CVUpload() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [analysis, setAnalysis] = useState(null);
+  const [review, setReview] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState('');
   const [showManualSelection, setShowManualSelection] = useState(false);
   const [manualField, setManualField] = useState('');
 
@@ -41,6 +45,8 @@ export default function CVUpload() {
     if (savedAnalysis) {
       try {
         setAnalysis(JSON.parse(savedAnalysis));
+        const savedReview = sessionStorage.getItem('cvReview');
+        if (savedReview) setReview(JSON.parse(savedReview));
         if (savedJobField) setManualField(savedJobField);
       } catch (e) {
         console.error('Failed to parse cached analysis', e);
@@ -54,6 +60,9 @@ export default function CVUpload() {
       setFile(f);
       setError('');
       setAnalysis(null);
+    setReview(null);
+    sessionStorage.removeItem('cvReview');
+      setReview(null);
     } else {
       setError('Only PDF files are supported. Please upload a valid PDF resume.');
     }
@@ -99,6 +108,22 @@ export default function CVUpload() {
       // Default select the top recommendation if available
       if (aiResult.recommended_job_fields && aiResult.recommended_job_fields.length > 0) {
         setManualField(aiResult.recommended_job_fields[0].field);
+      }
+
+      // 3. Review how the CV is written. Deliberately after the
+      //    analysis is already on screen, and in its own try/catch:
+      //    a failed review must not lose the extraction.
+      setReviewLoading(true);
+      setReviewError('');
+      try {
+        const cvReview = await aiResumeAPI.feedback(resumeId, resumeText);
+        sessionStorage.setItem('cvReview', JSON.stringify(cvReview));
+        setReview(cvReview);
+      } catch (reviewErr) {
+        console.error('CV review error:', reviewErr);
+        setReviewError(reviewErr.message || 'Could not review the CV.');
+      } finally {
+        setReviewLoading(false);
       }
     } catch (err) {
       console.error('Analysis error:', err);
@@ -345,6 +370,13 @@ export default function CVUpload() {
               <RotateCcw size={13} /> Re-upload
             </button>
           </div>
+
+          {/* CV review - how it is written, not what it says */}
+          <CVFeedback
+            review={review}
+            loading={reviewLoading}
+            error={reviewError}
+          />
 
           {/* 1. Candidate Summary */}
           {analysis.summary && (

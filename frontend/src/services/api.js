@@ -126,6 +126,29 @@ export const resumeAPI = {
 
 export const aiResumeAPI = {
 
+  // Reviews how the CV is written, against the standards in
+  // documents/cv_resume_standards_guide.md. Separate from analyze,
+  // which only extracts what the CV says.
+  feedback: (resumeId, resumeText) =>
+    fetch(`${AI}/resume/feedback`, {
+      method: 'POST',
+
+      headers: authHeaders(),
+
+      body: JSON.stringify({
+
+        resume_id:
+          Number(resumeId) || 1,
+
+        resume_text:
+          typeof resumeText === 'string'
+            ? resumeText
+            : (resumeText?.text || ''),
+
+      }),
+
+    }).then(handleResponse),
+
   analyze: (resumeId, resumeText) =>
     fetch(`${AI}/resume/analyze`, {
       method: 'POST',
