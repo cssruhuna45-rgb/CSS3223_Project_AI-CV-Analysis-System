@@ -2,6 +2,7 @@
 
 import os
 import re
+from functools import lru_cache
 from typing import List, Dict, Any
 
 from langchain_community.document_loaders import (
@@ -31,9 +32,16 @@ except ImportError:
 # Configuration
 # ============================================================
 
-# NOTE: these are TOKEN counts (via tiktoken), not character counts.
-# This matches what your embedding model / LLM actually counts,
-# instead of raw character length.
+# TOKEN counts, not character counts, measured with the tokenizer of the
+# embedding model itself - see _build_token_splitter for why that matters.
+#
+# all-MiniLM-L6-v2 truncates its input at 256 tokens and silently drops
+# the rest, so anything past that is embedded as if it were not there.
+# 220 leaves headroom for the header text that MarkdownHeaderTextSplitter
+# keeps at the top of each section.
+EMBEDDING_TOKENIZER_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MAX_TOKENS = 256
+
 DEFAULT_CHUNK_SIZE_TOKENS = 220
 DEFAULT_CHUNK_OVERLAP_TOKENS = 40
 
@@ -542,35 +550,77 @@ def clean_documents(
 #      token-split any section that's still too long.
 #   3. PDFs: token-based RecursiveCharacterTextSplitter directly
 #      (no headers to split on, so this is the correct fallback).
-#
-# Requires: pip install tiktoken
+
+# Preferred break points, in order: paragraph, line, sentence, clause,
+# word. The empty string is the last resort - split mid-word rather than
+# run over the size limit.
+_SEPARATORS = [
+    "\n\n",
+    "\n",
+    ". ",
+    "? ",
+    "! ",
+    "; ",
+    ", ",
+    " ",
+    "",
+]
+
+
+@lru_cache(maxsize=1)
+def _get_embedding_tokenizer():
+    """
+    The tokenizer all-MiniLM-L6-v2 actually uses.
+
+    Loaded once: it is only vocabulary files, not the model weights.
+    """
+
+    from transformers import AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(EMBEDDING_TOKENIZER_MODEL)
+
 
 def _build_token_splitter(
     chunk_size: int,
     chunk_overlap: int,
 ) -> RecursiveCharacterTextSplitter:
     """
-    Builds a RecursiveCharacterTextSplitter that measures size in
-    TOKENS (via tiktoken) instead of raw characters, while still
-    preferring to break on paragraph/sentence boundaries first.
+    Splits by TOKEN count rather than character count, using the
+    embedding model's own tokenizer.
+
+    This previously counted with tiktoken's cl100k_base, which is
+    OpenAI's tokenizer - not the one used anywhere in this project. Its
+    counts run about 8% lower than MiniLM's wordpiece tokenizer, so
+    chunks sized to 220 "tokens" reached up to 261 real ones and had
+    their tails cut off before being embedded. Measuring with the
+    tokenizer that does the truncating removes the discrepancy.
+
+    Falls back to tiktoken if transformers is unavailable, so chunking
+    still works rather than failing outright.
     """
 
-    return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        encoding_name="cl100k_base",  # matches OpenAI-style tokenizers
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        separators=[
-            "\n\n",
-            "\n",
-            ". ",
-            "? ",
-            "! ",
-            "; ",
-            ", ",
-            " ",
-            "",
-        ],
-    )
+    try:
+        return RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+            tokenizer=_get_embedding_tokenizer(),
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=_SEPARATORS,
+        )
+
+    except Exception as exc:
+
+        print(
+            "[DocumentLoader] Could not load the embedding tokenizer "
+            f"({exc}); falling back to tiktoken, whose counts run "
+            "slightly low for this model."
+        )
+
+        return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            encoding_name="cl100k_base",
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=_SEPARATORS,
+        )
 
 
 def split_markdown_documents(
