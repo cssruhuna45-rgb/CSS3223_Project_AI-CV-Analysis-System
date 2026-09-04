@@ -11,9 +11,15 @@ from langchain_community.document_loaders import (
 )
 
 try:
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from langchain_text_splitters import (
+        RecursiveCharacterTextSplitter,
+        MarkdownHeaderTextSplitter,
+    )
 except ImportError:
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.text_splitter import (
+        RecursiveCharacterTextSplitter,
+        MarkdownHeaderTextSplitter,
+    )
 
 try:
     from langchain_core.documents import Document
@@ -25,8 +31,19 @@ except ImportError:
 # Configuration
 # ============================================================
 
-DEFAULT_CHUNK_SIZE = 900
-DEFAULT_CHUNK_OVERLAP = 150
+# NOTE: these are TOKEN counts (via tiktoken), not character counts.
+# This matches what your embedding model / LLM actually counts,
+# instead of raw character length.
+DEFAULT_CHUNK_SIZE_TOKENS = 220
+DEFAULT_CHUNK_OVERLAP_TOKENS = 40
+
+# Headers to split markdown files on. Add more levels (####, #####)
+# if your interview guides use deeper nesting.
+MARKDOWN_HEADERS_TO_SPLIT_ON = [
+    ("#", "header_1"),
+    ("##", "header_2"),
+    ("###", "header_3"),
+]
 
 
 # ============================================================
@@ -514,16 +531,124 @@ def clean_documents(
 
 
 # ============================================================
-# CHUNKING
+# CHUNKING (token-based + markdown header-aware)
 # ============================================================
+#
+# Strategy:
+#   1. Token-aware sizing (tiktoken) — matches what your embedding
+#      model / LLM actually "sees", instead of raw character counts.
+#   2. Markdown files: split by header (#, ##, ###) FIRST, so a
+#      chunk never mixes content from two different sections, THEN
+#      token-split any section that's still too long.
+#   3. PDFs: token-based RecursiveCharacterTextSplitter directly
+#      (no headers to split on, so this is the correct fallback).
+#
+# Requires: pip install tiktoken
+
+def _build_token_splitter(
+    chunk_size: int,
+    chunk_overlap: int,
+) -> RecursiveCharacterTextSplitter:
+    """
+    Builds a RecursiveCharacterTextSplitter that measures size in
+    TOKENS (via tiktoken) instead of raw characters, while still
+    preferring to break on paragraph/sentence boundaries first.
+    """
+
+    return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        encoding_name="cl100k_base",  # matches OpenAI-style tokenizers
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=[
+            "\n\n",
+            "\n",
+            ". ",
+            "? ",
+            "! ",
+            "; ",
+            ", ",
+            " ",
+            "",
+        ],
+    )
+
+
+def split_markdown_documents(
+    documents: List[Document],
+    chunk_size: int = DEFAULT_CHUNK_SIZE_TOKENS,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
+) -> List[Document]:
+    """
+    Two-stage split for markdown documents:
+
+        Stage 1: split by header (#, ##, ###)
+                 -> keeps each section's own header(s) as metadata
+                 -> guarantees a chunk never spans two sections
+
+        Stage 2: token-based RecursiveCharacterTextSplitter
+                 -> further splits any section that's still too
+                    long, without breaking mid-sentence if avoidable
+    """
+
+    header_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=MARKDOWN_HEADERS_TO_SPLIT_ON,
+        strip_headers=False,  # keep header text inside the chunk content
+    )
+
+    token_splitter = _build_token_splitter(chunk_size, chunk_overlap)
+
+    all_chunks: List[Document] = []
+
+    for document in documents:
+
+        # Stage 1: split on headers. Returns Documents whose metadata
+        # includes header_1/header_2/header_3 (whichever headers
+        # actually preceded that section).
+        header_sections = header_splitter.split_text(
+            document.page_content
+        )
+
+        for section in header_sections:
+
+            # carry over the ORIGINAL document's metadata
+            # (source_file, job_field, topic, difficulty, ...)
+            merged_metadata = dict(document.metadata)
+            merged_metadata.update(section.metadata)
+            section.metadata = merged_metadata
+
+        # Stage 2: token-size any sections that are still too big
+        sized_chunks = token_splitter.split_documents(header_sections)
+
+        all_chunks.extend(sized_chunks)
+
+    return all_chunks
+
+
+def split_pdf_documents(
+    documents: List[Document],
+    chunk_size: int = DEFAULT_CHUNK_SIZE_TOKENS,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
+) -> List[Document]:
+    """
+    Token-based splitting for PDF documents (no headers to rely on).
+    """
+
+    token_splitter = _build_token_splitter(chunk_size, chunk_overlap)
+
+    return token_splitter.split_documents(documents)
+
 
 def split_documents(
     documents: List[Document],
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
-    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+    chunk_size: int = DEFAULT_CHUNK_SIZE_TOKENS,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
 ) -> List[Document]:
     """
-    Split documents into meaningful overlapping chunks.
+    Split documents into meaningful, overlapping, token-sized chunks.
+
+    Routes documents by file_type:
+        - "markdown" -> header-aware + token-based splitting
+        - "pdf" / anything else -> token-based splitting only
 
     Metadata is preserved and enhanced with:
         chunk_id
@@ -532,6 +657,7 @@ def split_documents(
         job_field
         topic
         difficulty
+        header_1 / header_2 / header_3 (markdown only, when present)
     """
 
     if not documents:
@@ -562,36 +688,39 @@ def split_documents(
 
     print(
         f"[DocumentLoader] Chunking documents "
-        f"(size={chunk_size}, "
-        f"overlap={chunk_overlap})..."
+        f"(token_size={chunk_size}, "
+        f"token_overlap={chunk_overlap})..."
     )
 
-    text_splitter = RecursiveCharacterTextSplitter(
+    markdown_docs = [
+        d for d in documents if d.metadata.get("file_type") == "markdown"
+    ]
 
-        chunk_size=chunk_size,
+    pdf_docs = [
+        d for d in documents if d.metadata.get("file_type") != "markdown"
+    ]
 
-        chunk_overlap=chunk_overlap,
+    chunks: List[Document] = []
 
-        separators=[
-            "\n\n",
-            "\n",
-            ". ",
-            "? ",
-            "! ",
-            "; ",
-            ", ",
-            " ",
-            "",
-        ],
+    if markdown_docs:
 
-        length_function=len,
+        chunks.extend(
+            split_markdown_documents(
+                markdown_docs,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+        )
 
-        is_separator_regex=False,
-    )
+    if pdf_docs:
 
-    chunks = text_splitter.split_documents(
-        documents
-    )
+        chunks.extend(
+            split_pdf_documents(
+                pdf_docs,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+        )
 
     # --------------------------------------------------------
     # Add chunk metadata
@@ -669,8 +798,8 @@ def split_documents(
 
 def load_and_split_documents(
     directory_path: str,
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
-    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+    chunk_size: int = DEFAULT_CHUNK_SIZE_TOKENS,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
 ) -> List[Document]:
     """
     Complete document ingestion pipeline.
@@ -683,7 +812,7 @@ def load_and_split_documents(
           ↓
     Clean text
           ↓
-    Split into chunks
+    Split into chunks (token-based, markdown header-aware)
           ↓
     Add chunk metadata
           ↓
