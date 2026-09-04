@@ -1,18 +1,26 @@
 """
-Scores a finished interview.
+Scores a finished interview against the project's knowledge base.
 
 The adaptive loop uses a cheap word-count heuristic while the interview
 is running, because it must not add a second LLM call to every turn.
 That heuristic cannot tell a correct answer from a confident wrong one,
 so it is only good enough for pacing.
 
-The scorecard is different: it is what the candidate actually reads, so
-it is graded properly. Every question and answer is sent to Gemini once,
-at the end, and judged on whether the answer is right - not on how long
-it is.
+The scorecard is graded properly, and deliberately not left to the
+model's own memory. For every question the same Chroma knowledge base
+that produced the questions is queried again, and the retrieved passages
+go into the prompt as the reference a complete answer should contain.
+Gemini judges the answer against that material rather than against
+whatever it happens to recall, which keeps "you did not mention X"
+traceable to documents/ instead of being unattributable.
+
+The numbers stay in Python. The overall score is computed here from the
+category scores, and each verdict is derived from its own score, so the
+model cannot return 85 and label it "weak".
 """
 
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 from langchain_core.output_parsers import StrOutputParser
@@ -23,6 +31,8 @@ from app.interview.question_generator import (
     get_llm,
     parse_json_response,
 )
+from app.rag.retriever import retrieve_relevant_chunks
+from app.rag.vector_store import get_or_create_vector_store
 
 
 # ============================================================
@@ -60,6 +70,21 @@ CATEGORIES: List[Dict[str, str]] = [
 # blow past the model's context window.
 MAX_QUESTIONS_EVALUATED = 20
 
+# Reference passages pulled per question. Fewer than question generation
+# uses, because this prompt already carries the whole transcript.
+REFERENCE_CHUNKS_PER_QUESTION = 3
+
+# Each passage is trimmed so one long chunk cannot crowd out the rest.
+MAX_REFERENCE_CHARS = 700
+
+# Verdict bands, applied to the score in Python so the label can never
+# disagree with the number printed next to it.
+VERDICT_BANDS = [
+    (75, "strong"),
+    (45, "partial"),
+    (15, "weak"),
+]
+
 
 # ============================================================
 # Prompt
@@ -69,7 +94,8 @@ EVALUATION_PROMPT = PromptTemplate(
     input_variables=["job_field", "transcript", "category_block"],
     template="""You are a senior technical interviewer scoring a candidate for a {job_field} role.
 
-Below is the full transcript of the interview.
+Below is the interview. Each question is followed by REFERENCE MATERIAL
+drawn from the course knowledge base, and then by the candidate's answer.
 
 {transcript}
 
@@ -78,14 +104,18 @@ Score the candidate on each category from 0 to 100:
 {category_block}
 
 Scoring rules - follow these strictly:
+- Judge each answer AGAINST THE REFERENCE MATERIAL shown with its
+  question. That material is what a complete answer should cover.
 - Judge CORRECTNESS first. A long, confident, wrong answer scores LOW.
 - A short but correct and precise answer scores WELL.
 - An empty answer, "I don't know", or off-topic text scores 0-15.
 - Do not reward verbosity. Do not penalise brevity that is still correct.
+- If an answer is correct but the reference material does not mention it,
+  still credit it. The reference is a guide, not an exhaustive list.
+- In "what_was_missing", name the concept FROM THE REFERENCE MATERIAL
+  that the answer failed to cover, so the candidate knows what to study.
 - Be honest. Do not inflate scores to be encouraging. A candidate who
   did not demonstrate knowledge must see that.
-
-For each question also give a per-question verdict.
 
 Return ONLY valid JSON in exactly this shape, with no markdown fences:
 
@@ -106,7 +136,6 @@ Return ONLY valid JSON in exactly this shape, with no markdown fences:
     {{
       "question_number": 1,
       "score": 0,
-      "verdict": "strong",
       "what_was_good": "One sentence. Empty string if nothing was good.",
       "what_was_missing": "One sentence naming what a complete answer needed."
     }}
@@ -118,11 +147,61 @@ Rules for the lists:
   strengths, return an empty list rather than inventing one.
 - "improvements": 2 to 4 items, most important first.
 - "per_question": one entry for EVERY question in the transcript.
-- "verdict" must be one of: strong, partial, weak, none.
 - Refer to what the candidate actually said. Do not write generic
   feedback that would fit any candidate.
 """
 )
+
+
+# ============================================================
+# Retrieval
+# ============================================================
+
+def retrieve_reference(question: str) -> str:
+    """
+    Pulls what the knowledge base holds about this question.
+
+    Grading is judged against these passages, so that "you did not
+    mention X" traces back to documents/ rather than to the model's
+    memory.
+
+    Returns an empty string on failure. A missing reference degrades
+    grading to the model's own judgement, which still beats losing the
+    scorecard.
+    """
+
+    try:
+        documents = retrieve_relevant_chunks(
+            vector_store=get_or_create_vector_store(),
+            query=question,
+            k=REFERENCE_CHUNKS_PER_QUESTION,
+        )
+    except Exception as exc:
+        print(f"[Evaluator] Reference retrieval failed: {exc}")
+        return ""
+
+    passages: List[str] = []
+
+    for doc in documents:
+
+        text = (doc.page_content or "").strip()
+
+        if not text:
+            continue
+
+        if len(text) > MAX_REFERENCE_CHARS:
+            text = text[:MAX_REFERENCE_CHARS] + " ..."
+
+        source = doc.metadata.get(
+            "source_file",
+            doc.metadata.get("source", "knowledge base"),
+        )
+
+        passages.append(
+            f"[{os.path.basename(str(source))}] {text}"
+        )
+
+    return "\n".join(passages)
 
 
 # ============================================================
@@ -134,7 +213,7 @@ def build_transcript(
     answers: List[str],
 ) -> str:
     """
-    Pairs each question with its answer for the prompt.
+    Lays out question, reference material and answer for the prompt.
 
     Answers are truncated so one rambling response cannot crowd out the
     rest of the interview.
@@ -154,7 +233,19 @@ def build_transcript(
         if not answer:
             answer = "[no answer given]"
 
+        reference = retrieve_reference(questions[i])
+
         lines.append(f"Question {i + 1}: {questions[i]}")
+
+        if reference:
+            lines.append(f"Reference material for question {i + 1}:")
+            lines.append(reference)
+        else:
+            lines.append(
+                f"Reference material for question {i + 1}: "
+                "[none found - judge on your own knowledge]"
+            )
+
         lines.append(f"Answer {i + 1}: {answer}")
         lines.append("")
 
@@ -185,13 +276,22 @@ def clamp_score(value: Any) -> int:
     return max(0, min(100, score))
 
 
-def normalize_verdict(value: Any) -> str:
+def verdict_for_score(score: int, answered: bool) -> str:
+    """
+    Derives the label from the number.
 
-    allowed = {"strong", "partial", "weak", "none"}
+    The model used to return both, and could contradict itself - a score
+    of 85 labelled "weak". Computing it here makes that impossible.
+    """
 
-    verdict = str(value or "").strip().lower()
+    if not answered:
+        return "none"
 
-    return verdict if verdict in allowed else "weak"
+    for threshold, verdict in VERDICT_BANDS:
+        if score >= threshold:
+            return verdict
+
+    return "none"
 
 
 def clean_list(value: Any, limit: int = 4) -> List[str]:
@@ -229,6 +329,8 @@ def normalize_evaluation(
         for c in CATEGORIES
     ]
 
+    # Computed here, not asked of the model: the headline number is
+    # arithmetic over the category scores and should be reproducible.
     overall = (
         round(sum(c["score"] for c in category_scores) / len(category_scores))
         if category_scores
@@ -257,12 +359,15 @@ def normalize_evaluation(
 
         entry = by_number.get(i + 1) or {}
 
+        score = clamp_score(entry.get("score"))
+        answered = bool((answers[i] or "").strip())
+
         per_question.append({
             "question_number": i + 1,
             "question": questions[i],
             "answer": answers[i] or "",
-            "score": clamp_score(entry.get("score")),
-            "verdict": normalize_verdict(entry.get("verdict")),
+            "score": score,
+            "verdict": verdict_for_score(score, answered),
             "what_was_good": str(entry.get("what_was_good") or "").strip(),
             "what_was_missing": str(entry.get("what_was_missing") or "").strip(),
         })
@@ -323,7 +428,8 @@ def evaluate_interview(
     job_field: str = "",
 ) -> Dict[str, Any]:
     """
-    Grades a completed interview in a single LLM call.
+    Grades a completed interview in a single LLM call, against reference
+    material retrieved from the knowledge base.
 
     Never raises: a failure here must not stop the candidate from
     reaching their scorecard, so problems are reported in the payload.
