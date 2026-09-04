@@ -61,9 +61,14 @@ docker compose up -d postgres-db
 **Already have an `ai_interview_db` from an earlier version?** Run this
 once, or registration and CV upload will fail:
 
+```powershell
+# PowerShell: "<" input redirection is not supported, so pipe instead
+Get-Content scripts\001-align-existing-schema.sql -Raw | docker exec -i interview_postgres psql -U postgres -d ai_interview_db
+```
+
 ```bash
-docker exec -i interview_postgres psql -U postgres -d ai_interview_db \
-    < scripts/001-align-existing-schema.sql
+# bash / Git Bash
+docker exec -i interview_postgres psql -U postgres -d ai_interview_db < scripts/001-align-existing-schema.sql
 ```
 
 A brand new database needs nothing — Hibernate builds it correctly.

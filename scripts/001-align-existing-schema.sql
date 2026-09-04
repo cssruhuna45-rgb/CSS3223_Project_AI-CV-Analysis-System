@@ -8,7 +8,11 @@
 -- ever ADDS columns - it never drops or alters the stale ones. So old
 -- columns hang around and block the current code.
 --
--- Run with:
+-- Run with, in PowerShell ("<" redirection is not supported there):
+--   Get-Content scripts\001-align-existing-schema.sql -Raw |
+--       docker exec -i interview_postgres psql -U postgres -d ai_interview_db
+--
+-- or in bash / Git Bash:
 --   docker exec -i interview_postgres psql -U postgres -d ai_interview_db \
 --       < scripts/001-align-existing-schema.sql
 --
