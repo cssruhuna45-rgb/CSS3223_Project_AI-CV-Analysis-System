@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,6 +31,9 @@ public class ResumeAnalysisController {
             description = "Get AI analysis for a resume owned by the authenticated user",
             security = @SecurityRequirement(name = "bearerAuth")
     )
+    // Reads the analysis' lazy collections, so it needs a session of
+    // its own rather than relying on open-session-in-view.
+    @Transactional(readOnly = true)
     @GetMapping("/{id}/analysis")
     public ResponseEntity<ResumeAnalysisResponse> getResumeAnalysis(
             @PathVariable Long id,
@@ -72,17 +76,44 @@ public class ResumeAnalysisController {
                         "Resume analysis not found for resume id: " + id
                 ));
 
-        // 7. Convert entity to DTO
+        // 7. Convert entity to DTO, in the same shape the AI service
+        //    returns so both sides of the system agree.
         ResumeAnalysisResponse response =
                 ResumeAnalysisResponse.builder()
                         .resumeId(resume.getId())
-                        .score(analysis.getScore())
                         .summary(analysis.getSummary())
                         .skills(analysis.getSkills())
-                        .strengths(analysis.getStrengths())
-                        .weaknesses(analysis.getWeaknesses())
-                        .missingSkills(analysis.getMissingSkills())
-                        .recommendations(analysis.getRecommendations())
+                        .certifications(analysis.getCertifications())
+                        .experience(analysis.getExperience().stream()
+                                .map(e -> ResumeAnalysisResponse.ExperienceItem.builder()
+                                        .company(e.getCompany())
+                                        .role(e.getRole())
+                                        .duration(e.getDuration())
+                                        .description(e.getDescription())
+                                        .build())
+                                .toList())
+                        .education(analysis.getEducation().stream()
+                                .map(e -> ResumeAnalysisResponse.EducationItem.builder()
+                                        .institution(e.getInstitution())
+                                        .degree(e.getDegree())
+                                        .field(e.getField())
+                                        .year(e.getYear())
+                                        .build())
+                                .toList())
+                        .projects(analysis.getProjects().stream()
+                                .map(pr -> ResumeAnalysisResponse.ProjectItem.builder()
+                                        .name(pr.getName())
+                                        .description(pr.getDescription())
+                                        .technologies(pr.getTechnologies())
+                                        .build())
+                                .toList())
+                        .recommendedJobFields(analysis.getRecommendedJobFields().stream()
+                                .map(f -> ResumeAnalysisResponse.RecommendedJobField.builder()
+                                        .field(f.getField())
+                                        .name(f.getName())
+                                        .matchPercentage(f.getMatchPercentage())
+                                        .build())
+                                .toList())
                         .build();
 
         // 8. Return response

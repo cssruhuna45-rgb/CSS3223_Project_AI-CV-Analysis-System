@@ -1,9 +1,12 @@
 package com.aiinterview.controller;
 
 import com.aiinterview.dto.ResumeResponseDto;
+import com.aiinterview.service.ResumeAnalysisService;
 import com.aiinterview.service.ResumeService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +22,11 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth")
 public class ResumeController {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(ResumeController.class);
+
     private final ResumeService resumeService;
+    private final ResumeAnalysisService resumeAnalysisService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResumeResponseDto> uploadResume(
@@ -30,6 +37,19 @@ public class ResumeController {
 
         ResumeResponseDto response =
                 resumeService.uploadResume(file, userEmail);
+
+        // The upload transaction has committed by now, so the analysis
+        // runs in its own and cannot roll the upload back. It is best
+        // effort: a failure here must not fail the request.
+        try {
+            resumeAnalysisService.analyzeAndStore(response.getId());
+        } catch (Exception e) {
+            log.warn(
+                    "AI analysis failed for resume {}: {}",
+                    response.getId(),
+                    e.getMessage()
+            );
+        }
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

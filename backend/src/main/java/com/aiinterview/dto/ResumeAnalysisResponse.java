@@ -8,6 +8,15 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * Mirrors the AI service's ResumeAnalysisResponse schema.
+ *
+ * <p>Field names must stay in step with
+ * {@code ai-service/app/resume/schemas.py}. They drifted apart once
+ * already: this DTO asked for score, strengths, weaknesses,
+ * missing_skills and recommendations, none of which the service sends,
+ * so every field deserialized to null.
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,8 +26,6 @@ public class ResumeAnalysisResponse {
     @JsonProperty("resume_id")
     private Long resumeId;
 
-    private Integer score;
-
     private String summary;
 
     private List<String> skills;
@@ -27,14 +34,12 @@ public class ResumeAnalysisResponse {
 
     private List<EducationItem> education;
 
-    private List<String> strengths;
+    private List<ProjectItem> projects;
 
-    private List<String> weaknesses;
+    private List<String> certifications;
 
-    @JsonProperty("missing_skills")
-    private List<String> missingSkills;
-
-    private List<String> recommendations;
+    @JsonProperty("recommended_job_fields")
+    private List<RecommendedJobField> recommendedJobFields;
 
     @Data
     @Builder
@@ -58,5 +63,29 @@ public class ResumeAnalysisResponse {
         private String degree;
         private String field;
         private String year;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProjectItem {
+
+        private String name;
+        private String description;
+        private List<String> technologies;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecommendedJobField {
+
+        private String field;
+        private String name;
+
+        @JsonProperty("match_percentage")
+        private Integer matchPercentage;
     }
 }

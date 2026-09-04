@@ -1,17 +1,13 @@
 package com.aiinterview.service.impl;
 
-import com.aiinterview.dto.ResumeAnalysisResponse;
 import com.aiinterview.dto.ResumeResponseDto;
 import com.aiinterview.entity.Resume;
-import com.aiinterview.entity.ResumeAnalysis;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.InvalidFileException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.exception.UnauthorizedAccessException;
-import com.aiinterview.repository.ResumeAnalysisRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
-import com.aiinterview.service.AiServiceClient;
 import com.aiinterview.service.FileStorageService;
 import com.aiinterview.service.PdfTextExtractionService;
 import com.aiinterview.service.ResumeService;
@@ -34,8 +30,6 @@ public class ResumeServiceImpl implements ResumeService {
         private final UserRepository userRepository;
         private final FileStorageService fileStorageService;
         private final PdfTextExtractionService pdfTextExtractionService;
-        private final AiServiceClient aiServiceClient;
-        private final ResumeAnalysisRepository resumeAnalysisRepository;
 
     @Override
     @Transactional
@@ -101,46 +95,14 @@ public class ResumeServiceImpl implements ResumeService {
                             + e.getMessage());
         }
 
-        // 8. Save resume first so that the database generates resume ID
-Resume savedResume = resumeRepository.save(resume);
+        // 8. Save resume so that the database generates the resume ID
+        Resume savedResume = resumeRepository.save(resume);
 
-// 9. Analyze resume using AI service
-if ("COMPLETED".equals(savedResume.getProcessingStatus())) {
-
-    try {
-
-        ResumeAnalysisResponse analysis =
-                aiServiceClient.analyzeResume(
-                        savedResume.getId(),
-                        savedResume.getExtractedText()
-                );
-
-        // 10. Save AI analysis result
-        ResumeAnalysis resumeAnalysis =
-                ResumeAnalysis.builder()
-                        .resume(savedResume)
-                        .score(analysis.getScore())
-                        .summary(analysis.getSummary())
-                        .skills(analysis.getSkills())
-                        .strengths(analysis.getStrengths())
-                        .weaknesses(analysis.getWeaknesses())
-                        .missingSkills(analysis.getMissingSkills())
-                        .recommendations(analysis.getRecommendations())
-                        .build();
-
-        resumeAnalysisRepository.save(resumeAnalysis);
-
-    } catch (Exception e) {
-
-        System.err.println(
-                "AI resume analysis failed: "
-                        + e.getMessage()
-        );
-    }
-}
-
-// 11. Return response
-return mapToDto(savedResume);
+        // AI analysis deliberately does NOT happen here. It is best
+        // effort, and anything it did inside this transaction could
+        // mark it rollback-only and take the upload down with it. The
+        // controller runs it once this transaction has committed.
+        return mapToDto(savedResume);
     }
 
     @Override
