@@ -6,9 +6,12 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 load_dotenv()
 
 
+EMBEDDING_MODEL = "gemini-embedding-2"
+
+
 def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
     """
-    Initialize Gemini embeddings for the RAG pipeline.
+    Initialize the Gemini embedding model used by the RAG pipeline.
     """
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -20,11 +23,11 @@ def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
         )
 
     print(
-        "[Embeddings] Initializing GoogleGenerativeAIEmbeddings "
-        "(gemini-embedding-2)..."
+        f"[Embeddings] Initializing "
+        f"GoogleGenerativeAIEmbeddings ({EMBEDDING_MODEL})..."
     )
 
     return GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-2",
+        model=EMBEDDING_MODEL,
         google_api_key=api_key,
     )
