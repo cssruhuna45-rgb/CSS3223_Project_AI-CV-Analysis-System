@@ -5,7 +5,7 @@ import { authAPI } from '../services/api';
 
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', password: '', role: 'candidate' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,12 +16,19 @@ export default function Login({ onLogin }) {
     setError('');
     try {
       const data = await authAPI.login(form.email, form.password);
-      // Spring Boot returns { token, user: { name, email, role } }
+      // Spring Boot returns { token, user: { id, name, email, role } }.
+      // The role must come from the server: letting the sign-in form
+      // choose it would hand anyone the recruiter dashboard.
+      const role = data.user?.role || 'candidate';
       localStorage.setItem('token', data.token);
-      const userData = { name: data.user?.name || form.email.split('@')[0], email: form.email, role: form.role };
+      const userData = {
+        name: data.user?.name || form.email.split('@')[0],
+        email: data.user?.email || form.email,
+        role,
+      };
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
-      navigate(form.role === 'recruiter' ? '/dashboard' : '/upload');
+      navigate(role === 'recruiter' ? '/dashboard' : '/upload');
     } catch (err) {
       setError(err.message || 'Invalid email or password.');
     } finally {
@@ -53,21 +60,6 @@ export default function Login({ onLogin }) {
         </div>
 
         <div className="card" style={{ padding: 32, background: '#000000' }}>
-          {/* Role Toggle */}
-          <div style={{ display: 'flex', background: '#213555', borderRadius: 10, padding: 4, marginBottom: 24 }}>
-            {['candidate', 'recruiter'].map(r => (
-              <button key={r} onClick={() => setForm(f => ({ ...f, role: r }))}
-                style={{
-                  flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, transition: 'all 0.2s',
-                  background: form.role === r ? '#D8C4B6' : 'transparent',
-                  color: form.role === r ? '#213555' : '#F5EFE7',
-                }}>
-                {r === 'candidate' ? 'Candidate' : 'Recruiter'}
-              </button>
-            ))}
-          </div>
-
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label className="label">Email address</label>

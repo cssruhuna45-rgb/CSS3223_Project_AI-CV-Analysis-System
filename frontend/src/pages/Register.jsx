@@ -16,12 +16,18 @@ export default function Register({ onLogin }) {
     setError('');
     try {
       const data = await authAPI.register(form.name, form.email, form.password, form.role);
-      // Spring Boot returns { token, user }
+      // Trust the role the server stored, not the one the form asked
+      // for: the backend refuses to grant anything above recruiter.
+      const role = data.user?.role || 'candidate';
       localStorage.setItem('token', data.token);
-      const userData = { name: form.name, email: form.email, role: form.role };
+      const userData = {
+        name: data.user?.name || form.name,
+        email: data.user?.email || form.email,
+        role,
+      };
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
-      navigate(form.role === 'recruiter' ? '/dashboard' : '/upload');
+      navigate(role === 'recruiter' ? '/dashboard' : '/upload');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

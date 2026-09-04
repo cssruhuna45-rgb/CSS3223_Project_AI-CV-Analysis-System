@@ -1,5 +1,9 @@
 const SPRING = 'http://localhost:8080';
-const FASTAPI = 'http://localhost:8000';
+
+// The Python AI service is never called from the browser. Spring
+// authenticates the user's JWT and proxies to it under /api/v1/ai,
+// adding the shared internal API key server side.
+const AI = `${SPRING}/api/v1/ai`;
 
 const getToken = () => localStorage.getItem('token');
 
@@ -117,18 +121,16 @@ export const resumeAPI = {
 
 // ============================================================
 // AI RESUME ANALYSIS
-// FastAPI → /api/v1/resume/analyze
+// Spring Boot → /api/v1/ai/resume/analyze → FastAPI
 // ============================================================
 
 export const aiResumeAPI = {
 
   analyze: (resumeId, resumeText) =>
-    fetch(`${FASTAPI}/api/v1/resume/analyze`, {
+    fetch(`${AI}/resume/analyze`, {
       method: 'POST',
 
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders(),
 
       body: JSON.stringify({
 
@@ -149,7 +151,7 @@ export const aiResumeAPI = {
 
 // ============================================================
 // INTERVIEW SESSION
-// FastAPI → /api/v1/interview
+// Spring Boot → /api/v1/ai/interview → FastAPI
 // ============================================================
 
 export const interviewAPI = {
@@ -200,13 +202,11 @@ export const interviewAPI = {
     );
 
     return fetch(
-      `${FASTAPI}/api/v1/interview/start`,
+      `${AI}/interview/start`,
       {
         method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
 
         body: JSON.stringify({
 
@@ -259,13 +259,11 @@ export const interviewAPI = {
     answer
   ) =>
     fetch(
-      `${FASTAPI}/api/v1/interview/answer`,
+      `${AI}/interview/answer`,
       {
         method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
 
         body: JSON.stringify({
 
@@ -289,13 +287,11 @@ export const interviewAPI = {
     sessionId
   ) =>
     fetch(
-      `${FASTAPI}/api/v1/interview/finish`,
+      `${AI}/interview/finish`,
       {
         method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
 
         body: JSON.stringify({
 
@@ -310,13 +306,21 @@ export const interviewAPI = {
 
   // ----------------------------------------------------------
   // GET SESSION
+  //
+  // NOTE: currently unused, and not implemented on either side —
+  // the AI service has no GET /api/v1/interview/{id} route and the
+  // Spring proxy exposes no matching mapping, so this 404s. Kept as
+  // the intended shape for when session lookup is added.
   // ----------------------------------------------------------
 
   getSession: (
     sessionId
   ) =>
     fetch(
-      `${FASTAPI}/api/v1/interview/${sessionId}`
+      `${AI}/interview/${sessionId}`,
+      {
+        headers: authHeaders(),
+      }
     ).then(handleResponse),
 
 };
@@ -324,7 +328,7 @@ export const interviewAPI = {
 
 // ============================================================
 // SKILL GAP ANALYSIS
-// FastAPI → /api/v1/skill-gap/analyze
+// Spring Boot → /api/v1/ai/skill-gap/analyze → FastAPI
 // ============================================================
 
 export const skillGapAPI = {
@@ -444,13 +448,11 @@ export const skillGapAPI = {
 
 
     return fetch(
-      `${FASTAPI}/api/v1/skill-gap/analyze`,
+      `${AI}/skill-gap/analyze`,
       {
         method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(),
 
         body: JSON.stringify(payload),
 
@@ -464,14 +466,17 @@ export const skillGapAPI = {
 
 // ============================================================
 // HEALTH CHECK
-// FastAPI → /health
+// Spring Boot → /api/v1/ai/health → FastAPI
 // ============================================================
 
 export const healthAPI = {
 
   check: () =>
     fetch(
-      `${FASTAPI}/health`
+      `${AI}/health`,
+      {
+        headers: authHeaders(),
+      }
     ).then(handleResponse),
 
 };

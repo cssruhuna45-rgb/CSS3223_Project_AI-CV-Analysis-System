@@ -10,6 +10,18 @@ from pydantic import BaseModel, Field
 
 
 # ============================================================
+# Security
+# ============================================================
+
+from app.security import (
+    INTERNAL_API_KEY_HEADER,
+    InternalApiKeyMiddleware,
+    get_allowed_origins,
+    get_internal_api_key,
+)
+
+
+# ============================================================
 # RAG
 # ============================================================
 
@@ -113,15 +125,37 @@ app = FastAPI(
 
 
 # ============================================================
+# SECURITY
+#
+# Added before CORS so that CORSMiddleware ends up as the outermost
+# layer: preflight requests are answered and 401 responses still carry
+# CORS headers.
+# ============================================================
+
+app.add_middleware(
+    InternalApiKeyMiddleware,
+    api_key=get_internal_api_key(),
+)
+
+
+# ============================================================
 # CORS
+#
+# Browsers are expected to call the Spring backend, which proxies to
+# this service. Origins stay explicit so a stolen key cannot be replayed
+# from an arbitrary page.
 # ============================================================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Accept",
+        INTERNAL_API_KEY_HEADER,
+    ],
 )
 
 
