@@ -78,6 +78,13 @@ from app.interview.question_generator import (
 
 
 # ============================================================
+# Interview Evaluator
+# ============================================================
+
+from app.interview.evaluator import evaluate_interview
+
+
+# ============================================================
 # Resume
 # ============================================================
 
@@ -1719,40 +1726,54 @@ def finish_interview_endpoint(
             req.session_id
         )
 
-        if session.status == "completed":
+        # ----------------------------------------------------
+        # Already finished: return the cached scorecard.
+        #
+        # Grading again would cost another LLM call and could
+        # hand back different numbers for the same interview.
+        # ----------------------------------------------------
+
+        if session.status == "completed" and session.evaluation:
 
             return InterviewFinishResponse(
-
                 session_id=session.session_id,
-
                 status=session.status,
-
-                total_questions=len(
-                    session.questions
-                ),
+                total_questions=len(session.questions),
+                **session.evaluation,
             )
 
         finished_session = finish_session(
             req.session_id
         )
 
+        # ----------------------------------------------------
+        # Grade the transcript.
+        #
+        # evaluate_interview never raises - a grading failure
+        # comes back as zeros with evaluated=False, so the
+        # candidate still reaches their scorecard.
+        # ----------------------------------------------------
+
+        evaluation = evaluate_interview(
+            questions=finished_session.questions,
+            answers=finished_session.answers,
+            job_field=finished_session.job_field,
+        )
+
+        finished_session.evaluation = evaluation
+
         print(
             "[InterviewFinish] "
-            f"Session completed: "
-            f"{req.session_id}"
+            f"Session completed: {req.session_id} | "
+            f"overall {evaluation.get('overall_score')} | "
+            f"evaluated={evaluation.get('evaluated')}"
         )
 
         return InterviewFinishResponse(
-
-            session_id=(
-                finished_session.session_id
-            ),
-
+            session_id=finished_session.session_id,
             status=finished_session.status,
-
-            total_questions=len(
-                finished_session.questions
-            ),
+            total_questions=len(finished_session.questions),
+            **evaluation,
         )
 
     except HTTPException:

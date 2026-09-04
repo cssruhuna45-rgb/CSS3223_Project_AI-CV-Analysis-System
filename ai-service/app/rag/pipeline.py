@@ -6,6 +6,13 @@ import sys
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from app.llm_config import (
+    get_max_retries,
+    get_model_name,
+    get_timeout,
+)
+
+
 try:
     from langchain_core.prompts import PromptTemplate
     from langchain_core.runnables import RunnablePassthrough
@@ -44,7 +51,7 @@ load_dotenv()
 # Configuration
 # ============================================================
 
-DEFAULT_LLM_MODEL = "gemini-flash-lite-latest"
+DEFAULT_LLM_MODEL = get_model_name()
 
 DEFAULT_TEMPERATURE = 0.4
 

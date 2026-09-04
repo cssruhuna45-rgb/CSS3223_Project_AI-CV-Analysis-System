@@ -615,6 +615,14 @@ export default function InterviewRoom() {
           sessionId
         );
 
+        // Hand the scorecard its data. Without this the result of
+        // the whole interview is thrown away and /scorecard has
+        // nothing to show.
+        sessionStorage.setItem(
+          'interviewResult',
+          JSON.stringify(finishData)
+        );
+
         navigate('/scorecard');
 
         return;

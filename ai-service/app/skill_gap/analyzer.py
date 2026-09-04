@@ -3,6 +3,13 @@
 from typing import List, Set
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+from app.llm_config import (
+    get_max_retries,
+    get_model_name,
+    get_timeout,
+)
+
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
@@ -25,7 +32,7 @@ from app.skill_gap.skill_catalog import (
 # Gemini Configuration
 # ============================================================
 
-MODEL_NAME = "gemini-flash-lite-latest"
+MODEL_NAME = get_model_name()
 
 
 # ============================================================
@@ -65,6 +72,8 @@ def _get_llm():
     return ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         temperature=0,
+        timeout=get_timeout(),
+        max_retries=get_max_retries(),
     )
 
 

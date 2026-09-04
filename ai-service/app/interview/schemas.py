@@ -121,7 +121,70 @@ class InterviewFinishRequest(BaseModel):
     )
 
 
+class CategoryScore(BaseModel):
+    key: str
+    label: str
+    score: int = Field(..., ge=0, le=100)
+
+
+class QuestionEvaluation(BaseModel):
+    question_number: int
+    question: str
+    answer: str
+    score: int = Field(..., ge=0, le=100)
+
+    verdict: str = Field(
+        ...,
+        description="strong, partial, weak or none.",
+    )
+
+    what_was_good: str = ""
+    what_was_missing: str = ""
+
+
 class InterviewFinishResponse(BaseModel):
     session_id: str
     status: str
     total_questions: int
+
+    # ------------------------------------------------------------
+    # Scorecard
+    #
+    # Produced by app.interview.evaluator at the end of the session.
+    # ------------------------------------------------------------
+
+    overall_score: int = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description="Mean of the category scores.",
+    )
+
+    category_scores: List[CategoryScore] = Field(
+        default_factory=list
+    )
+
+    strengths: List[str] = Field(
+        default_factory=list
+    )
+
+    improvements: List[str] = Field(
+        default_factory=list
+    )
+
+    per_question: List[QuestionEvaluation] = Field(
+        default_factory=list
+    )
+
+    evaluated: bool = Field(
+        default=False,
+        description=(
+            "False when grading could not run. The scores are then "
+            "zeros and must not be shown as a real result."
+        ),
+    )
+
+    evaluation_error: str = Field(
+        default="",
+        description="Why grading failed, when it did.",
+    )

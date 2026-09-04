@@ -13,6 +13,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from app.rag.vector_store import get_or_create_vector_store
 from app.rag.retriever import retrieve_relevant_chunks
 
+from app.llm_config import (
+    get_max_retries,
+    get_model_name,
+    get_timeout,
+)
+
+
 load_dotenv()
 
 
@@ -20,7 +27,7 @@ load_dotenv()
 # Configuration
 # ============================================================
 
-LLM_MODEL = "gemini-flash-lite-latest"
+LLM_MODEL = get_model_name()
 LLM_TEMPERATURE = 0.4
 
 RAG_TOP_K = 5
@@ -657,6 +664,8 @@ def get_llm() -> ChatGoogleGenerativeAI:
         model=LLM_MODEL,
         google_api_key=api_key,
         temperature=LLM_TEMPERATURE,
+        timeout=get_timeout(),
+        max_retries=get_max_retries(),
     )
 
 
