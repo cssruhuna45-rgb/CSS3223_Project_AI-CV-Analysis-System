@@ -134,6 +134,29 @@ export const resumeAPI = {
 
 export const aiResumeAPI = {
 
+  // Reviews how the CV is written, against the standards in
+  // documents/cv_resume_standards_guide.md. Separate from analyze,
+  // which only extracts what the CV says.
+  feedback: (resumeId, resumeText) =>
+    fetch(`${AI}/resume/feedback`, {
+      method: 'POST',
+
+      headers: authHeaders(),
+
+      body: JSON.stringify({
+
+        resume_id:
+          Number(resumeId) || 1,
+
+        resume_text:
+          typeof resumeText === 'string'
+            ? resumeText
+            : (resumeText?.text || ''),
+
+      }),
+
+    }).then(handleResponse),
+
   analyze: (resumeId, resumeText) =>
     fetch(`${AI}/resume/analyze`, {
       method: 'POST',
@@ -225,6 +248,15 @@ export const interviewAPI = {
           candidate_resume:
             candidateResume,
 
+          // Which stored resume this interview is about, so the
+          // backend can file the interview against it. Spring checks
+          // that the resume really belongs to the signed-in user and
+          // stores no resume at all when it does not, so a stale or
+          // made-up value here is harmless. The AI service ignores
+          // fields it does not declare.
+          resume_id:
+            Number(sessionStorage.getItem('resumeId')) || null,
+
           // Selected job field
           job_field:
             jobField,
@@ -288,6 +320,47 @@ export const interviewAPI = {
 
 
   // ----------------------------------------------------------
+  // MODEL ANSWER
+  //
+  // The answer the candidate should have given, built from the same
+  // knowledge base the question came from. Shown right after they
+  // submit, while the question is still fresh.
+  // ----------------------------------------------------------
+
+  getModelAnswer: (
+    sessionId,
+    question,
+    answer,
+    jobField
+  ) =>
+    fetch(
+      `${AI}/interview/model-answer`,
+      {
+        method: 'POST',
+
+        headers: authHeaders(),
+
+        body: JSON.stringify({
+
+          session_id:
+            sessionId || '',
+
+          question:
+            question,
+
+          answer:
+            answer || '',
+
+          job_field:
+            jobField || '',
+
+        }),
+
+      }
+    ).then(handleResponse),
+
+
+  // ----------------------------------------------------------
   // FINISH INTERVIEW
   // ----------------------------------------------------------
 
@@ -308,6 +381,36 @@ export const interviewAPI = {
 
         }),
 
+      }
+    ).then(handleResponse),
+
+
+  // ----------------------------------------------------------
+  // INTERVIEW HISTORY AND PROGRESS
+  //
+  // Spring Boot only - these read PostgreSQL and never reach the
+  // AI service, so the data survives a restart of either service.
+  //
+  // Neither takes a user id: the backend uses the signed-in user
+  // from the JWT, so there is nothing here that could ask for
+  // somebody else's interviews.
+  // ----------------------------------------------------------
+
+  history: () =>
+    fetch(
+      `${SPRING}/api/v1/interviews/history`,
+      {
+        method: 'GET',
+        headers: authHeaders(),
+      }
+    ).then(handleResponse),
+
+  progress: () =>
+    fetch(
+      `${SPRING}/api/v1/interviews/progress`,
+      {
+        method: 'GET',
+        headers: authHeaders(),
       }
     ).then(handleResponse),
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 
@@ -91,6 +91,16 @@ class InterviewSession:
     # --------------------------------------------------------
 
     last_answer_quality: str = "none"
+
+    # --------------------------------------------------------
+    # Scorecard
+    #
+    # Filled once, when the interview finishes. Cached so that a
+    # repeated finish call returns the same scores instead of paying
+    # for another LLM call and producing different numbers.
+    # --------------------------------------------------------
+
+    evaluation: Optional[dict] = None
 
 
 # ============================================================

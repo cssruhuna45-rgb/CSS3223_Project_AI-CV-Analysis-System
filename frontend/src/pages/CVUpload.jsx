@@ -19,6 +19,7 @@ import {
   Loader,
 } from 'lucide-react';
 import { resumeAPI, aiResumeAPI } from '../services/api';
+import CVFeedback from '../components/CVFeedback';
 import StepBar from '../components/StepBar';
 import { PREDEFINED_JOB_FIELDS, getJobFieldName } from '../constants/jobFields';
 
@@ -31,6 +32,9 @@ export default function CVUpload() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [analysis, setAnalysis] = useState(null);
+  const [review, setReview] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState('');
   const [showManualSelection, setShowManualSelection] = useState(false);
   const [manualField, setManualField] = useState('');
 
@@ -41,6 +45,8 @@ export default function CVUpload() {
     if (savedAnalysis) {
       try {
         setAnalysis(JSON.parse(savedAnalysis));
+        const savedReview = sessionStorage.getItem('cvReview');
+        if (savedReview) setReview(JSON.parse(savedReview));
         if (savedJobField) setManualField(savedJobField);
       } catch (e) {
         console.error('Failed to parse cached analysis', e);
@@ -54,6 +60,9 @@ export default function CVUpload() {
       setFile(f);
       setError('');
       setAnalysis(null);
+    setReview(null);
+    sessionStorage.removeItem('cvReview');
+      setReview(null);
     } else {
       setError('Only PDF files are supported. Please upload a valid PDF resume.');
     }
@@ -99,6 +108,22 @@ export default function CVUpload() {
       // Default select the top recommendation if available
       if (aiResult.recommended_job_fields && aiResult.recommended_job_fields.length > 0) {
         setManualField(aiResult.recommended_job_fields[0].field);
+      }
+
+      // 3. Review how the CV is written. Deliberately after the
+      //    analysis is already on screen, and in its own try/catch:
+      //    a failed review must not lose the extraction.
+      setReviewLoading(true);
+      setReviewError('');
+      try {
+        const cvReview = await aiResumeAPI.feedback(resumeId, resumeText);
+        sessionStorage.setItem('cvReview', JSON.stringify(cvReview));
+        setReview(cvReview);
+      } catch (reviewErr) {
+        console.error('CV review error:', reviewErr);
+        setReviewError(reviewErr.message || 'Could not review the CV.');
+      } finally {
+        setReviewLoading(false);
       }
     } catch (err) {
       console.error('Analysis error:', err);
@@ -152,7 +177,7 @@ export default function CVUpload() {
 
       {/* Upload Zone & Actions (Visible when no analysis yet or editable) */}
       {!analysis && (
-        <div className="card" style={{ marginBottom: 32, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="card" style={{ marginBottom: 32, background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #D8C4B6' }}>
           <div
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
@@ -309,8 +334,9 @@ export default function CVUpload() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(216,196,182,0.12)',
-            border: '1px solid rgba(216,196,182,0.3)',
+            background: '#000000',
+            border: '1px solid rgba(74,222,128,0.35)',
+            borderLeft: '4px solid #4ADE80',
             borderRadius: 14,
             padding: '16px 20px',
           }}>
@@ -319,16 +345,17 @@ export default function CVUpload() {
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: '#D8C4B6',
-                color: '#213555',
+                background: 'rgba(74,222,128,0.15)',
+                color: '#4ADE80',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                border: '1px solid rgba(74,222,128,0.4)',
               }}>
                 <CheckCircle size={20} />
               </div>
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#D8C4B6', margin: 0 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#4ADE80', margin: 0 }}>
                   Resume Analysis Complete ✓
                 </h3>
                 <p style={{ fontSize: 13, color: '#F5EFE7', opacity: 0.85, margin: 0 }}>
@@ -346,12 +373,19 @@ export default function CVUpload() {
             </button>
           </div>
 
+          {/* CV review - how it is written, not what it says */}
+          <CVFeedback
+            review={review}
+            loading={reviewLoading}
+            error={reviewError}
+          />
+
           {/* 1. Candidate Summary */}
           {analysis.summary && (
-            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="card" style={{ background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #60A5FA' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <FileText size={18} color="#D8C4B6" />
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#F5EFE7', margin: 0 }}>Candidate Summary</h3>
+                <FileText size={18} color="#60A5FA" />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#60A5FA', margin: 0 }}>Candidate Summary</h3>
               </div>
               <p style={{ fontSize: 14, lineHeight: 1.7, color: '#F5EFE7', opacity: 0.95 }}>
                 {analysis.summary}
@@ -361,13 +395,20 @@ export default function CVUpload() {
 
           {/* 2. Technical Skills */}
           {analysis.skills && analysis.skills.length > 0 && (
-            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="card" style={{ background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #4ADE80' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Sparkles size={18} color="#D8C4B6" />
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: '#F5EFE7', margin: 0 }}>Technical Skills</h3>
+                  <Sparkles size={18} color="#4ADE80" />
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#4ADE80', margin: 0 }}>Technical Skills</h3>
                 </div>
-                <span className="badge badge-blue">
+                <span
+                  className="badge"
+                  style={{
+                    background: 'rgba(74,222,128,0.12)',
+                    color: '#4ADE80',
+                    border: '1px solid rgba(74,222,128,0.35)',
+                  }}
+                >
                   {analysis.skills.length} Extracted
                 </span>
               </div>
@@ -379,9 +420,9 @@ export default function CVUpload() {
                     style={{
                       padding: '6px 12px',
                       fontSize: 13,
-                      background: 'rgba(216,196,182,0.12)',
-                      color: '#D8C4B6',
-                      borderColor: 'rgba(216,196,182,0.25)',
+                      background: 'rgba(74,222,128,0.1)',
+                      color: '#86EFAC',
+                      borderColor: 'rgba(74,222,128,0.3)',
                     }}
                   >
                     {s}
@@ -395,10 +436,10 @@ export default function CVUpload() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
             {/* Education */}
             {analysis.education && analysis.education.length > 0 && (
-              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div className="card" style={{ background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #C084FC' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <GraduationCap size={18} color="#D8C4B6" />
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: '#F5EFE7', margin: 0 }}>Education</h3>
+                  <GraduationCap size={18} color="#C084FC" />
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#C084FC', margin: 0 }}>Education</h3>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {analysis.education.map((edu, idx) => (
@@ -407,14 +448,14 @@ export default function CVUpload() {
                       style={{
                         padding: '12px 14px',
                         borderRadius: 10,
-                        background: 'rgba(33,53,85,0.3)',
-                        border: '1px solid rgba(216,196,182,0.12)',
+                        background: 'rgba(192,132,252,0.08)',
+                        border: '1px solid rgba(192,132,252,0.25)',
                       }}
                     >
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#F5EFE7' }}>
                         {edu.degree || 'Degree'} {edu.field ? `in ${edu.field}` : ''}
                       </div>
-                      <div style={{ fontSize: 13, color: '#D8C4B6', marginTop: 2 }}>
+                      <div style={{ fontSize: 13, color: '#E9D5FF', marginTop: 2 }}>
                         {edu.institution || 'University / Institution'}
                       </div>
                       {edu.year && (
@@ -430,10 +471,10 @@ export default function CVUpload() {
 
             {/* Experience */}
             {analysis.experience && analysis.experience.length > 0 && (
-              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div className="card" style={{ background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #FBBF24' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Briefcase size={18} color="#D8C4B6" />
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: '#F5EFE7', margin: 0 }}>Experience</h3>
+                  <Briefcase size={18} color="#FBBF24" />
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#FBBF24', margin: 0 }}>Experience</h3>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {analysis.experience.map((exp, idx) => (
@@ -442,8 +483,8 @@ export default function CVUpload() {
                       style={{
                         padding: '12px 14px',
                         borderRadius: 10,
-                        background: 'rgba(33,53,85,0.3)',
-                        border: '1px solid rgba(216,196,182,0.12)',
+                        background: 'rgba(251,191,36,0.07)',
+                        border: '1px solid rgba(251,191,36,0.25)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -451,12 +492,12 @@ export default function CVUpload() {
                           {exp.role || 'Role'}
                         </div>
                         {exp.duration && (
-                          <span style={{ fontSize: 12, color: '#D8C4B6', background: 'rgba(216,196,182,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                          <span style={{ fontSize: 12, color: '#FBBF24', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', padding: '2px 8px', borderRadius: 6 }}>
                             {exp.duration}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 13, color: '#D8C4B6', marginTop: 2 }}>
+                      <div style={{ fontSize: 13, color: '#FDE68A', marginTop: 2 }}>
                         {exp.company || 'Company'}
                       </div>
                       {exp.description && (
@@ -473,10 +514,10 @@ export default function CVUpload() {
 
           {/* 4. Projects */}
           {analysis.projects && analysis.projects.length > 0 && (
-            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="card" style={{ background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #22D3EE' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                <FolderGit2 size={18} color="#D8C4B6" />
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#F5EFE7', margin: 0 }}>Projects</h3>
+                <FolderGit2 size={18} color="#22D3EE" />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#22D3EE', margin: 0 }}>Projects</h3>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
                 {analysis.projects.map((proj, idx) => (
@@ -485,11 +526,11 @@ export default function CVUpload() {
                     style={{
                       padding: '14px',
                       borderRadius: 10,
-                      background: 'rgba(33,53,85,0.3)',
-                      border: '1px solid rgba(216,196,182,0.12)',
+                      background: 'rgba(34,211,238,0.07)',
+                      border: '1px solid rgba(34,211,238,0.25)',
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#F5EFE7', marginBottom: 4 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#67E8F9', marginBottom: 4 }}>
                       {proj.name}
                     </div>
                     {proj.description && (
@@ -500,7 +541,17 @@ export default function CVUpload() {
                     {proj.technologies && proj.technologies.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {proj.technologies.map((t, tidx) => (
-                          <span key={tidx} className="badge badge-yellow" style={{ fontSize: 11, padding: '2px 8px' }}>
+                          <span
+                            key={tidx}
+                            className="badge"
+                            style={{
+                              fontSize: 11,
+                              padding: '2px 8px',
+                              background: 'rgba(34,211,238,0.12)',
+                              color: '#22D3EE',
+                              border: '1px solid rgba(34,211,238,0.35)',
+                            }}
+                          >
                             {t}
                           </span>
                         ))}
@@ -514,17 +565,23 @@ export default function CVUpload() {
 
           {/* 5. Certifications */}
           {analysis.certifications && analysis.certifications.length > 0 && (
-            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="card" style={{ background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #F472B6' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <Award size={18} color="#D8C4B6" />
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#F5EFE7', margin: 0 }}>Certifications</h3>
+                <Award size={18} color="#F472B6" />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#F472B6', margin: 0 }}>Certifications</h3>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {analysis.certifications.map((cert, idx) => (
                   <span
                     key={idx}
-                    className="badge badge-green"
-                    style={{ padding: '6px 12px', fontSize: 13 }}
+                    className="badge"
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: 13,
+                      background: 'rgba(244,114,182,0.12)',
+                      color: '#F472B6',
+                      border: '1px solid rgba(244,114,182,0.35)',
+                    }}
                   >
                     <Award size={13} /> {cert}
                   </span>
@@ -538,7 +595,17 @@ export default function CVUpload() {
           {/* ── RECOMMENDED CAREER PATHS SECTION ── */}
           <div style={{ marginTop: 8 }}>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <span className="badge badge-blue" style={{ marginBottom: 8, fontSize: 12, padding: '4px 14px' }}>
+              <span
+                className="badge"
+                style={{
+                  marginBottom: 8,
+                  fontSize: 12,
+                  padding: '4px 14px',
+                  background: 'rgba(216,196,182,0.12)',
+                  color: '#D8C4B6',
+                  border: '1px solid rgba(216,196,182,0.35)',
+                }}
+              >
                 <Compass size={13} /> AI Career Matching
               </span>
               <h2 style={{ fontSize: 24, fontWeight: 700, color: '#F5EFE7', marginBottom: 6 }}>
@@ -560,7 +627,7 @@ export default function CVUpload() {
                     key={rec.field || idx}
                     className="card"
                     style={{
-                      background: isTopMatch ? 'rgba(62,88,121,0.95)' : 'var(--bg-card)',
+                      background: '#000000',
                       border: isTopMatch ? '2px solid #D8C4B6' : '1px solid var(--border)',
                       borderRadius: 16,
                       padding: 24,
@@ -654,7 +721,7 @@ export default function CVUpload() {
             <div
               className="card"
               style={{
-                background: 'rgba(33,53,85,0.4)',
+                background: '#000000',
                 border: '1px dashed var(--border)',
                 borderRadius: 16,
                 padding: 24,

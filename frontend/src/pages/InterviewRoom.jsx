@@ -9,9 +9,12 @@ import {
   Brain,
   CheckCircle,
   AlertCircle,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { interviewAPI } from '../services/api';
 import StepBar from '../components/StepBar';
+import ModelAnswer from '../components/ModelAnswer';
 
 const MAX_QUESTIONS = 5;
 const TOTAL_TIME = 120;
@@ -67,6 +70,31 @@ export default function InterviewRoom() {
   const [aiTyping, setAiTyping] = useState(false);
   const [displayedQ, setDisplayedQ] = useState('');
 
+  // ----------------------------------------------------------
+  // MODEL ANSWER
+  //
+  // The expected answer for the question just submitted. Fetched on
+  // submit rather than with the next question, so the candidate sees it
+  // while their own answer is still in front of them - and so the last
+  // question gets one too, before the scorecard.
+  // ----------------------------------------------------------
+
+  const [modelAnswer, setModelAnswer] = useState(null);
+  const [modelAnswerLoading, setModelAnswerLoading] = useState(false);
+  const [modelAnswerError, setModelAnswerError] = useState('');
+
+  // ----------------------------------------------------------
+  // LISTEN TO THE QUESTION
+  //
+  // A real interviewer asks out loud, and a candidate who practises by
+  // reading is not practising the part they will actually do. The
+  // browser speaks the question on request rather than automatically:
+  // autoplay is blocked without a gesture, and being talked at the
+  // moment a page loads is worse than a button.
+  // ----------------------------------------------------------
+
+  const [speaking, setSpeaking] = useState(false);
+
   // ==========================================================
   // REFS
   // ==========================================================
@@ -79,6 +107,41 @@ export default function InterviewRoom() {
 
   // Prevent duplicate ANSWER request
   const submittingAnswerRef = useRef(false);
+
+  // Prevent duplicate MODEL ANSWER request
+  const modelAnswerRef = useRef(false);
+
+  // The utterance currently being spoken, so it can be cancelled
+  const utteranceRef = useRef(null);
+
+  // ----------------------------------------------------------
+  // MICROPHONE STATE THAT MUST NOT LIVE IN REACT STATE
+  //
+  // The recognition callbacks are registered once and would close over
+  // whatever the values were at that moment, so they are read through
+  // refs instead.
+  // ----------------------------------------------------------
+
+  // Whether the candidate still wants to be recording. Chrome ends a
+  // recognition session after a few seconds of silence even with
+  // continuous = true, which used to look like the button had simply
+  // stopped working. This is what tells onend to start it again.
+  const shouldListenRef = useRef(false);
+
+  // Whatever was already in the box when recording started, so speech
+  // is added to typed text instead of wiping it.
+  const baseAnswerRef = useRef('');
+
+  // Everything recognised so far in this recording. A restarted session
+  // begins its results from scratch, so the earlier speech has to be
+  // kept here or it disappears mid-answer.
+  const finalTranscriptRef = useRef('');
+
+  // Speech synthesis is missing in some browsers; the button hides
+  // rather than failing when the candidate presses it.
+  const speechSupported =
+    typeof window !== 'undefined' &&
+    'speechSynthesis' in window;
 
   // ==========================================================
   // SESSION STORAGE
@@ -397,6 +460,10 @@ export default function InterviewRoom() {
 
   useEffect(() => {
     return () => {
+      // Cleared first: otherwise onend restarts recognition on a page
+      // that is already gone.
+      shouldListenRef.current = false;
+
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -414,8 +481,149 @@ export default function InterviewRoom() {
   }, []);
 
   // ==========================================================
+  // LISTEN TO THE QUESTION
+  // ==========================================================
+
+  const stopSpeaking = () => {
+    if (!speechSupported) {
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+    } catch (error) {
+      console.log(
+        '[Frontend] Nothing was being spoken.'
+      );
+    }
+
+    utteranceRef.current = null;
+
+    setSpeaking(false);
+  };
+
+  const toggleListenQuestion = () => {
+    if (!speechSupported) {
+      return;
+    }
+
+    if (speaking) {
+      stopSpeaking();
+
+      return;
+    }
+
+    const text = (question || displayedQ || '').trim();
+
+    if (!text) {
+      return;
+    }
+
+    // The microphone would otherwise transcribe the question straight
+    // into the answer box.
+    if (listening) {
+      stopRecognition();
+    }
+
+    // Chrome keeps a queue; without this a second press stacks another
+    // reading behind the first.
+    window.speechSynthesis.cancel();
+
+    const utterance =
+      new window.SpeechSynthesisUtterance(text);
+
+    utterance.lang = 'en-US';
+
+    // Slightly under natural pace: interview questions carry detail the
+    // candidate is meant to catch the first time.
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+
+    utterance.onend = () => {
+      utteranceRef.current = null;
+      setSpeaking(false);
+    };
+
+    utterance.onerror = (event) => {
+      console.error(
+        '[Frontend] Speech synthesis error:',
+        event.error
+      );
+
+      utteranceRef.current = null;
+      setSpeaking(false);
+    };
+
+    utteranceRef.current = utterance;
+
+    setSpeaking(true);
+
+    window.speechSynthesis.speak(utterance);
+
+    console.log(
+      '[Frontend] Reading question aloud.'
+    );
+  };
+
+  // ----------------------------------------------------------
+  // STOP SPEAKING ON QUESTION CHANGE AND UNMOUNT
+  //
+  // Without this the previous question keeps being read over the new
+  // one, and it carries on after the candidate leaves the page.
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    return () => {
+      if (speechSupported) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (error) {
+          console.log(
+            '[Frontend] Speech cleanup completed.'
+          );
+        }
+      }
+
+      utteranceRef.current = null;
+      setSpeaking(false);
+    };
+  }, [qIndex, speechSupported]);
+
+  // ==========================================================
   // MICROPHONE
   // ==========================================================
+
+  // What each failure actually means for the candidate. These used to
+  // go to the console only, so a blocked microphone or a page served
+  // over plain http looked identical to a button that did nothing.
+  const MIC_ERRORS = {
+    'not-allowed':
+      'Microphone access was blocked. Allow the microphone for this site in your browser settings, then try again.',
+    'service-not-allowed':
+      'Your browser refused speech recognition. This usually means the page is not served over https or localhost.',
+    'audio-capture':
+      'No microphone was found. Check that one is connected and selected as the input device.',
+    network:
+      'Speech recognition needs an internet connection and could not reach the service.',
+    aborted: '',
+    'no-speech': '',
+  };
+
+  const stopRecognition = () => {
+    shouldListenRef.current = false;
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        console.log(
+          '[Frontend] Recognition already stopped.'
+        );
+      }
+    }
+
+    setListening(false);
+  };
 
   const toggleMic = () => {
     const SpeechRecognition =
@@ -423,8 +631,19 @@ export default function InterviewRoom() {
       window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert(
-        'Speech recognition is not supported in this browser. Please use Chrome or Edge.'
+      setError(
+        'Speech recognition is not supported in this browser. Please use Chrome or Edge, or type your answer.'
+      );
+
+      return;
+    }
+
+    // The API exists in more browsers than it works in: served from
+    // anything other than https or localhost, Chrome accepts the call
+    // and then fails silently.
+    if (!window.isSecureContext) {
+      setError(
+        'The microphone needs a secure page. Open the app on http://localhost:3000 (not an IP address) or over https.'
       );
 
       return;
@@ -435,24 +654,26 @@ export default function InterviewRoom() {
     // --------------------------------------------------------
 
     if (listening) {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (error) {
-          console.log(
-            '[Frontend] Recognition already stopped.'
-          );
-        }
-      }
-
-      setListening(false);
+      stopRecognition();
 
       return;
     }
 
     // --------------------------------------------------------
     // START RECORDING
+    //
+    // The question is stopped first: a reading still in progress would
+    // be picked up by the microphone and typed into the answer.
     // --------------------------------------------------------
+
+    stopSpeaking();
+
+    setError('');
+
+    // Speech is appended to whatever has already been typed rather
+    // than replacing it.
+    baseAnswerRef.current = answer ? `${answer.trim()} ` : '';
+    finalTranscriptRef.current = '';
 
     const recognition =
       new SpeechRecognition();
@@ -470,15 +691,32 @@ export default function InterviewRoom() {
     };
 
     recognition.onresult = (event) => {
-      const transcript =
-        Array.from(event.results)
-          .map(
-            (result) =>
-              result[0].transcript
-          )
-          .join('');
+      let interim = '';
 
-      setAnswer(transcript);
+      // Only results from this event's index onwards are new; earlier
+      // ones are already in finalTranscriptRef.
+      for (
+        let i = event.resultIndex;
+        i < event.results.length;
+        i += 1
+      ) {
+        const result = event.results[i];
+        const text = result[0].transcript;
+
+        if (result.isFinal) {
+          finalTranscriptRef.current += text;
+        } else {
+          interim += text;
+        }
+      }
+
+      setAnswer(
+        (
+          baseAnswerRef.current +
+          finalTranscriptRef.current +
+          interim
+        ).trimStart()
+      );
     };
 
     recognition.onerror = (event) => {
@@ -487,14 +725,53 @@ export default function InterviewRoom() {
         event.error
       );
 
-      setListening(false);
+      const message = MIC_ERRORS[event.error];
+
+      // "no-speech" and "aborted" are normal: Chrome raises them on a
+      // quiet pause, and onend restarts the session.
+      if (message === undefined) {
+        setError(
+          `Microphone error: ${event.error}. Please type your answer instead.`
+        );
+      } else if (message) {
+        setError(message);
+      }
+
+      // A permission or transport failure will not fix itself on a
+      // restart, so stop asking.
+      if (message) {
+        shouldListenRef.current = false;
+        setListening(false);
+      }
     };
 
     recognition.onend = () => {
+      // Chrome ends the session on silence. If the candidate never
+      // pressed stop, start listening again so a pause mid-answer does
+      // not quietly end the recording.
+      if (shouldListenRef.current) {
+        try {
+          recognition.start();
+
+          console.log(
+            '[Frontend] Microphone resumed after pause.'
+          );
+
+          return;
+        } catch (error) {
+          console.log(
+            '[Frontend] Could not resume microphone:',
+            error
+          );
+        }
+      }
+
       setListening(false);
     };
 
     recognitionRef.current = recognition;
+
+    shouldListenRef.current = true;
 
     try {
       recognition.start();
@@ -504,7 +781,96 @@ export default function InterviewRoom() {
         error
       );
 
+      shouldListenRef.current = false;
+
+      setError(
+        'The microphone could not be started. Check that no other tab is using it, then try again.'
+      );
+
       setListening(false);
+    }
+  };
+
+  // ==========================================================
+  // REVEAL EXPECTED ANSWER
+  //
+  // Runs when the candidate presses Submit. The answer itself only
+  // reaches the AI service when they move on, so this call is what
+  // closes the loop for the question they just finished.
+  //
+  // It deliberately does not block anything: if it fails, the panel
+  // says so and Next Question still works.
+  // ==========================================================
+
+  const revealModelAnswer = async () => {
+    const submittedAnswer = answer.trim();
+
+    if (!submittedAnswer) {
+      return;
+    }
+
+    setSubmitted(true);
+
+    // The question has been answered; nobody wants to hear it read out
+    // over the expected answer.
+    stopSpeaking();
+
+    if (listening) {
+      stopRecognition();
+    }
+
+    if (modelAnswerRef.current) {
+      return;
+    }
+
+    modelAnswerRef.current = true;
+
+    setModelAnswer(null);
+    setModelAnswerError('');
+    setModelAnswerLoading(true);
+
+    try {
+      console.log(
+        '[Frontend] Fetching expected answer for question',
+        qIndex + 1
+      );
+
+      const data =
+        await interviewAPI.getModelAnswer(
+          sessionId,
+          question,
+          submittedAnswer,
+          selectedJobField
+        );
+
+      console.log(
+        '[Frontend] Expected answer:',
+        data
+      );
+
+      if (data?.generated === false) {
+        setModelAnswerError(
+          data?.error ||
+          'The expected answer could not be generated.'
+        );
+      } else {
+        setModelAnswer(data);
+      }
+
+    } catch (err) {
+      console.error(
+        '[Frontend] Expected answer error:',
+        err
+      );
+
+      setModelAnswerError(
+        err?.message ||
+        'Could not reach the AI service.'
+      );
+
+    } finally {
+      setModelAnswerLoading(false);
+      modelAnswerRef.current = false;
     }
   };
 
@@ -539,17 +905,7 @@ export default function InterviewRoom() {
     // Stop microphone
     // --------------------------------------------------------
 
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (error) {
-        console.log(
-          '[Frontend] Microphone already stopped.'
-        );
-      }
-    }
-
-    setListening(false);
+    stopRecognition();
 
     // --------------------------------------------------------
     // Stop timer
@@ -615,6 +971,14 @@ export default function InterviewRoom() {
           sessionId
         );
 
+        // Hand the scorecard its data. Without this the result of
+        // the whole interview is thrown away and /scorecard has
+        // nothing to show.
+        sessionStorage.setItem(
+          'interviewResult',
+          JSON.stringify(finishData)
+        );
+
         navigate('/scorecard');
 
         return;
@@ -654,6 +1018,10 @@ export default function InterviewRoom() {
 
       setAnswer('');
       setSubmitted(false);
+
+      // The panel belongs to the question that just ended.
+      setModelAnswer(null);
+      setModelAnswerError('');
 
     } catch (err) {
       console.error(
@@ -1022,6 +1390,81 @@ export default function InterviewRoom() {
                 AI Interviewer
               </span>
 
+              {/* ==========================================
+                  LISTEN
+
+                  Reads the question aloud, so the candidate
+                  practises hearing it the way it will be
+                  asked. Hidden when the browser has no
+                  speech synthesis.
+              ========================================== */}
+
+              {speechSupported && (
+                <button
+                  onClick={
+                    toggleListenQuestion
+                  }
+                  disabled={
+                    aiTyping ||
+                    !question
+                  }
+                  title={
+                    speaking
+                      ? 'Stop reading the question'
+                      : 'Listen to the question'
+                  }
+                  style={{
+                    display: 'flex',
+                    alignItems:
+                      'center',
+                    gap: 5,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding:
+                      '3px 10px',
+                    borderRadius: 12,
+                    cursor:
+                      aiTyping ||
+                      !question
+                        ? 'default'
+                        : 'pointer',
+                    background:
+                      speaking
+                        ? 'rgba(74,222,128,0.14)'
+                        : 'rgba(216,196,182,0.1)',
+                    color: speaking
+                      ? '#4ADE80'
+                      : '#D8C4B6',
+                    border: `1px solid ${
+                      speaking
+                        ? 'rgba(74,222,128,0.4)'
+                        : 'rgba(216,196,182,0.28)'
+                    }`,
+                    opacity:
+                      aiTyping ||
+                      !question
+                        ? 0.45
+                        : 1,
+                  }}
+                >
+                  {speaking ? (
+                    <>
+                      <VolumeX
+                        size={13}
+                      />
+                      Stop
+                    </>
+                  ) : (
+                    <>
+                      <Volume2
+                        size={13}
+                      />
+                      Listen
+                    </>
+                  )}
+                </button>
+              )}
+
               {aiTyping && (
                 <div
                   style={{
@@ -1232,9 +1675,7 @@ export default function InterviewRoom() {
 
             <button
               className="btn btn-primary"
-              onClick={() =>
-                setSubmitted(true)
-              }
+              onClick={revealModelAnswer}
               disabled={
                 !answer.trim() ||
                 loading
@@ -1310,6 +1751,21 @@ export default function InterviewRoom() {
           </div>
 
           {/* ==================================================
+              EXPECTED ANSWER
+
+              What a strong answer to this question looks like,
+              retrieved from the knowledge base and written by the
+              model. Shown before the next question so the candidate
+              can compare it with what they just said.
+          ================================================== */}
+
+          <ModelAnswer
+            data={modelAnswer}
+            loading={modelAnswerLoading}
+            error={modelAnswerError}
+          />
+
+          {/* ==================================================
               NEXT
           ================================================== */}
 
@@ -1326,10 +1782,10 @@ export default function InterviewRoom() {
             }}
           >
             {loading ? (
-              'Loading next question...'
+              'Loading.....'
             ) : qIndex + 1 >=
               MAX_QUESTIONS ? (
-              'View Scorecard 🎉'
+              'View Scorecard...'
             ) : (
               <>
                 Next Question

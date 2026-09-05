@@ -2,10 +2,13 @@ package com.aiinterview.controller;
 
 import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.service.AiServiceClient;
+import com.aiinterview.service.InterviewPersistenceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,7 +40,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AiProxyController {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(AiProxyController.class);
+
     private final AiServiceClient aiServiceClient;
+
+    private final InterviewPersistenceService interviewPersistenceService;
 
     // ========================================================
     // Resume analysis
@@ -53,6 +61,18 @@ public class AiProxyController {
             Authentication authentication
     ) {
         return forward("/api/v1/resume/analyze", body, authentication);
+    }
+
+    @Operation(
+            summary = "Review a CV against the written standards",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @PostMapping("/resume/feedback")
+    public ResponseEntity<JsonNode> reviewResume(
+            @RequestBody JsonNode body,
+            Authentication authentication
+    ) {
+        return forward("/api/v1/resume/feedback", body, authentication);
     }
 
     // ========================================================
@@ -84,7 +104,12 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
-        return forward("/api/v1/interview/start", body, authentication);
+        return forwardAndRecord(
+                "/api/v1/interview/start",
+                body,
+                authentication,
+                interviewPersistenceService::recordStart
+        );
     }
 
     @Operation(
@@ -96,7 +121,12 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
-        return forward("/api/v1/interview/answer", body, authentication);
+        return forwardAndRecord(
+                "/api/v1/interview/answer",
+                body,
+                authentication,
+                interviewPersistenceService::recordAnswer
+        );
     }
 
     @Operation(
@@ -108,7 +138,30 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
-        return forward("/api/v1/interview/finish", body, authentication);
+        return forwardAndRecord(
+                "/api/v1/interview/finish",
+                body,
+                authentication,
+                interviewPersistenceService::recordFinish
+        );
+    }
+
+    /**
+     * The expected answer for the question just submitted.
+     *
+     * <p>Not recorded against the session: it is study material shown
+     * back to the candidate, not part of their transcript.
+     */
+    @Operation(
+            summary = "Get the model answer for an interview question",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @PostMapping("/interview/model-answer")
+    public ResponseEntity<JsonNode> interviewModelAnswer(
+            @RequestBody JsonNode body,
+            Authentication authentication
+    ) {
+        return forward("/api/v1/interview/model-answer", body, authentication);
     }
 
     @Operation(
@@ -175,6 +228,56 @@ public class AiProxyController {
         return ResponseEntity.ok(
                 aiServiceClient.post(path, body)
         );
+    }
+
+    /**
+     * Forwards a call and then stores what it produced.
+     *
+     * <p>The recorder runs after the AI response is in hand and is
+     * strictly best effort. By this point the candidate has already
+     * been asked a question or graded, and losing that to a database
+     * problem would be a worse outcome than an interview missing from
+     * their history - so a failure here is logged and the AI response
+     * is returned unchanged.
+     *
+     * <p>The recorder is a separate transactional bean, so its failure
+     * cannot mark a transaction of this request rollback-only. This
+     * controller deliberately runs none of its own.
+     *
+     * @param recorder given the forwarded request and the AI response
+     */
+    private ResponseEntity<JsonNode> forwardAndRecord(
+            String path,
+            JsonNode body,
+            Authentication authentication,
+            InterviewRecorder recorder
+    ) {
+        ResponseEntity<JsonNode> response = forward(path, body, authentication);
+
+        try {
+            recorder.record(authentication.getName(), body, response.getBody());
+        } catch (Exception e) {
+            log.warn(
+                    "Could not persist interview for {}: {}",
+                    path,
+                    e.getMessage(),
+                    e
+            );
+        }
+
+        return response;
+    }
+
+    /**
+     * One of the persistence service's record methods.
+     *
+     * <p>A named type because it takes three arguments and reads
+     * better at the call sites than a generic functional interface.
+     */
+    @FunctionalInterface
+    private interface InterviewRecorder {
+
+        void record(String userEmail, JsonNode request, JsonNode aiResponse);
     }
 
     /**

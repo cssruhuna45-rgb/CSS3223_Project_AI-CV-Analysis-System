@@ -53,6 +53,8 @@ from app.interview.schemas import (
     InterviewAnswerResponse,
     InterviewFinishRequest,
     InterviewFinishResponse,
+    ModelAnswerRequest,
+    ModelAnswerResponse,
 )
 
 
@@ -81,6 +83,20 @@ from app.interview.question_generator import (
 
 
 # ============================================================
+# Interview Evaluator
+# ============================================================
+
+from app.interview.evaluator import evaluate_interview
+
+
+# ============================================================
+# Interview Model Answer
+# ============================================================
+
+from app.interview.model_answer import generate_model_answer
+
+
+# ============================================================
 # Resume
 # ============================================================
 
@@ -89,7 +105,11 @@ from app.resume.analyzer import analyze_resume
 from app.resume.schemas import (
     ResumeAnalysisRequest,
     ResumeAnalysisResponse,
+    CVReviewRequest,
+    CVReviewResponse,
 )
+
+from app.resume.cv_review import review_cv
 
 
 # ============================================================
@@ -1739,6 +1759,120 @@ def answer_interview_endpoint(
 
 
 # ============================================================
+# MODEL ANSWER
+# ============================================================
+
+
+@app.post(
+    "/api/v1/interview/model-answer",
+    response_model=ModelAnswerResponse,
+    tags=["Interview Session"],
+)
+def interview_model_answer_endpoint(
+    req: ModelAnswerRequest,
+):
+    """
+    Return the expected answer for the question just answered.
+
+    Called after the candidate submits, so they can compare their answer
+    with a knowledge-base-grounded one while the question is still fresh.
+
+    This never fails the turn: when generation cannot run the response
+    comes back with generated=False and an error message, and the
+    interview carries on.
+    """
+
+    question = (req.question or "").strip()
+
+    if not question:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question cannot be empty.",
+        )
+
+    if not os.getenv("GEMINI_API_KEY"):
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=(
+                "GEMINI_API_KEY environment variable "
+                "is not configured."
+            ),
+        )
+
+    # --------------------------------------------------------
+    # Job field
+    #
+    # Taken from the session when the caller did not send one, so
+    # the model answer is written for the right role. A missing
+    # session is not fatal - the generator has a default.
+    # --------------------------------------------------------
+
+    job_field = (req.job_field or "").strip()
+
+    if not job_field and req.session_id:
+
+        try:
+            session = get_session(req.session_id)
+            job_field = session.job_field or ""
+
+        except Exception as exc:
+            print(
+                f"[ModelAnswer] Session lookup failed: {exc}"
+            )
+
+    print(
+        "\n" + "=" * 70
+    )
+
+    print(
+        "[ModelAnswer] MODEL ANSWER REQUEST"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"Session ID: {req.session_id}"
+    )
+
+    print(
+        f"Job field: {job_field}"
+    )
+
+    print(
+        f"Question: {question[:120]}"
+    )
+
+    result = generate_model_answer(
+        question=question,
+        candidate_answer=req.answer or "",
+        job_field=job_field,
+    )
+
+    print(
+        f"[ModelAnswer] generated="
+        f"{result['generated']} "
+        f"grounded={result['grounded']} "
+        f"sources={result['sources']}"
+    )
+
+    if result["error"]:
+        print(
+            f"[ModelAnswer] Error: {result['error']}"
+        )
+
+    return ModelAnswerResponse(
+        question=question,
+        **result,
+    )
+
+
+# ============================================================
 # FINISH INTERVIEW
 # ============================================================
 
@@ -1761,40 +1895,54 @@ def finish_interview_endpoint(
             req.session_id
         )
 
-        if session.status == "completed":
+        # ----------------------------------------------------
+        # Already finished: return the cached scorecard.
+        #
+        # Grading again would cost another LLM call and could
+        # hand back different numbers for the same interview.
+        # ----------------------------------------------------
+
+        if session.status == "completed" and session.evaluation:
 
             return InterviewFinishResponse(
-
                 session_id=session.session_id,
-
                 status=session.status,
-
-                total_questions=len(
-                    session.questions
-                ),
+                total_questions=len(session.questions),
+                **session.evaluation,
             )
 
         finished_session = finish_session(
             req.session_id
         )
 
+        # ----------------------------------------------------
+        # Grade the transcript.
+        #
+        # evaluate_interview never raises - a grading failure
+        # comes back as zeros with evaluated=False, so the
+        # candidate still reaches their scorecard.
+        # ----------------------------------------------------
+
+        evaluation = evaluate_interview(
+            questions=finished_session.questions,
+            answers=finished_session.answers,
+            job_field=finished_session.job_field,
+        )
+
+        finished_session.evaluation = evaluation
+
         print(
             "[InterviewFinish] "
-            f"Session completed: "
-            f"{req.session_id}"
+            f"Session completed: {req.session_id} | "
+            f"overall {evaluation.get('overall_score')} | "
+            f"evaluated={evaluation.get('evaluated')}"
         )
 
         return InterviewFinishResponse(
-
-            session_id=(
-                finished_session.session_id
-            ),
-
+            session_id=finished_session.session_id,
             status=finished_session.status,
-
-            total_questions=len(
-                finished_session.questions
-            ),
+            total_questions=len(finished_session.questions),
+            **evaluation,
         )
 
     except HTTPException:
@@ -1822,6 +1970,59 @@ def finish_interview_endpoint(
                 "Interview finish failed: "
                 f"{str(e)}"
             ),
+        )
+
+
+# ============================================================
+# CV REVIEW
+# ============================================================
+
+
+@app.post(
+    "/api/v1/resume/feedback",
+    response_model=CVReviewResponse,
+    tags=["Resume"],
+)
+def review_cv_endpoint(
+    req: CVReviewRequest,
+):
+    """
+    Review a CV against the written standards in
+    documents/cv_resume_standards_guide.md.
+
+    Distinct from /api/v1/resume/analyze, which extracts what the CV
+    says. This judges how well it is written.
+    """
+
+    if not req.resume_text.strip():
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Resume text cannot be empty.",
+        )
+
+    try:
+
+        result = review_cv(req.resume_text)
+
+        return CVReviewResponse(
+            resume_id=req.resume_id,
+            **result,
+        )
+
+    except HTTPException:
+
+        raise
+
+    except Exception as e:
+
+        print(f"[CVReview] Error: {e}")
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=f"CV review failed: {str(e)}",
         )
 
 

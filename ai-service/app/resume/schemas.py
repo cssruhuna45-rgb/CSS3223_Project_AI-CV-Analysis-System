@@ -96,3 +96,77 @@ class ResumeAnalysisResponse(BaseModel):
     certifications: List[str]
 
     recommended_job_fields: List[RecommendedJobField]
+
+
+# ============================================================
+# CV Review
+#
+# Separate from ResumeAnalysis*: that extracts what the CV says, this
+# judges how well it says it, against
+# documents/cv_resume_standards_guide.md
+# ============================================================
+
+class CVReviewRequest(BaseModel):
+    resume_id: int = Field(
+        ...,
+        description="Unique resume ID."
+    )
+
+    resume_text: str = Field(
+        ...,
+        min_length=1,
+        description="Extracted resume text."
+    )
+
+
+class CVCheck(BaseModel):
+    key: str
+    label: str
+
+    passed: bool = Field(
+        ...,
+        description="Decided in Python, not by the model."
+    )
+
+    detail: str = ""
+
+    weight: int = Field(
+        default=1,
+        description="Contribution of this rule to the score."
+    )
+
+
+class CVImprovement(BaseModel):
+    issue: str
+    fix: str = ""
+    example: str = ""
+
+
+class CVReviewResponse(BaseModel):
+    resume_id: int
+
+    score: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description=(
+            "Weighted pass rate over the objective checks. Computed in "
+            "Python, so the same CV always scores the same."
+        ),
+    )
+
+    checks: List[CVCheck] = Field(default_factory=list)
+
+    summary: str = ""
+    strengths: List[str] = Field(default_factory=list)
+    improvements: List[CVImprovement] = Field(default_factory=list)
+
+    reviewed: bool = Field(
+        default=False,
+        description=(
+            "False when the written feedback could not be generated. "
+            "The checks and score are still valid."
+        ),
+    )
+
+    review_error: str = ""
