@@ -11,15 +11,33 @@ from pydantic import BaseModel, Field
 
 
 # ============================================================
+# Security
+# ============================================================
+
+from app.security import (
+    INTERNAL_API_KEY_HEADER,
+    InternalApiKeyMiddleware,
+    get_allowed_origins,
+    get_internal_api_key,
+)
+
+from app.ai_errors import is_rate_limit_error, RATE_LIMIT_DETAIL
+
+
+# ============================================================
 # RAG
 # ============================================================
 
 from app.rag.pipeline import run_rag_query
+
 from app.rag.document_loader import (
-    load_pdf_documents,
+    load_all_documents,
     split_documents,
 )
-from app.rag.vector_store import get_or_create_vector_store
+
+from app.rag.vector_store import (
+    get_or_create_vector_store,
+)
 
 
 # ============================================================
@@ -119,15 +137,37 @@ app = FastAPI(
 
 
 # ============================================================
+# SECURITY
+#
+# Added before CORS so that CORSMiddleware ends up as the outermost
+# layer: preflight requests are answered and 401 responses still carry
+# CORS headers.
+# ============================================================
+
+app.add_middleware(
+    InternalApiKeyMiddleware,
+    api_key=get_internal_api_key(),
+)
+
+
+# ============================================================
 # CORS
+#
+# Browsers are expected to call the Spring backend, which proxies to
+# this service. Origins stay explicit so a stolen key cannot be replayed
+# from an arbitrary page.
 # ============================================================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Accept",
+        INTERNAL_API_KEY_HEADER,
+    ],
 )
 
 
@@ -137,6 +177,7 @@ app.add_middleware(
 
 
 class RAGQueryRequest(BaseModel):
+
     question: str = Field(
         ...,
         description=(
@@ -161,42 +202,56 @@ class RAGQueryRequest(BaseModel):
     force_rebuild: Optional[bool] = Field(
         default=False,
         description=(
-            "Whether to re-parse PDFs and "
-            "rebuild the vector store."
+            "Whether to re-parse all supported documents "
+            "(Markdown/PDF) and rebuild the vector store."
         ),
     )
 
 
 class RetrievedChunkResponse(BaseModel):
+
     content: str
+
     source: str
+
     page: Optional[int] = None
 
 
 class RAGQueryResponse(BaseModel):
+
     question: str
+
     answer: str
+
     retrieved_chunks: List[
         RetrievedChunkResponse
     ]
+
     chunk_count: int
 
 
 class IndexStatusResponse(BaseModel):
+
     status: str
+
     message: str
+
     documents_found: int
+
     chunks_indexed: int
 
 
 class HealthCheckResponse(BaseModel):
+
     status: str
+
     service: str
+
     gemini_api_configured: bool
 
 
 # ============================================================
-# General Endpoints
+# GENERAL ENDPOINTS
 # ============================================================
 
 
@@ -261,23 +316,7 @@ def query_rag_pipeline(
 ):
     """
     Query the RAG Pipeline.
-
-    Flow:
-
-        User Question
-              ↓
-        Chroma Similarity Search
-              ↓
-        Retrieved Documents
-              ↓
-        Gemini
-              ↓
-        Grounded Answer
     """
-
-    # --------------------------------------------------------
-    # Validate Question
-    # --------------------------------------------------------
 
     if not req.question.strip():
 
@@ -285,10 +324,6 @@ def query_rag_pipeline(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Question string cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -304,18 +339,10 @@ def query_rag_pipeline(
 
     try:
 
-        # ----------------------------------------------------
-        # Run RAG
-        # ----------------------------------------------------
-
         chunks, ai_answer = run_rag_query(
             query=req.question,
             force_rebuild=req.force_rebuild,
         )
-
-        # ----------------------------------------------------
-        # Format Retrieved Chunks
-        # ----------------------------------------------------
 
         formatted_chunks = [
 
@@ -324,23 +351,25 @@ def query_rag_pipeline(
 
                 source=os.path.basename(
                     doc.metadata.get(
-                        "source",
-                        "unknown",
+                        "source_file",
+                        doc.metadata.get(
+                            "source",
+                            "unknown",
+                        ),
                     )
                 ),
 
                 page=doc.metadata.get(
-                    "page",
-                    None,
+                    "page_number",
+                    doc.metadata.get(
+                        "page",
+                        None,
+                    ),
                 ),
             )
 
             for doc in chunks
         ]
-
-        # ----------------------------------------------------
-        # Return Response
-        # ----------------------------------------------------
 
         return RAGQueryResponse(
             question=req.question,
@@ -354,6 +383,12 @@ def query_rag_pipeline(
         print(
             f"[RAG] Execution Error: {e}"
         )
+
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
 
         raise HTTPException(
             status_code=(
@@ -377,16 +412,10 @@ def query_rag_pipeline(
 )
 def reindex_knowledge_base():
     """
-    Re-scan all PDF files inside documents/,
-    extract text, split into chunks, and rebuild
-    the persistent Chroma Vector Store.
+    Re-scan all supported documents inside documents/.
     """
 
     try:
-
-        # ----------------------------------------------------
-        # Documents Directory
-        # ----------------------------------------------------
 
         base_dir = os.path.abspath(
             os.path.join(
@@ -401,25 +430,60 @@ def reindex_knowledge_base():
         )
 
         print(
+            "\n" + "=" * 70
+        )
+
+        print(
+            "[RAG Index] Starting knowledge base indexing"
+        )
+
+        print(
+            "=" * 70
+        )
+
+        print(
             f"[RAG Index] Documents path: {docs_path}"
         )
 
-        # ----------------------------------------------------
-        # Load PDFs
-        # ----------------------------------------------------
+        if not os.path.exists(docs_path):
 
-        raw_docs = load_pdf_documents(
+            os.makedirs(
+                docs_path,
+                exist_ok=True,
+            )
+
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_404_NOT_FOUND
+                ),
+                detail=(
+                    f"Documents directory does not exist. "
+                    f"Created directory at: {docs_path}. "
+                    "Please add Markdown or PDF documents."
+                ),
+            )
+
+        raw_docs = load_all_documents(
             docs_path
         )
 
         print(
             f"[RAG Index] Loaded "
-            f"{len(raw_docs)} document pages."
+            f"{len(raw_docs)} document(s)."
         )
 
-        # ----------------------------------------------------
-        # Split Documents
-        # ----------------------------------------------------
+        if not raw_docs:
+
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+                detail=(
+                    "No supported documents found. "
+                    "Please add .md, .markdown, or .pdf "
+                    "files to the documents directory."
+                ),
+            )
 
         chunks = split_documents(
             raw_docs,
@@ -432,28 +496,59 @@ def reindex_knowledge_base():
             f"{len(chunks)} chunks."
         )
 
-        # ----------------------------------------------------
-        # Rebuild Vector Store
-        # ----------------------------------------------------
+        if not chunks:
+
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+                detail=(
+                    "Documents were loaded but no "
+                    "usable chunks were created."
+                ),
+            )
+
+        print(
+            "[RAG Index] Rebuilding Chroma Vector Store..."
+        )
 
         get_or_create_vector_store(
             documents=chunks,
             force_rebuild=True,
         )
 
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
+        print(
+            "[RAG Index] Chroma Vector Store rebuilt successfully."
+        )
+
+        print(
+            "=" * 70
+        )
+
+        print(
+            "[RAG Index] Indexing completed successfully."
+        )
+
+        print(
+            "=" * 70 + "\n"
+        )
 
         return IndexStatusResponse(
             status="success",
+
             message=(
-                "Successfully re-indexed PDF "
+                "Successfully re-indexed Markdown/PDF "
                 "knowledge base into Chroma Vector Store."
             ),
+
             documents_found=len(raw_docs),
+
             chunks_indexed=len(chunks),
         )
+
+    except HTTPException:
+
+        raise
 
     except Exception as e:
 
@@ -488,20 +583,12 @@ def analyze_resume_endpoint(
     Analyze a candidate resume.
     """
 
-    # --------------------------------------------------------
-    # Validate Resume
-    # --------------------------------------------------------
-
     if not req.resume_text.strip():
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Resume text cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -517,10 +604,6 @@ def analyze_resume_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Analyze Resume
-        # ----------------------------------------------------
-
         result = analyze_resume(
             resume_id=req.resume_id,
             resume_text=req.resume_text,
@@ -530,10 +613,6 @@ def analyze_resume_endpoint(
             "[ResumeAnalyzer] "
             "Analysis completed successfully."
         )
-
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
 
         return result
 
@@ -549,6 +628,12 @@ def analyze_resume_endpoint(
         print(
             f"[ResumeAnalyzer] Error: {e}"
         )
+
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
 
         raise HTTPException(
             status_code=(
@@ -575,19 +660,7 @@ def generate_interview_question_endpoint(
 ):
     """
     Generate an adaptive interview question.
-
-    This endpoint supports both:
-
-    1. Existing session-based adaptive generation
-    2. Legacy standalone question generation
-
-    Adaptive state is taken from the session whenever
-    the session exists.
     """
-
-    # --------------------------------------------------------
-    # Validate Job Description
-    # --------------------------------------------------------
 
     if not req.job_description.strip():
 
@@ -606,10 +679,6 @@ def generate_interview_question_endpoint(
             ),
         )
 
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
-
     if not os.getenv("GEMINI_API_KEY"):
 
         raise HTTPException(
@@ -623,10 +692,6 @@ def generate_interview_question_endpoint(
         )
 
     try:
-
-        # ----------------------------------------------------
-        # Try to load existing session
-        # ----------------------------------------------------
 
         session = None
 
@@ -670,6 +735,7 @@ def generate_interview_question_endpoint(
             )
 
             question = generate_next_question(
+
                 session_id=session.session_id,
 
                 job_description=session.job_description,
@@ -705,6 +771,27 @@ def generate_interview_question_endpoint(
                 weak_answer_streak=(
                     session.weak_answer_streak
                 ),
+
+                # Skill Gap context
+                job_field=(
+                    session.job_field
+                ),
+
+                matched_skills=(
+                    list(session.matched_skills)
+                ),
+
+                related_skills=(
+                    list(session.related_skills)
+                ),
+
+                missing_skills=(
+                    list(session.missing_skills)
+                ),
+
+                additional_skills=(
+                    list(session.additional_skills)
+                ),
             )
 
         # ----------------------------------------------------
@@ -720,6 +807,7 @@ def generate_interview_question_endpoint(
             )
 
             question = generate_next_question(
+
                 session_id=req.session_id,
 
                 job_description=req.job_description,
@@ -747,13 +835,22 @@ def generate_interview_question_endpoint(
                 topic_history=[],
 
                 weak_answer_streak=0,
+
+                # Standalone request does not currently
+                # contain Skill Gap fields.
+                job_field="",
+
+                matched_skills=[],
+
+                related_skills=[],
+
+                missing_skills=[],
+
+                additional_skills=[],
             )
 
-        # ----------------------------------------------------
-        # Return Response
-        # ----------------------------------------------------
-
         return InterviewQuestionResponse(
+
             session_id=question["session_id"],
 
             question=question["question"],
@@ -782,6 +879,12 @@ def generate_interview_question_endpoint(
             f"[InterviewGenerator] Error: {e}"
         )
 
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -808,25 +911,7 @@ def start_interview_endpoint(
 ):
     """
     Start a new adaptive interview session.
-
-    Flow:
-
-        Job Description
-              +
-        Candidate Resume
-              ↓
-        Create Session
-              ↓
-        Generate First Question
-              ↓
-        Save Question + Difficulty + Topic
-              ↓
-        Return Question
     """
-
-    # --------------------------------------------------------
-    # Validate Job Description
-    # --------------------------------------------------------
 
     if not req.job_description.strip():
 
@@ -845,10 +930,6 @@ def start_interview_endpoint(
             ),
         )
 
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
-
     if not os.getenv("GEMINI_API_KEY"):
 
         raise HTTPException(
@@ -863,24 +944,77 @@ def start_interview_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Create Session
-        # ----------------------------------------------------
+        # ====================================================
+        # CREATE SESSION WITH SKILL GAP CONTEXT
+        # ====================================================
 
         session = create_session(
+
             job_description=req.job_description,
 
             candidate_resume=(
                 req.candidate_resume or ""
             ),
+
+            job_field=(
+                req.job_field or ""
+            ),
+
+            matched_skills=(
+                req.matched_skills
+            ),
+
+            related_skills=(
+                req.related_skills
+            ),
+
+            missing_skills=(
+                req.missing_skills
+            ),
+
+            additional_skills=(
+                req.additional_skills
+            ),
         )
 
-        print("\n" + "=" * 70)
-        print("[InterviewStart] NEW INTERVIEW SESSION")
-        print("=" * 70)
+        print(
+            "\n" + "=" * 70
+        )
+
+        print(
+            "[InterviewStart] NEW INTERVIEW SESSION"
+        )
+
+        print(
+            "=" * 70
+        )
 
         print(
             f"Session ID: {session.session_id}"
+        )
+
+        print(
+            f"Job Field: {session.job_field}"
+        )
+
+        print(
+            f"Matched Skills: "
+            f"{session.matched_skills}"
+        )
+
+        print(
+            f"Related Skills: "
+            f"{session.related_skills}"
+        )
+
+        print(
+            f"Missing Skills: "
+            f"{session.missing_skills}"
+        )
+
+        print(
+            f"Additional Skills: "
+            f"{session.additional_skills}"
         )
 
         print(
@@ -893,17 +1027,38 @@ def start_interview_endpoint(
             f"{session.current_topic}"
         )
 
-        # ----------------------------------------------------
-        # Generate First Question
-        # ----------------------------------------------------
+        # ====================================================
+        # GENERATE FIRST QUESTION
+        # ====================================================
 
         question = generate_first_question(
+
             session_id=session.session_id,
 
             job_description=req.job_description,
 
             candidate_resume=(
                 req.candidate_resume or ""
+            ),
+
+            job_field=(
+                req.job_field or ""
+            ),
+
+            matched_skills=(
+                req.matched_skills
+            ),
+
+            related_skills=(
+                req.related_skills
+            ),
+
+            missing_skills=(
+                req.missing_skills
+            ),
+
+            additional_skills=(
+                req.additional_skills
             ),
         )
 
@@ -921,11 +1076,12 @@ def start_interview_endpoint(
             f"{question.get('category')}"
         )
 
-        # ----------------------------------------------------
-        # Save First Question
-        # ----------------------------------------------------
+        # ====================================================
+        # SAVE FIRST QUESTION
+        # ====================================================
 
         add_question(
+
             session.session_id,
 
             question["question"],
@@ -946,20 +1102,21 @@ def start_interview_endpoint(
             ),
         )
 
-        # ----------------------------------------------------
-        # Reload Session
-        # ----------------------------------------------------
+        # ====================================================
+        # RELOAD SESSION
+        # ====================================================
 
         session = get_session(
             session.session_id
         )
 
-        # ----------------------------------------------------
-        # Convert Question Response
-        # ----------------------------------------------------
+        # ====================================================
+        # RESPONSE
+        # ====================================================
 
         question_response = (
             InterviewQuestionResponse(
+
                 session_id=session.session_id,
 
                 question=question["question"],
@@ -976,17 +1133,20 @@ def start_interview_endpoint(
             )
         )
 
-        # ----------------------------------------------------
-        # Final Response
-        # ----------------------------------------------------
+        print(
+            "=" * 70
+        )
 
-        print("=" * 70)
         print(
             "[InterviewStart] Session ready."
         )
-        print("=" * 70 + "\n")
+
+        print(
+            "=" * 70 + "\n"
+        )
 
         return InterviewStartResponse(
+
             session_id=session.session_id,
 
             question=question_response,
@@ -1001,6 +1161,12 @@ def start_interview_endpoint(
         print(
             f"[InterviewStart] Error: {e}"
         )
+
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
 
         raise HTTPException(
             status_code=(
@@ -1028,29 +1194,7 @@ def answer_interview_endpoint(
     """
     Submit candidate answer and generate the next
     adaptive interview question.
-
-    Adaptive logic:
-
-        Weak answer
-             ↓
-        Easier question
-
-        Partial answer
-             ↓
-        Same difficulty
-
-        Strong answer
-             ↓
-        Harder question
-
-        Weak answers >= threshold
-             ↓
-        Rotate topic
     """
-
-    # --------------------------------------------------------
-    # Validate Answer
-    # --------------------------------------------------------
 
     if not req.answer.strip():
 
@@ -1058,10 +1202,6 @@ def answer_interview_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Answer cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
 
     if not os.getenv("GEMINI_API_KEY"):
 
@@ -1077,30 +1217,13 @@ def answer_interview_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Get Session
-        # ----------------------------------------------------
+        # ====================================================
+        # GET SESSION
+        # ====================================================
 
         session = get_session(
             req.session_id
         )
-
-        # ----------------------------------------------------
-        # Validate Session
-        # ----------------------------------------------------
-
-        if session is None:
-
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "Interview session not found."
-                ),
-            )
-
-        # ----------------------------------------------------
-        # Check Active Status
-        # ----------------------------------------------------
 
         if session.status != "active":
 
@@ -1123,43 +1246,38 @@ def answer_interview_endpoint(
             session.current_topic
         )
 
-        previous_topic_key = (
+        previous_topic_key = getattr(
+            session,
+            "current_topic_key",
+            "",
+        )
+
+        previous_topic_history = list(
             getattr(
                 session,
-                "current_topic_key",
-                "",
+                "topic_history",
+                [],
             )
         )
-
-        previous_topic_history = (
-            list(
-                getattr(
-                    session,
-                    "topic_history",
-                    [],
-                )
-            )
-        )
-
-        # ----------------------------------------------------
-        # Current question number
-        # ----------------------------------------------------
 
         current_question_number = (
             session.current_question_number
         )
 
-        # ----------------------------------------------------
-        # Print Current State
-        # ----------------------------------------------------
-
-        print("\n" + "=" * 70)
-        print("[InterviewAnswer] ANSWER SUBMISSION")
-        print("=" * 70)
+        print(
+            "\n" + "=" * 70
+        )
 
         print(
-            f"Session ID: "
-            f"{session.session_id}"
+            "[InterviewAnswer] ANSWER SUBMISSION"
+        )
+
+        print(
+            "=" * 70
+        )
+
+        print(
+            f"Session ID: {session.session_id}"
         )
 
         print(
@@ -1180,6 +1298,31 @@ def answer_interview_endpoint(
         print(
             f"Topic history: "
             f"{previous_topic_history}"
+        )
+
+        print(
+            f"Job Field: "
+            f"{session.job_field}"
+        )
+
+        print(
+            f"Matched Skills: "
+            f"{session.matched_skills}"
+        )
+
+        print(
+            f"Related Skills: "
+            f"{session.related_skills}"
+        )
+
+        print(
+            f"Missing Skills: "
+            f"{session.missing_skills}"
+        )
+
+        print(
+            f"Additional Skills: "
+            f"{session.additional_skills}"
         )
 
         print(
@@ -1231,6 +1374,7 @@ def answer_interview_endpoint(
         # ====================================================
 
         add_answer(
+
             req.session_id,
 
             req.answer,
@@ -1247,19 +1391,25 @@ def answer_interview_endpoint(
         # PREVIOUS QUESTIONS
         # ====================================================
 
-        previous_questions = (
-            list(session.questions)
+        previous_questions = list(
+            session.questions
         )
 
         # ====================================================
         # GENERATE NEXT QUESTION
         # ====================================================
 
-        print("\n" + "-" * 70)
+        print(
+            "\n" + "-" * 70
+        )
+
         print(
             "[InterviewAnswer] GENERATING NEXT QUESTION"
         )
-        print("-" * 70)
+
+        print(
+            "-" * 70
+        )
 
         print(
             f"Difficulty passed to generator: "
@@ -1281,7 +1431,37 @@ def answer_interview_endpoint(
             f"{session.weak_answer_streak}"
         )
 
+        # ----------------------------------------------------
+        # Skill Gap context passed to generator
+        # ----------------------------------------------------
+
+        print(
+            f"Job field passed to generator: "
+            f"{session.job_field}"
+        )
+
+        print(
+            f"Matched skills passed to generator: "
+            f"{session.matched_skills}"
+        )
+
+        print(
+            f"Related skills passed to generator: "
+            f"{session.related_skills}"
+        )
+
+        print(
+            f"Missing skills passed to generator: "
+            f"{session.missing_skills}"
+        )
+
+        print(
+            f"Additional skills passed to generator: "
+            f"{session.additional_skills}"
+        )
+
         question = generate_next_question(
+
             session_id=session.session_id,
 
             job_description=session.job_description,
@@ -1300,10 +1480,6 @@ def answer_interview_endpoint(
                 session.current_question_number
             ),
 
-            # =================================================
-            # IMPORTANT ADAPTIVE STATE
-            # =================================================
-
             difficulty=previous_difficulty,
 
             current_topic=previous_topic,
@@ -1314,6 +1490,30 @@ def answer_interview_endpoint(
 
             weak_answer_streak=(
                 session.weak_answer_streak
+            ),
+
+            # =================================================
+            # SKILL GAP CONTEXT
+            # =================================================
+
+            job_field=(
+                session.job_field
+            ),
+
+            matched_skills=(
+                list(session.matched_skills)
+            ),
+
+            related_skills=(
+                list(session.related_skills)
+            ),
+
+            missing_skills=(
+                list(session.missing_skills)
+            ),
+
+            additional_skills=(
+                list(session.additional_skills)
             ),
         )
 
@@ -1361,6 +1561,7 @@ def answer_interview_endpoint(
         # ====================================================
 
         add_question(
+
             session.session_id,
 
             question["question"],
@@ -1424,11 +1625,12 @@ def answer_interview_endpoint(
         )
 
         # ====================================================
-        # CONVERT RESPONSE
+        # RESPONSE
         # ====================================================
 
         question_response = (
             InterviewQuestionResponse(
+
                 session_id=session.session_id,
 
                 question=question["question"],
@@ -1449,11 +1651,17 @@ def answer_interview_endpoint(
         # FINAL LOG
         # ====================================================
 
-        print("\n" + "=" * 70)
+        print(
+            "\n" + "=" * 70
+        )
+
         print(
             "[InterviewAnswer] NEXT QUESTION READY"
         )
-        print("=" * 70)
+
+        print(
+            "=" * 70
+        )
 
         print(
             f"Question number: "
@@ -1485,13 +1693,12 @@ def answer_interview_endpoint(
             f"{topic_changed}"
         )
 
-        print("=" * 70 + "\n")
-
-        # ====================================================
-        # RETURN
-        # ====================================================
+        print(
+            "=" * 70 + "\n"
+        )
 
         return InterviewAnswerResponse(
+
             session_id=session.session_id,
 
             question=question_response,
@@ -1513,6 +1720,12 @@ def answer_interview_endpoint(
         print(
             f"[InterviewAnswer] Error: {e}"
         )
+
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
 
         raise HTTPException(
             status_code=(
@@ -1544,30 +1757,14 @@ def finish_interview_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Get Session
-        # ----------------------------------------------------
-
         session = get_session(
             req.session_id
         )
 
-        if session is None:
-
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=(
-                    "Interview session not found."
-                ),
-            )
-
-        # ----------------------------------------------------
-        # Already Completed
-        # ----------------------------------------------------
-
         if session.status == "completed":
 
             return InterviewFinishResponse(
+
                 session_id=session.session_id,
 
                 status=session.status,
@@ -1576,10 +1773,6 @@ def finish_interview_endpoint(
                     session.questions
                 ),
             )
-
-        # ----------------------------------------------------
-        # Finish Session
-        # ----------------------------------------------------
 
         finished_session = finish_session(
             req.session_id
@@ -1591,11 +1784,8 @@ def finish_interview_endpoint(
             f"{req.session_id}"
         )
 
-        # ----------------------------------------------------
-        # Return
-        # ----------------------------------------------------
-
         return InterviewFinishResponse(
+
             session_id=(
                 finished_session.session_id
             ),
@@ -1649,13 +1839,9 @@ def analyze_skill_gap_endpoint(
     req: SkillGapRequest,
 ):
     """
-    Analyze the candidate's skill gap for a predefined
-    job field from the skill catalog.
+    Analyze candidate skill gap for a predefined
+    job field.
     """
-
-    # --------------------------------------------------------
-    # Validate Job Field
-    # --------------------------------------------------------
 
     if not req.job_field.strip():
 
@@ -1663,10 +1849,6 @@ def analyze_skill_gap_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Job field cannot be empty.",
         )
-
-    # --------------------------------------------------------
-    # Validate Resume
-    # --------------------------------------------------------
 
     if not req.candidate_resume.strip():
 
@@ -1687,10 +1869,6 @@ def analyze_skill_gap_endpoint(
             ),
         )
 
-    # --------------------------------------------------------
-    # Validate Gemini API
-    # --------------------------------------------------------
-
     if not os.getenv("GEMINI_API_KEY"):
 
         raise HTTPException(
@@ -1705,10 +1883,6 @@ def analyze_skill_gap_endpoint(
 
     try:
 
-        # ----------------------------------------------------
-        # Analyze Skill Gap
-        # ----------------------------------------------------
-
         result = analyze_skill_gap(
             req
         )
@@ -1718,10 +1892,6 @@ def analyze_skill_gap_endpoint(
             "Skill gap analysis completed for "
             f"job field: {req.job_field}"
         )
-
-        # ----------------------------------------------------
-        # Return Result
-        # ----------------------------------------------------
 
         return result
 
@@ -1738,6 +1908,12 @@ def analyze_skill_gap_endpoint(
             f"[SkillGapAPI] Error: {e}"
         )
 
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1750,7 +1926,7 @@ def analyze_skill_gap_endpoint(
 
 
 # ============================================================
-# Run Directly
+# RUN DIRECTLY
 # ============================================================
 
 

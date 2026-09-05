@@ -25,7 +25,7 @@ from app.skill_gap.skill_catalog import (
 # Gemini Configuration
 # ============================================================
 
-MODEL_NAME = "gemini-flash-lite-latest"
+MODEL_NAME = "gemini-flash-latest"
 
 
 # ============================================================

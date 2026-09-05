@@ -53,9 +53,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
-        } catch (Exception e) {
-            // Invalid JWT token - allow filter chain to continue, SecurityContext remains unauthenticated
-        }
+        }  catch (Exception e) {
+    // Invalid JWT token - allow filter chain to continue
+}
 
         filterChain.doFilter(request, response);
     }
