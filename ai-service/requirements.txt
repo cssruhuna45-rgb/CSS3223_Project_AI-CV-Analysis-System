@@ -12,3 +12,14 @@ google-generativeai>=0.4.0
 chromadb>=0.4.20
 pypdf>=4.0.0
 python-dotenv>=1.0.0
+
+# Local embeddings. app/rag/embeddings.py imports HuggingFaceEmbeddings
+# from langchain-huggingface, which needs sentence-transformers to load
+# all-MiniLM-L6-v2. Neither was declared, so a fresh install failed at
+# the first RAG call.
+langchain-huggingface>=0.1.0
+sentence-transformers>=3.0.0
+
+# Token-aware chunking in app/rag/document_loader.py measures size with
+# the embedding model's own tokenizer, which comes from transformers.
+transformers>=4.40.0

@@ -162,7 +162,7 @@ export default function SkillGap() {
       <div
         className="card"
         style={{
-          background: 'var(--bg-card)',
+          background: '#000000',
           border: '1px solid var(--border)',
           borderRadius: 14,
           padding: '14px 20px',
@@ -187,8 +187,8 @@ export default function SkillGap() {
             <Briefcase size={16} color="#D8C4B6" />
           </div>
           <div>
-            <span style={{ fontSize: 12, color: '#F5EFE7', opacity: 0.7, display: 'block' }}>Target Career Track</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#F5EFE7' }}>{currentFieldName}</span>
+            <span style={{ fontSize: 12, color: '#D8C4B6', opacity: 0.9, display: 'block', fontWeight: 600, letterSpacing: '0.5px' }}>Target Career Track</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#60A5FA' }}>{currentFieldName}</span>
           </div>
         </div>
 
@@ -317,7 +317,7 @@ export default function SkillGap() {
         <div style={{
           textAlign: 'center',
           padding: '64px 20px',
-          background: 'var(--bg-card)',
+          background: '#000000',
           borderRadius: 16,
           border: '1px solid var(--border)',
           marginBottom: 24,
@@ -340,7 +340,7 @@ export default function SkillGap() {
           <div
             className="card"
             style={{
-              background: 'var(--bg-card)',
+              background: '#000000',
               border: '2px solid #D8C4B6',
               borderRadius: 18,
               padding: '32px 24px',
@@ -415,24 +415,24 @@ export default function SkillGap() {
             {/* Match & Gap Stat Pills */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 18 }}>
               <div style={{
-                background: 'rgba(216,196,182,0.15)',
-                border: '1px solid rgba(216,196,182,0.3)',
+                background: 'rgba(74,222,128,0.12)',
+                border: '1px solid rgba(74,222,128,0.4)',
                 padding: '6px 16px',
                 borderRadius: 20,
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#D8C4B6',
+                color: '#4ADE80',
               }}>
                 Match: {matchPct}%
               </div>
               <div style={{
-                background: 'rgba(245,239,231,0.08)',
-                border: '1px solid rgba(245,239,231,0.2)',
+                background: 'rgba(251,191,36,0.12)',
+                border: '1px solid rgba(251,191,36,0.4)',
                 padding: '6px 16px',
                 borderRadius: 20,
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#F5EFE7',
+                color: '#FBBF24',
               }}>
                 Gap: {gapPct}%
               </div>
@@ -466,17 +466,17 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'var(--bg-card)',
+                background: '#000000',
                 border: '1px solid var(--border)',
-                borderTop: '3px solid #D8C4B6',
+                borderTop: '3px solid #4ADE80',
                 borderRadius: 14,
                 padding: 20,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle size={18} color="#D8C4B6" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#F5EFE7', margin: 0 }}>Matched Skills</h3>
+                  <CheckCircle size={18} color="#4ADE80" />
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#4ADE80', margin: 0 }}>Matched Skills</h3>
                 </div>
                 <span className="badge badge-green" style={{ fontSize: 12, padding: '2px 10px' }}>
                   {result.matched_skills?.length || 0} Matched
@@ -494,15 +494,15 @@ export default function SkillGap() {
                       style={{
                         padding: '6px 12px',
                         fontSize: 13,
-                        background: 'rgba(216,196,182,0.15)',
-                        color: '#D8C4B6',
-                        borderColor: 'rgba(216,196,182,0.3)',
+                        background: 'rgba(74,222,128,0.12)',
+                        color: '#4ADE80',
+                        borderColor: 'rgba(74,222,128,0.35)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,
                       }}
                     >
-                      <CheckCircle size={13} color="#D8C4B6" /> {s}
+                      <CheckCircle size={13} color="#4ADE80" /> {s}
                     </span>
                   ))}
                 </div>
@@ -517,24 +517,24 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'var(--bg-card)',
+                background: '#000000',
                 border: '1px solid var(--border)',
-                borderTop: '3px solid #3E5879',
+                borderTop: '3px solid #60A5FA',
                 borderRadius: 14,
                 padding: 20,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Layers size={18} color="#D8C4B6" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#F5EFE7', margin: 0 }}>Related Skills</h3>
+                  <Layers size={18} color="#60A5FA" />
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#60A5FA', margin: 0 }}>Related Skills</h3>
                 </div>
                 <span className="badge badge-blue" style={{ fontSize: 12, padding: '2px 10px' }}>
                   {result.related_skills?.length || 0} Adjacent
                 </span>
               </div>
               <p style={{ fontSize: 12, color: '#F5EFE7', opacity: 0.7, marginBottom: 12 }}>
-                Adjacent skills that relate to requirements. <span style={{ color: '#D8C4B6' }}>Note:</span> Not counted as exact matches.
+                Adjacent skills that relate to requirements. <span style={{ color: '#60A5FA', fontWeight: 600 }}>Note:</span> Not counted as exact matches.
               </p>
               {result.related_skills && result.related_skills.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -548,15 +548,15 @@ export default function SkillGap() {
                           padding: '6px 12px',
                           borderRadius: 20,
                           fontSize: 13,
-                          background: 'rgba(33,53,85,0.6)',
-                          border: '1px solid rgba(216,196,182,0.2)',
-                          color: '#F5EFE7',
+                          background: 'rgba(96,165,250,0.12)',
+                          border: '1px solid rgba(96,165,250,0.35)',
+                          color: '#DBEAFE',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 6,
                         }}
                       >
-                        <span style={{ fontWeight: 600, color: '#D8C4B6' }}>{s}</span>
+                        <span style={{ fontWeight: 600, color: '#93C5FD' }}>{s}</span>
                         {targetConcept && (
                           <>
                             <span style={{ opacity: 0.5 }}>→</span>
@@ -578,17 +578,17 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'var(--bg-card)',
+                background: '#000000',
                 border: '1px solid var(--border)',
-                borderTop: '3px solid rgba(245,239,231,0.5)',
+                borderTop: '3px solid #FBBF24',
                 borderRadius: 14,
                 padding: 20,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Target size={18} color="#F5EFE7" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#F5EFE7', margin: 0 }}>Skills to Develop</h3>
+                  <Target size={18} color="#FBBF24" />
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#FBBF24', margin: 0 }}>Skills to Develop</h3>
                 </div>
                 <span className="badge badge-yellow" style={{ fontSize: 12, padding: '2px 10px' }}>
                   {result.missing_skills?.length || 0} Missing
@@ -606,20 +606,20 @@ export default function SkillGap() {
                       style={{
                         padding: '6px 12px',
                         fontSize: 13,
-                        background: 'rgba(245,239,231,0.08)',
-                        color: '#F5EFE7',
-                        borderColor: 'rgba(245,239,231,0.25)',
+                        background: 'rgba(251,191,36,0.12)',
+                        color: '#FBBF24',
+                        borderColor: 'rgba(251,191,36,0.35)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,
                       }}
                     >
-                      <XCircle size={13} color="#F5EFE7" style={{ opacity: 0.7 }} /> {s}
+                      <XCircle size={13} color="#FBBF24" style={{ opacity: 0.9 }} /> {s}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: '#D8C4B6', fontStyle: 'italic', margin: 0 }}>
+                <p style={{ fontSize: 13, color: '#4ADE80', fontStyle: 'italic', margin: 0 }}>
                   ✓ All core skills are covered for this job field!
                 </p>
               )}
@@ -629,17 +629,17 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'var(--bg-card)',
+                background: '#000000',
                 border: '1px solid var(--border)',
-                borderTop: '3px solid rgba(216,196,182,0.4)',
+                borderTop: '3px solid #C084FC',
                 borderRadius: 14,
                 padding: 20,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sparkles size={18} color="#D8C4B6" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#F5EFE7', margin: 0 }}>Additional Skills</h3>
+                  <Sparkles size={18} color="#C084FC" />
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#C084FC', margin: 0 }}>Additional Skills</h3>
                 </div>
                 <span className="badge badge-blue" style={{ fontSize: 12, padding: '2px 10px' }}>
                   {result.additional_skills?.length || 0} Other
@@ -657,9 +657,9 @@ export default function SkillGap() {
                       style={{
                         padding: '6px 12px',
                         fontSize: 13,
-                        background: 'rgba(216,196,182,0.08)',
-                        color: '#F5EFE7',
-                        borderColor: 'rgba(216,196,182,0.2)',
+                        background: 'rgba(192,132,252,0.12)',
+                        color: '#E9D5FF',
+                        borderColor: 'rgba(192,132,252,0.35)',
                       }}
                     >
                       {s}
@@ -680,7 +680,7 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'var(--bg-card)',
+                background: '#000000',
                 border: '1px solid var(--border)',
                 borderRadius: 16,
                 padding: 24,
@@ -688,7 +688,7 @@ export default function SkillGap() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
                 <BookOpen size={20} color="#D8C4B6" />
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: '#F5EFE7', margin: 0 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: '#D8C4B6', margin: 0 }}>
                   Recommended Next Steps
                 </h3>
               </div>
@@ -702,8 +702,8 @@ export default function SkillGap() {
                       alignItems: 'flex-start',
                       padding: '12px 14px',
                       borderRadius: 10,
-                      background: 'rgba(33,53,85,0.4)',
-                      border: '1px solid rgba(216,196,182,0.1)',
+                      background: 'rgba(216,196,182,0.06)',
+                      border: '1px solid rgba(216,196,182,0.22)',
                     }}
                   >
                     <div style={{

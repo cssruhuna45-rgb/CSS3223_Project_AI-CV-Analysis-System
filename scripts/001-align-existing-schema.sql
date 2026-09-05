@@ -1,3 +1,17 @@
+-- SUPERSEDED - do not run this by hand any more.
+--
+-- These statements now live in Flyway as
+--   backend/src/main/resources/db/migration/V2__align_stale_columns.sql
+-- and are applied automatically when the backend starts. Running this
+-- script as well is harmless (every statement is idempotent) but
+-- pointless.
+--
+-- Kept only so the history of the change is readable next to the
+-- migration that replaced it.
+--
+--
+-- Original note:
+--
 -- Schema fixes for databases created BEFORE the AI gateway change.
 --
 -- Only needed if you already ran this project and have an existing
@@ -7,14 +21,6 @@
 -- The project has no migration tool yet, and `ddl-auto: update` only
 -- ever ADDS columns - it never drops or alters the stale ones. So old
 -- columns hang around and block the current code.
---
--- Run with, in PowerShell ("<" redirection is not supported there):
---   Get-Content scripts\001-align-existing-schema.sql -Raw |
---       docker exec -i interview_postgres psql -U postgres -d ai_interview_db
---
--- or in bash / Git Bash:
---   docker exec -i interview_postgres psql -U postgres -d ai_interview_db \
---       < scripts/001-align-existing-schema.sql
 --
 -- Safe to run more than once. It deletes no data.
 

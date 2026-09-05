@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Brain, LayoutDashboard, LogOut, ChevronDown } from 'lucide-react';
+import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp } from 'lucide-react';
 
 export default function Navbar({ user, onLogout }) {
   const navigate = useNavigate();
@@ -11,7 +11,13 @@ export default function Navbar({ user, onLogout }) {
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
   ];
 
-  const links = user?.role === 'recruiter' ? recruiterLinks : [];
+  // Candidates get their own interview record; recruiters have no
+  // progress of their own to look at.
+  const candidateLinks = [
+    { path: '/progress', label: 'My Progress', icon: <TrendingUp size={15} /> },
+  ];
+
+  const links = user?.role === 'recruiter' ? recruiterLinks : candidateLinks;
 
   return (
     <nav style={{

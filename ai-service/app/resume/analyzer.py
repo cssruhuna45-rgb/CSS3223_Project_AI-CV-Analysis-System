@@ -5,6 +5,13 @@ from typing import Any
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+from app.llm_config import (
+    get_max_retries,
+    get_model_name,
+    get_timeout,
+)
+
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -152,9 +159,12 @@ def _get_llm():
         )
 
     return ChatGoogleGenerativeAI(
-        model="gemini-flash-latest",
+
+        model=get_model_name(),
         google_api_key=api_key,
         temperature=0.0,
+        timeout=get_timeout(),
+        max_retries=get_max_retries(),
     )
 
 
