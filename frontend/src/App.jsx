@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import CVUpload from './pages/CVUpload';
 import InterviewRoom from './pages/InterviewRoom';
 import Scorecard from './pages/Scorecard';
+import Progress from './pages/Progress';
 import SkillGap from './pages/SkillGap';
 import RecruiterDashboard from './pages/RecruiterDashboard';
 
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/upload" element={<ProtectedRoute user={user}><CVUpload /></ProtectedRoute>} />
             <Route path="/interview" element={<ProtectedRoute user={user}><InterviewRoom /></ProtectedRoute>} />
             <Route path="/scorecard" element={<ProtectedRoute user={user}><Scorecard /></ProtectedRoute>} />
+            <Route path="/progress" element={<ProtectedRoute user={user}><Progress /></ProtectedRoute>} />
             <Route path="/skill-gap" element={<ProtectedRoute user={user}><SkillGap /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute user={user} recruiterOnly><RecruiterDashboard /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />

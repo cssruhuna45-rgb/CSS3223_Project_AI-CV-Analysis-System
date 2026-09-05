@@ -26,10 +26,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ResumeServiceImpl implements ResumeService {
 
-    private final ResumeRepository resumeRepository;
-    private final UserRepository userRepository;
-    private final FileStorageService fileStorageService;
-    private final PdfTextExtractionService pdfTextExtractionService;
+        private final ResumeRepository resumeRepository;
+        private final UserRepository userRepository;
+        private final FileStorageService fileStorageService;
+        private final PdfTextExtractionService pdfTextExtractionService;
 
     @Override
     @Transactional
@@ -95,10 +95,13 @@ public class ResumeServiceImpl implements ResumeService {
                             + e.getMessage());
         }
 
-        // 8. Save resume
+        // 8. Save resume so that the database generates the resume ID
         Resume savedResume = resumeRepository.save(resume);
 
-        // 9. Return response
+        // AI analysis deliberately does NOT happen here. It is best
+        // effort, and anything it did inside this transaction could
+        // mark it rollback-only and take the upload down with it. The
+        // controller runs it once this transaction has committed.
         return mapToDto(savedResume);
     }
 

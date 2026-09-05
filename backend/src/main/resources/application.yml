@@ -21,10 +21,30 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgrespassword}}
     driver-class-name: org.postgresql.Driver
   
+  # Database schema version control.
+  #
+  # Flyway owns the schema; see src/main/resources/db/migration.
+  #
+  # baseline-on-migrate exists for the databases that predate Flyway.
+  # Their schema is already what V1 describes, so Flyway stamps them at
+  # baseline-version 1 instead of trying to recreate those tables, and
+  # applies V2 onwards. A fresh database has no tables to baseline and
+  # simply runs every migration from V1.
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: Pre-Flyway schema created by Hibernate ddl-auto
+
   # Spring Data JPA / Hibernate Configuration
   jpa:
     hibernate:
-      ddl-auto: update
+      # validate, never update: Hibernate checks that the entities
+      # match the schema Flyway produced and refuses to start if they
+      # do not. Letting it modify the schema again would put it back
+      # in competition with Flyway, which is how the stale columns in
+      # V2 appeared in the first place.
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -36,10 +56,23 @@ file:
   upload-dir: ${FILE_UPLOAD_DIR:uploads/resumes/}
 
 # JWT Security Configuration
+# NOTE: this still falls back to a committed secret. Override JWT_SECRET
+# before deploying anywhere real.
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours in milliseconds
 
+# Browser origins allowed to call this API (comma separated).
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
 # External AI Service Configuration
+# The internal API key is sent as X-Internal-Api-Key on every AI call
+# and must match INTERNAL_API_KEY in ai-service/.env. Startup fails
+# without it, so the AI service is never left open.
 ai-service:
-  url: ${AI_SERVICE_URL:http://localhost:8000}
+  # 127.0.0.1, not localhost: uvicorn binds IPv4-only, and on Windows
+  # "localhost" can resolve to the IPv6 loopback first, making the
+  # service look unreachable even though it is up.
+  url: ${AI_SERVICE_URL:http://127.0.0.1:8000}
+  internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:}
