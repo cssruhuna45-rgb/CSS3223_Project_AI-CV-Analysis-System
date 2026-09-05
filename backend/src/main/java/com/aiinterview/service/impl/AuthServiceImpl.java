@@ -4,6 +4,7 @@ import com.aiinterview.dto.AuthResponse;
 import com.aiinterview.dto.LoginRequest;
 import com.aiinterview.dto.RegisterRequest;
 import com.aiinterview.dto.UserDto;
+import com.aiinterview.entity.Role;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.DuplicateEmailException;
 import com.aiinterview.repository.UserRepository;
@@ -34,6 +35,8 @@ public class AuthServiceImpl implements AuthService {
                 .name(request.getName().trim())
                 .email(request.getEmail().toLowerCase().trim())
                 .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.fromWireValue(request.getRole()))
+                .active(true)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -44,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
                 .id(savedUser.getId())
                 .name(savedUser.getName())
                 .email(savedUser.getEmail())
+                .role(savedUser.getRole().toWireValue())
                 .build();
 
         return AuthResponse.builder()
@@ -62,12 +66,18 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
+        // A disabled account must not be able to obtain a token.
+        if (!user.isActive()) {
+            throw new BadCredentialsException("Invalid email or password");
+        }
+
         String token = jwtService.generateToken(user.getEmail(), user.getId());
 
         UserDto userDto = UserDto.builder()
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
+                .role(user.getRole().toWireValue())
                 .build();
 
         return AuthResponse.builder()

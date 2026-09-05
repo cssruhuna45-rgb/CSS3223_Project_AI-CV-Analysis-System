@@ -1,278 +1,900 @@
-import json
-import os
-from typing import Any
+# app/skill_gap/analyzer.py
 
-from dotenv import load_dotenv
+from typing import List, Set
+
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
+
+from app.llm_config import (
+    get_max_retries,
+    get_model_name,
+    get_timeout,
+)
+
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
 
 from app.skill_gap.schemas import (
     SkillGapRequest,
     SkillGapResponse,
 )
 
-
-load_dotenv()
-
-
-SKILL_GAP_PROMPT = """
-You are an expert AI Skill Gap Analyzer for an AI Interview
-Preparation Platform.
-
-Your task is to compare a target job description with a candidate
-resume and identify the candidate's job-specific skill gaps.
-
-Use ONLY the information provided in:
-
-1. Job Description
-2. Candidate Resume
-
-Do NOT invent skills or experience.
-
-Return ONLY valid JSON.
-Do NOT use markdown.
-Do NOT wrap the JSON in ```json.
-
-Required JSON structure:
-
-{{
-  "required_skills": [],
-  "candidate_skills": [],
-  "matched_skills": [],
-  "missing_skills": [],
-  "additional_skills": [],
-  "match_percentage": 0,
-  "summary": "",
-  "recommendations": []
-}}
-
-Rules:
-
-1. required_skills:
-   - Extract technical and professional skills explicitly required
-     or strongly implied by the job description.
-   - Include technologies, frameworks, programming languages,
-     databases, cloud platforms, tools, and relevant technical
-     competencies.
-
-2. candidate_skills:
-   - Include only skills supported by the candidate resume.
-   - Do not assume a skill merely because the candidate has a
-     related skill.
-
-3. matched_skills:
-   - Skills that are required by the job and clearly supported
-     by the candidate resume.
-   - Treat obvious equivalent naming carefully.
-   - For example, "Java programming" and "Java" can be considered
-     the same skill.
-
-4. missing_skills:
-   - Skills required by the job but not clearly supported by
-     the candidate resume.
-   - These are the primary skill gaps.
-
-5. additional_skills:
-   - Skills clearly present in the candidate resume but not
-     required by the target job.
-
-6. match_percentage:
-   - Integer from 0 to 100.
-   - Calculate approximately:
-     matched required skills / total required skills * 100.
-   - If there are no identifiable required skills, return 0.
-
-7. summary:
-   - Give a concise explanation of how well the candidate matches
-     the target job.
-
-8. recommendations:
-   - Give practical recommendations focused primarily on the
-     missing skills.
-   - Do not recommend skills that are already clearly present.
-
-Job Description:
-{job_description}
-
-Candidate Resume:
-{candidate_resume}
-"""
+from app.skill_gap.skill_catalog import (
+    get_job_field,
+    get_required_skills,
+    get_skill_aliases,
+    get_related_skills,
+    SKILL_ALIASES,
+    RELATED_SKILLS,
+)
 
 
-def _get_llm():
-    api_key = os.getenv("GEMINI_API_KEY")
+# ============================================================
+# Gemini Configuration
+# ============================================================
 
-    if not api_key:
-        raise ValueError(
-            "GEMINI_API_KEY environment variable is not configured."
-        )
+MODEL_NAME = get_model_name()
 
-    return ChatGoogleGenerativeAI(
-        model="gemini-flash-lite-latest",
-        google_api_key=api_key,
-        temperature=0.1,
+
+# ============================================================
+# Gemini Extraction Schema
+# ============================================================
+
+class CandidateSkillExtraction(BaseModel):
+    """
+    Structured output used only for extracting factual
+    skills from the candidate resume.
+
+    Gemini does NOT calculate:
+    - match percentage
+    - gap percentage
+    - missing skills
+    - recommendations
+    """
+
+    skills: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Technical skills explicitly present in "
+            "the candidate resume."
+        ),
     )
 
 
-def _clean_json_response(text: str) -> str:
-    text = text.strip()
+# ============================================================
+# Gemini Model
+# ============================================================
 
-    if text.startswith("```json"):
-        text = text[len("```json"):].strip()
+def _get_llm():
+    """
+    Create Gemini model for factual skill extraction only.
+    """
 
-    elif text.startswith("```"):
-        text = text[len("```"):].strip()
-
-    if text.endswith("```"):
-        text = text[:-3].strip()
-
-    start = text.find("{")
-    end = text.rfind("}")
-
-    if start != -1 and end != -1 and end > start:
-        text = text[start:end + 1]
-
-    return text.strip()
+    return ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        timeout=get_timeout(),
+        max_retries=get_max_retries(),
+    )
 
 
-def _safe_string(value: Any) -> str:
-    if value is None:
-        return ""
+# ============================================================
+# Candidate Skill Extraction
+# ============================================================
 
-    return str(value).strip()
+def _extract_candidate_skills(
+    resume_text: str,
+) -> List[str]:
+    """
+    Extract technical skills from the candidate resume.
 
+    Gemini is used only as an extraction engine.
 
-def _safe_string_list(value: Any) -> list[str]:
-    if not isinstance(value, list):
+    It must NOT:
+    - calculate scores
+    - decide whether a skill is missing
+    - calculate percentages
+    - make recommendations
+    """
+
+    if not resume_text or not resume_text.strip():
         return []
 
-    result = []
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """
+You are a resume information extraction system.
 
-    for item in value:
-        if item is None:
-            continue
+Your ONLY task is to extract technical skills that are
+explicitly mentioned in the candidate resume.
 
-        value_str = str(item).strip()
+Return only skills that are actually present in the resume.
 
-        if value_str:
-            result.append(value_str)
+Examples of valid skills:
+- Java
+- Python
+- Go
+- C++
+- Linux
+- Docker
+- Kubernetes
+- AWS
+- Terraform
+- Git
+- GitHub Actions
+- PostgreSQL
+- React
+- Spring Boot
+- CI/CD
 
-    return result
+Do NOT:
+- infer skills that are not explicitly supported
+- calculate a match percentage
+- calculate a skill gap
+- identify missing skills
+- create recommendations
+- evaluate the candidate
+- assign scores
 
+If a technology appears in the projects section,
+it may also be extracted as a skill.
 
-def _safe_percentage(value: Any) -> int:
-    try:
-        percentage = int(value)
-    except (ValueError, TypeError):
-        percentage = 0
+Return a clean list of technical skills.
+""",
+            ),
+            (
+                "human",
+                """
+Candidate Resume:
 
-    return max(0, min(100, percentage))
-
-
-def analyze_skill_gap(
-    request: SkillGapRequest,
-) -> SkillGapResponse:
-
-    if not request.job_description.strip():
-        raise ValueError("Job description cannot be empty.")
-
-    if not request.candidate_resume.strip():
-        raise ValueError("Candidate resume cannot be empty.")
-
-    print("[SkillGapAnalyzer] Starting skill gap analysis.")
-
-    prompt = PromptTemplate(
-        template=SKILL_GAP_PROMPT,
-        input_variables=[
-            "job_description",
-            "candidate_resume",
-        ],
+{resume_text}
+""",
+            ),
+        ]
     )
 
     llm = _get_llm()
 
-    chain = (
-        prompt
-        | llm
-        | StrOutputParser()
+    structured_llm = llm.with_structured_output(
+        CandidateSkillExtraction
     )
 
-    raw_response = chain.invoke(
+    chain = prompt | structured_llm
+
+    result = chain.invoke(
         {
-            "job_description": request.job_description,
-            "candidate_resume": request.candidate_resume,
+            "resume_text": resume_text,
         }
     )
 
-    print("[SkillGapAnalyzer] Gemini response received.")
+    if not result:
+        return []
 
-    cleaned_response = _clean_json_response(raw_response)
+    return result.skills or []
 
-    print("\n========== SKILL GAP JSON ==========")
-    print(cleaned_response)
-    print("====================================\n")
+
+# ============================================================
+# Text Normalization
+# ============================================================
+
+def _normalize_text(value: str) -> str:
+    """
+    Normalize text for deterministic comparison.
+    """
+
+    if not value:
+        return ""
+
+    return (
+        value.strip()
+        .lower()
+        .replace("–", "-")
+        .replace("—", "-")
+        .replace("_", " ")
+    )
+
+
+# ============================================================
+# Alias Lookup
+# ============================================================
+
+def _build_alias_lookup():
+    """
+    Build reverse alias lookup.
+
+    Example:
+
+        "golang" -> "Go"
+        "go (golang)" -> "Go"
+        "k8s" -> "Kubernetes"
+        "k8" -> "Kubernetes"
+        "amazon web services" -> "AWS"
+    """
+
+    lookup = {}
+
+    for canonical_skill, aliases in SKILL_ALIASES.items():
+
+        canonical_key = _normalize_text(
+            canonical_skill
+        )
+
+        lookup[canonical_key] = canonical_skill
+
+        for alias in aliases:
+
+            alias_key = _normalize_text(
+                alias
+            )
+
+            if alias_key:
+                lookup[alias_key] = canonical_skill
+
+    return lookup
+
+
+# ============================================================
+# Canonicalize Skill
+# ============================================================
+
+def _canonicalize_skill(
+    skill: str,
+    alias_lookup: dict,
+) -> str:
+    """
+    Convert a skill to its canonical catalog name.
+
+    Unknown skills are preserved in normalized form.
+    """
+
+    if not skill:
+        return ""
+
+    normalized = _normalize_text(skill)
+
+    if not normalized:
+        return ""
+
+    return alias_lookup.get(
+        normalized,
+        skill.strip(),
+    )
+
+
+# ============================================================
+# Build Candidate Skill Set
+# ============================================================
+
+def _build_candidate_skill_set(
+    extracted_skills: List[str],
+) -> Set[str]:
+    """
+    Convert extracted candidate skills into canonical skills.
+    """
+
+    alias_lookup = _build_alias_lookup()
+
+    candidate_skills = set()
+
+    for skill in extracted_skills:
+
+        canonical = _canonicalize_skill(
+            skill,
+            alias_lookup,
+        )
+
+        if canonical:
+            candidate_skills.add(
+                canonical
+            )
+
+    return candidate_skills
+
+
+# ============================================================
+# Canonicalize Required Skills
+# ============================================================
+
+def _build_required_skill_set(
+    required_skills: List[str],
+) -> Set[str]:
+    """
+    Convert required job-field skills into canonical names.
+    """
+
+    alias_lookup = _build_alias_lookup()
+
+    result = set()
+
+    for skill in required_skills:
+
+        canonical = _canonicalize_skill(
+            skill,
+            alias_lookup,
+        )
+
+        if canonical:
+            result.add(canonical)
+
+    return result
+
+
+# ============================================================
+# Calculate Exact Matches
+# ============================================================
+
+def _calculate_exact_matches(
+    required_skills: Set[str],
+    candidate_skills: Set[str],
+) -> Set[str]:
+    """
+    Calculate exact canonical skill matches.
+
+    IMPORTANT:
+    Related skills are NOT counted here.
+
+    Example:
+
+        Required:
+            Infrastructure as Code
+
+        Candidate:
+            Terraform
+
+    Terraform does NOT become an exact match.
+    """
+
+    return (
+        required_skills
+        .intersection(candidate_skills)
+    )
+
+
+# ============================================================
+# Calculate Missing Skills
+# ============================================================
+
+def _calculate_missing_skills(
+    required_skills: Set[str],
+    matched_skills: Set[str],
+) -> Set[str]:
+    """
+    Calculate required skills not exactly matched.
+    """
+
+    return (
+        required_skills
+        - matched_skills
+    )
+
+
+# ============================================================
+# Calculate Related Skills
+# ============================================================
+
+def _calculate_related_skills(
+    missing_skills: Set[str],
+    candidate_skills: Set[str],
+) -> Set[str]:
+    """
+    Identify missing required skills that have related
+    candidate skills.
+
+    Related skills are reported separately and DO NOT
+    increase the exact match percentage.
+
+    Example:
+
+        Required:
+            Infrastructure as Code
+
+        Candidate:
+            Terraform
+
+    Result:
+
+        missing_skills:
+            Infrastructure as Code
+
+        related_skills:
+            Terraform
+    """
+
+    related = set()
+
+    for missing_skill in missing_skills:
+
+        related_candidates = (
+            get_related_skills(
+                missing_skill
+            )
+        )
+
+        for candidate_skill in candidate_skills:
+
+            candidate_normalized = (
+                _normalize_text(
+                    candidate_skill
+                )
+            )
+
+            for related_skill in related_candidates:
+
+                related_normalized = (
+                    _normalize_text(
+                        related_skill
+                    )
+                )
+
+                if (
+                    candidate_normalized
+                    == related_normalized
+                ):
+                    related.add(
+                        candidate_skill
+                    )
+
+    return related
+
+
+# ============================================================
+# Calculate Additional Skills
+# ============================================================
+
+def _calculate_additional_skills(
+    candidate_skills: Set[str],
+    required_skills: Set[str],
+) -> Set[str]:
+    """
+    Candidate skills that are not required for the
+    selected job field.
+    """
+
+    return (
+        candidate_skills
+        - required_skills
+    )
+
+
+# ============================================================
+# Calculate Match Percentage
+# ============================================================
+
+def _calculate_match_percentage(
+    required_skills: Set[str],
+    matched_skills: Set[str],
+) -> int:
+    """
+    Calculate deterministic exact-match percentage.
+
+    Formula:
+
+        matched / required * 100
+
+    The result is rounded to the nearest integer.
+    """
+
+    if not required_skills:
+        return 0
+
+    percentage = (
+        len(matched_skills)
+        / len(required_skills)
+    ) * 100
+
+    return round(percentage)
+
+
+# ============================================================
+# Generate Summary
+# ============================================================
+
+def _generate_summary(
+    job_field_name: str,
+    required_count: int,
+    matched_count: int,
+    related_count: int,
+    missing_count: int,
+    match_percentage: int,
+) -> str:
+    """
+    Generate deterministic summary.
+    """
+
+    if required_count == 0:
+
+        return (
+            f"No required skills are currently defined "
+            f"for the {job_field_name} job field."
+        )
+
+    if match_percentage >= 80:
+
+        level = "strong"
+
+    elif match_percentage >= 60:
+
+        level = "moderate"
+
+    elif match_percentage >= 40:
+
+        level = "developing"
+
+    else:
+
+        level = "limited"
+
+    summary = (
+        f"The candidate has a {level} skill match for "
+        f"{job_field_name}. "
+        f"{matched_count} of {required_count} required "
+        f"skills are exact matches "
+        f"({match_percentage}%)."
+    )
+
+    if related_count > 0:
+
+        summary += (
+            f" {related_count} related skill"
+            f"{'s' if related_count != 1 else ''} "
+            f"may provide partial background."
+        )
+
+    if missing_count > 0:
+
+        summary += (
+            f" {missing_count} required skill"
+            f"{'s' if missing_count != 1 else ''} "
+            f"are not directly demonstrated."
+        )
+
+    return summary
+
+
+# ============================================================
+# Generate Recommendations
+# ============================================================
+
+def _generate_recommendations(
+    missing_skills: Set[str],
+    related_skills: Set[str],
+) -> List[str]:
+    """
+    Generate deterministic skill-development recommendations.
+    """
+
+    recommendations = []
+
+    if missing_skills:
+
+        sorted_missing = sorted(
+            missing_skills
+        )
+
+        for skill in sorted_missing[:5]:
+
+            recommendations.append(
+                f"Develop practical experience in {skill}."
+            )
+
+    if related_skills:
+
+        recommendations.append(
+            "Build on related skills through "
+            "hands-on projects and real-world scenarios."
+        )
+
+    if not recommendations:
+
+        recommendations.append(
+            "Continue strengthening the existing "
+            "skills through practical projects."
+        )
+
+    return recommendations
+
+
+# ============================================================
+# Validate Job Field
+# ============================================================
+
+def _validate_job_field(
+    job_field: str,
+):
+    """
+    Validate that the requested job field exists
+    in the predefined catalog.
+    """
+
+    if not job_field:
+        raise ValueError(
+            "Job field cannot be empty."
+        )
 
     try:
-        data = json.loads(cleaned_response)
 
-    except json.JSONDecodeError as e:
-        raise ValueError(
-            f"Gemini returned invalid JSON: {e}. "
-            f"Response: {cleaned_response[:1500]}"
+        job = get_job_field(
+            job_field
         )
 
-    if not isinstance(data, dict):
+    except Exception:
+
+        job = None
+
+    if not job:
+
         raise ValueError(
-            "Gemini response JSON must be an object."
+            f"Unknown job field: {job_field}"
         )
 
-    required_skills = _safe_string_list(
-        data.get("required_skills", [])
+    return job
+
+
+# ============================================================
+# Main Skill Gap Analyzer
+# ============================================================
+
+def analyze_skill_gap(
+    request: SkillGapRequest,
+) -> SkillGapResponse:
+    """
+    Analyze candidate skill gap against a predefined
+    job field.
+
+    IMPORTANT ARCHITECTURE:
+
+        Gemini
+            ↓
+        Extract factual candidate skills
+            ↓
+        Python
+            ↓
+        Canonicalize skills
+            ↓
+        skill_catalog.py
+            ↓
+        Exact matching
+            ↓
+        Match percentage
+            ↓
+        Gap percentage
+
+    Gemini does NOT calculate the score.
+    """
+
+    # --------------------------------------------------------
+    # Validate Job Field
+    # --------------------------------------------------------
+
+    job = _validate_job_field(
+        request.job_field
     )
 
-    candidate_skills = _safe_string_list(
-        data.get("candidate_skills", [])
+    # --------------------------------------------------------
+    # Get Job Field Name
+    # --------------------------------------------------------
+
+    job_field_name = job.get(
+        "name",
+        request.job_field,
     )
 
-    matched_skills = _safe_string_list(
-        data.get("matched_skills", [])
+    # --------------------------------------------------------
+    # Get Required Skills
+    # --------------------------------------------------------
+
+    required_skill_list = (
+        get_required_skills(
+            request.job_field
+        )
     )
 
-    missing_skills = _safe_string_list(
-        data.get("missing_skills", [])
+    required_skills = (
+        _build_required_skill_set(
+            required_skill_list
+        )
     )
 
-    additional_skills = _safe_string_list(
-        data.get("additional_skills", [])
+    # --------------------------------------------------------
+    # Extract Candidate Skills
+    # --------------------------------------------------------
+
+    extracted_skills = (
+        _extract_candidate_skills(
+            request.candidate_resume
+        )
     )
 
-    match_percentage = _safe_percentage(
-        data.get("match_percentage", 0)
+    # --------------------------------------------------------
+    # Canonical Candidate Skills
+    # --------------------------------------------------------
+
+    candidate_skills = (
+        _build_candidate_skill_set(
+            extracted_skills
+        )
     )
 
-    summary = _safe_string(
-        data.get("summary", "")
+    # --------------------------------------------------------
+    # Exact Matches
+    # --------------------------------------------------------
+
+    matched_skills = (
+        _calculate_exact_matches(
+            required_skills,
+            candidate_skills,
+        )
     )
 
-    recommendations = _safe_string_list(
-        data.get("recommendations", [])
+    # --------------------------------------------------------
+    # Missing Skills
+    # --------------------------------------------------------
+
+    missing_skills = (
+        _calculate_missing_skills(
+            required_skills,
+            matched_skills,
+        )
     )
 
-    result = SkillGapResponse(
-        required_skills=required_skills,
-        candidate_skills=candidate_skills,
-        matched_skills=matched_skills,
-        missing_skills=missing_skills,
-        additional_skills=additional_skills,
+    # --------------------------------------------------------
+    # Related Skills
+    # --------------------------------------------------------
+
+    related_skills = (
+        _calculate_related_skills(
+            missing_skills,
+            candidate_skills,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Additional Skills
+    # --------------------------------------------------------
+
+    additional_skills = (
+        _calculate_additional_skills(
+            candidate_skills,
+            required_skills,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Match Percentage
+    # --------------------------------------------------------
+
+    match_percentage = (
+        _calculate_match_percentage(
+            required_skills,
+            matched_skills,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Gap Percentage
+    # --------------------------------------------------------
+
+    gap_percentage = (
+        100 - match_percentage
+    )
+
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
+
+    summary = _generate_summary(
+        job_field_name=job_field_name,
+        required_count=len(
+            required_skills
+        ),
+        matched_count=len(
+            matched_skills
+        ),
+        related_count=len(
+            related_skills
+        ),
+        missing_count=len(
+            missing_skills
+        ),
         match_percentage=match_percentage,
-        summary=summary,
-        recommendations=recommendations,
+    )
+
+    # --------------------------------------------------------
+    # Recommendations
+    # --------------------------------------------------------
+
+    recommendations = (
+        _generate_recommendations(
+            missing_skills=missing_skills,
+            related_skills=related_skills,
+        )
+    )
+
+    # --------------------------------------------------------
+    # Logging
+    # --------------------------------------------------------
+
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Job Field: {job_field_name}"
     )
 
     print(
-        "[SkillGapAnalyzer] Analysis completed. "
-        f"Match={result.match_percentage}%"
+        f"[SkillGapAnalyzer] "
+        f"Required Skills: {len(required_skills)}"
     )
 
-    return result
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Candidate Skills: {len(candidate_skills)}"
+    )
+
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Matched Skills: {len(matched_skills)}"
+    )
+
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Related Skills: {len(related_skills)}"
+    )
+
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Missing Skills: {len(missing_skills)}"
+    )
+
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Match Percentage: {match_percentage}%"
+    )
+
+    print(
+        f"[SkillGapAnalyzer] "
+        f"Gap Percentage: {gap_percentage}%"
+    )
+
+    # --------------------------------------------------------
+    # Return Response
+    # --------------------------------------------------------
+
+    return SkillGapResponse(
+        resume_id=request.resume_id,
+
+        job_field=request.job_field,
+
+        job_field_name=job_field_name,
+
+        required_skills=sorted(
+            required_skills
+        ),
+
+        candidate_skills=sorted(
+            candidate_skills
+        ),
+
+        matched_skills=sorted(
+            matched_skills
+        ),
+
+        related_skills=sorted(
+            related_skills
+        ),
+
+        missing_skills=sorted(
+            missing_skills
+        ),
+
+        additional_skills=sorted(
+            additional_skills
+        ),
+
+        match_percentage=match_percentage,
+
+        gap_percentage=gap_percentage,
+
+        summary=summary,
+
+        recommendations=recommendations,
+    )
