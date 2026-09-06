@@ -62,7 +62,7 @@ Configure your local environment variables using `.env.example`:
 | `DB_URL` | `jdbc:postgresql://localhost:5432/ai_interview_db` | PostgreSQL JDBC connection URL |
 | `DB_USERNAME` | `postgres` | Database username |
 | `DB_PASSWORD` | `postgrespassword` | Database password |
-| `JWT_SECRET` | `404E635266556A586E327235753878...` | 256-bit HMAC secret key for signing JWTs |
+| `JWT_SECRET` | *(required, no default)* | Base64 key that signs login tokens. The app will not start without it. |
 | `JWT_EXPIRATION_MS` | `86400000` | Token expiration duration (default 24 hours) |
 
 ---
