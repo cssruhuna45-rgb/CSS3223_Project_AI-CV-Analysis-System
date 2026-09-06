@@ -105,6 +105,15 @@ export const resumeAPI = {
     }).then(handleResponse),
 
 
+  // The analysis stored when this CV was uploaded. Lets a returning
+  // candidate pick up where they left off instead of re-uploading.
+  // 404 means the upload's best-effort analysis never completed.
+  getAnalysis: (id) =>
+    fetch(`${SPRING}/api/v1/resumes/${id}/analysis`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+
   getById: (id) =>
     fetch(`${SPRING}/api/v1/resumes/${id}`, {
       headers: authHeaders(),
