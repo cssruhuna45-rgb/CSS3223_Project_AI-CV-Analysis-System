@@ -6,9 +6,12 @@ import com.aiinterview.dto.ProgressTrend;
 import com.aiinterview.entity.InterviewSession;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.ResourceNotFoundException;
+import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.repository.InterviewSessionRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.InterviewProgressService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,7 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
 
     private final InterviewSessionRepository interviewSessionRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
 
     // ========================================================
     // History
@@ -207,5 +211,56 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
                         user.getId(),
                         InterviewSession.STATUS_COMPLETED
                 );
+    }
+
+    // ========================================================
+    // One stored scorecard
+    // ========================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public JsonNode getScorecard(String userEmail, String sessionId) {
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found: " + userEmail
+                ));
+
+        InterviewSession session = interviewSessionRepository
+                .findBySessionId(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Interview not found: " + sessionId
+                ));
+
+        // Session ids are UUIDs, so this is not guessable - but "not
+        // yours" must still be a refusal rather than a silent empty
+        // result, or the endpoint becomes a way to probe for them.
+        if (session.getUser() == null
+                || !session.getUser().getId().equals(user.getId())) {
+            throw new UnauthorizedAccessException(
+                    "You do not have permission to view this interview."
+            );
+        }
+
+        String stored = session.getFeedbackJson();
+
+        if (stored == null || stored.isBlank()) {
+            throw new ResourceNotFoundException(
+                    "This interview has no stored scorecard. It was "
+                            + "either not finished or could not be graded."
+            );
+        }
+
+        try {
+            return objectMapper.readTree(stored);
+        } catch (Exception e) {
+            // Stored JSON that will not parse is a data problem, not a
+            // missing row; say so rather than reporting "not found".
+            throw new IllegalStateException(
+                    "The stored scorecard for " + sessionId
+                            + " could not be read.",
+                    e
+            );
+        }
     }
 }

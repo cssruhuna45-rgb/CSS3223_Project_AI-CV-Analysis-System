@@ -264,9 +264,19 @@ export default function Home({ user }) {
             {interviews.slice(0, 5).map((it, i) => (
               <div
                 key={it.sessionId || i}
+                role="button"
+                tabIndex={0}
+                onClick={() => it.sessionId && navigate(`/scorecard?session=${it.sessionId}`)}
+                onKeyDown={e => {
+                  if ((e.key === 'Enter' || e.key === ' ') && it.sessionId) {
+                    e.preventDefault();
+                    navigate(`/scorecard?session=${it.sessionId}`);
+                  }
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
                   borderTop: i === 0 ? 'none' : `1px solid ${TRACK}`,
+                  cursor: it.sessionId ? 'pointer' : 'default',
                 }}
               >
                 <div style={{
@@ -304,6 +314,10 @@ export default function Home({ user }) {
                   }}>
                     {it.scoreChange > 0 ? '+' : ''}{it.scoreChange}
                   </span>
+                )}
+
+                {it.sessionId && (
+                  <ChevronRight size={15} color={TEXT} style={{ opacity: 0.5, flexShrink: 0 }} />
                 )}
               </div>
             ))}

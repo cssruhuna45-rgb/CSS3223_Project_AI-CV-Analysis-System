@@ -8,7 +8,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,6 +41,25 @@ public class InterviewController {
     ) {
         return ResponseEntity.ok(
                 interviewProgressService.getHistory(authentication.getName())
+        );
+    }
+
+    @Operation(
+            summary = "Reopen the stored scorecard for one interview",
+            description = "Returns the same payload the interview "
+                    + "produced when it finished, so a candidate can "
+                    + "revisit a result. Their own interviews only."
+    )
+    @GetMapping("/{sessionId}/scorecard")
+    public ResponseEntity<JsonNode> getScorecard(
+            @PathVariable String sessionId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                interviewProgressService.getScorecard(
+                        authentication.getName(),
+                        sessionId
+                )
         );
     }
 
