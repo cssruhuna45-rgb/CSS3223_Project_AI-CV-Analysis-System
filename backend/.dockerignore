@@ -1,0 +1,10 @@
+# Build output. Copying it in would only be overwritten by the build
+# stage, and it can be gigabytes.
+target
+
+# Local secrets. The container gets these from compose environment
+# variables instead - a key baked into an image leaks with the image.
+.env
+
+# Uploaded CVs are runtime data on a volume, not part of the image.
+uploads

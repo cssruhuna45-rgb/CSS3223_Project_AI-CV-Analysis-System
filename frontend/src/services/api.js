@@ -1,4 +1,8 @@
-const SPRING = 'http://localhost:8080';
+// Baked in at build time by Create React App. The default is right for
+// running everything on one machine; docker-compose and any real deploy
+// override it with REACT_APP_API_URL so the browser is not sent to its
+// own localhost looking for the backend.
+const SPRING = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 // The Python AI service is never called from the browser. Spring
 // authenticates the user's JWT and proxies to it under /api/v1/ai,
