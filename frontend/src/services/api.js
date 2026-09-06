@@ -438,6 +438,23 @@ export const interviewAPI = {
 
 
 // ============================================================
+// RECRUITER
+// Spring Boot -> /api/v1/recruiter
+// ============================================================
+
+export const recruiterAPI = {
+
+  // Every candidate's interviews plus the headline totals.
+  // Recruiter-only: the backend rejects a candidate's token with 403.
+  overview: () =>
+    fetch(`${SPRING}/api/v1/recruiter/overview`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+};
+
+
+// ============================================================
 // SKILL GAP ANALYSIS
 // Spring Boot → /api/v1/ai/skill-gap/analyze → FastAPI
 // ============================================================
