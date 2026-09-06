@@ -6,6 +6,17 @@ server:
 spring:
   application:
     name: ai-interview-backend
+
+  # Read backend/.env, the way the AI service already reads
+  # ai-service/.env. Without this every new terminal has to export
+  # AI_SERVICE_INTERNAL_API_KEY by hand or the app refuses to start,
+  # which is a trap people fall into repeatedly.
+  #
+  # "optional:" means a missing file is fine - CI and Docker set real
+  # environment variables instead. Those still win: an actual
+  # environment variable takes precedence over an imported file.
+  config:
+    import: optional:file:./.env[.properties]
   
   # Multipart File Upload Configuration
   servlet:
