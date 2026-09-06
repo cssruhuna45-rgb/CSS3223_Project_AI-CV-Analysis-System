@@ -35,23 +35,97 @@ export default function CVUpload() {
   const [review, setReview] = useState(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState('');
+  const [restoring, setRestoring] = useState(false);
   const [showManualSelection, setShowManualSelection] = useState(false);
   const [manualField, setManualField] = useState('');
 
-  // Load existing analysis if user navigated back
+  // Restore whatever the candidate already has, so a returning visit
+  // does not start from an empty upload form.
+  //
+  // Three sources, cheapest first: this tab's cache, then the analysis
+  // stored on the server when the CV was uploaded, then a fresh AI call
+  // over the saved text if that upload's best-effort analysis never
+  // completed.
   useEffect(() => {
-    const savedAnalysis = sessionStorage.getItem('resumeAnalysis');
+    let cancelled = false;
+
     const savedJobField = sessionStorage.getItem('selectedJobField');
-    if (savedAnalysis) {
+    if (savedJobField) setManualField(savedJobField);
+
+    const cachedAnalysis = sessionStorage.getItem('resumeAnalysis');
+    if (cachedAnalysis) {
       try {
-        setAnalysis(JSON.parse(savedAnalysis));
-        const savedReview = sessionStorage.getItem('cvReview');
-        if (savedReview) setReview(JSON.parse(savedReview));
-        if (savedJobField) setManualField(savedJobField);
+        setAnalysis(JSON.parse(cachedAnalysis));
+        const cachedReview = sessionStorage.getItem('cvReview');
+        if (cachedReview) setReview(JSON.parse(cachedReview));
+        return;
       } catch (e) {
-        console.error('Failed to parse cached analysis', e);
+        console.error('[CVUpload] Cached analysis was unreadable:', e);
       }
     }
+
+    // Set by the home page when starting from a saved CV.
+    const resumeId = sessionStorage.getItem('resumeId');
+    const resumeText = sessionStorage.getItem('resumeText') || '';
+    if (!resumeId) return;
+
+    const applyAnalysis = (result) => {
+      sessionStorage.setItem('resumeAnalysis', JSON.stringify(result));
+      setAnalysis(result);
+      if (result.recommended_job_fields?.length && !savedJobField) {
+        setManualField(result.recommended_job_fields[0].field);
+      }
+    };
+
+    const runReview = async () => {
+      if (!resumeText) return;
+      setReviewLoading(true);
+      try {
+        const cvReview = await aiResumeAPI.feedback(resumeId, resumeText);
+        if (cancelled) return;
+        sessionStorage.setItem('cvReview', JSON.stringify(cvReview));
+        setReview(cvReview);
+      } catch (err) {
+        console.error('[CVUpload] CV review failed:', err);
+        if (!cancelled) setReviewError(err.message || 'Could not review the CV.');
+      } finally {
+        if (!cancelled) setReviewLoading(false);
+      }
+    };
+
+    (async () => {
+      setRestoring(true);
+      try {
+        const stored = await resumeAPI.getAnalysis(resumeId);
+        if (cancelled) return;
+        applyAnalysis(stored);
+        runReview();
+      } catch (err) {
+        // A 404 is expected when the upload's analysis did not finish.
+        console.warn('[CVUpload] No stored analysis, re-analysing:', err.message);
+        if (!resumeText) {
+          if (!cancelled) {
+            setError('That CV could not be loaded. Please upload it again.');
+          }
+          return;
+        }
+        try {
+          const fresh = await aiResumeAPI.analyze(resumeId, resumeText);
+          if (cancelled) return;
+          applyAnalysis(fresh);
+          runReview();
+        } catch (analyseErr) {
+          console.error('[CVUpload] Re-analysis failed:', analyseErr);
+          if (!cancelled) {
+            setError(analyseErr.message || 'Could not load your saved CV.');
+          }
+        }
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, []);
 
   const handleFile = (f) => {
@@ -175,8 +249,34 @@ export default function CVUpload() {
         </p>
       </div>
 
+      {/* Loading the CV the candidate already has. Shown instead of the
+          upload zone, so arriving from the home page's "Start an
+          interview" does not flash an empty form at them. */}
+      {restoring && !analysis && (
+        <div
+          className="card"
+          style={{
+            marginBottom: 32, background: '#000000',
+            border: '1px solid var(--border)', borderTop: '3px solid #D8C4B6',
+            padding: 40, textAlign: 'center',
+          }}
+        >
+          <Loader
+            size={26}
+            color="#D8C4B6"
+            style={{ animation: 'spin 1s linear infinite' }}
+          />
+          <p style={{ fontSize: 15, fontWeight: 600, margin: '14px 0 6px' }}>
+            Loading your CV
+          </p>
+          <p style={{ fontSize: 13.5, color: '#F5EFE7', opacity: 0.8 }}>
+            Bringing back the analysis from your last visit.
+          </p>
+        </div>
+      )}
+
       {/* Upload Zone & Actions (Visible when no analysis yet or editable) */}
-      {!analysis && (
+      {!analysis && !restoring && (
         <div className="card" style={{ marginBottom: 32, background: '#000000', border: '1px solid var(--border)', borderTop: '3px solid #D8C4B6' }}>
           <div
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
