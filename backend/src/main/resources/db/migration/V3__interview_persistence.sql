@@ -14,6 +14,30 @@
 
 
 -- ==================================================================
+-- Clear out an abandoned earlier attempt.
+--
+-- Some databases already carry interview_sessions and
+-- interview_session_turns from an implementation that was started and
+-- dropped long before this one: session_id is varchar(64) there, the
+-- constraints below are missing, and no Java entity ever mapped them.
+-- Without this, V3 stopped at
+--
+--     ERROR: relation "interview_sessions" already exists
+--
+-- and the backend would not start at all.
+--
+-- CREATE TABLE IF NOT EXISTS would have hidden the collision rather
+-- than resolved it, leaving those databases on the old column widths
+-- while fresh ones got the new shape - which ddl-auto: validate would
+-- then reject. Dropping is safe: the rows are test data from a feature
+-- that never shipped, and nothing reads them.
+-- ==================================================================
+
+DROP TABLE IF EXISTS interview_session_turns;
+DROP TABLE IF EXISTS interview_sessions;
+
+
+-- ==================================================================
 -- interview_sessions
 --
 -- session_id is the AI service's own identifier, carried in every
