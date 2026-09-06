@@ -86,21 +86,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-**Backend** — needs the internal key in its environment, and refuses to
-start without it:
+**Backend** — put the key in `backend/.env` once (copy
+`backend/.env.example`) and it is read on every start:
 
-```powershell
-# PowerShell
-$env:AI_SERVICE_INTERNAL_API_KEY = "<the generated key>"
-cd backend
-.\mvnw spring-boot:run
+```
+AI_SERVICE_INTERNAL_API_KEY=<the generated key>
 ```
 
 ```bash
-# bash
-export AI_SERVICE_INTERNAL_API_KEY="<the generated key>"
-cd backend && ./mvnw spring-boot:run
+cd backend
+./mvnw spring-boot:run          # .\mvnw spring-boot:run on Windows
 ```
+
+An `AI_SERVICE_INTERNAL_API_KEY` set in the environment overrides the
+file, which is how Docker and CI supply it. Without either, the backend
+refuses to start rather than calling the AI service unauthenticated.
 
 **Frontend:**
 
