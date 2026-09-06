@@ -1,10 +1,11 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Trophy, Brain, MessageSquare, Code, Layers,
-  Download, RotateCcw, TrendingUp, CheckCircle, XCircle, AlertTriangle,
+  Download, RotateCcw, TrendingUp, CheckCircle, XCircle, AlertTriangle, Clock,
 } from 'lucide-react';
 import InterviewProgress from '../components/InterviewProgress';
+import { interviewAPI } from '../services/api';
 
 const ACCENT = '#D8C4B6';
 const TEXT = '#F5EFE7';
@@ -73,7 +74,51 @@ function EmptyState({ navigate, title, message }) {
 
 export default function Scorecard() {
   const navigate = useNavigate();
-  const result = readResult();
+  const [params] = useSearchParams();
+
+  // ?session=<id> means "reopen this past interview". Without it the
+  // page is showing the interview that just finished, which is already
+  // in sessionStorage and needs no request.
+  const sessionId = params.get('session');
+
+  const [result, setResult] = useState(() => (sessionId ? null : readResult()));
+  const [loading, setLoading] = useState(Boolean(sessionId));
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    let cancelled = false;
+
+    interviewAPI.getScorecard(sessionId)
+      .then(stored => { if (!cancelled) setResult(stored); })
+      .catch(err => {
+        console.error('[Scorecard] Could not load that interview:', err);
+        if (!cancelled) setLoadError(err.message || 'Could not load that interview.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [sessionId]);
+
+  if (loading) {
+    return (
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
+        <Clock size={32} color={ACCENT} />
+        <p style={{ color: TEXT, marginTop: 14 }}>Loading your report…</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        navigate={navigate}
+        title="Could not open that interview"
+        message={loadError}
+      />
+    );
+  }
 
   if (!result) {
     return (
@@ -291,8 +336,8 @@ export default function Scorecard() {
       {/* Actions */}
       <div style={{ display: 'flex', gap: 12 }}>
         <button className="btn btn-outline" style={{ flex: 1, justifyContent: 'center', padding: '12px' }}
-          onClick={() => navigate('/upload')}>
-          <RotateCcw size={15} /> Try Again
+          onClick={() => navigate(sessionId ? '/home' : '/upload')}>
+          <RotateCcw size={15} /> {sessionId ? 'Back to home' : 'Try Again'}
         </button>
         <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '12px' }}
           onClick={() => window.print()}>

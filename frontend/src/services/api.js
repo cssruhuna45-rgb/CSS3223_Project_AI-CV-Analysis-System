@@ -414,6 +414,15 @@ export const interviewAPI = {
       }
     ).then(handleResponse),
 
+  // The stored scorecard for a past interview, so a result can be
+  // reopened from the home page rather than only right after finishing.
+  getScorecard: (sessionId) =>
+    fetch(
+      `${SPRING}/api/v1/interviews/${encodeURIComponent(sessionId)}/scorecard`,
+      { headers: authHeaders() }
+    ).then(handleResponse),
+
+
   progress: () =>
     fetch(
       `${SPRING}/api/v1/interviews/progress`,
