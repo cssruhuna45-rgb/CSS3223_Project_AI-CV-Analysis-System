@@ -28,7 +28,7 @@ export default function Login({ onLogin }) {
       };
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
-      navigate(role === 'recruiter' ? '/dashboard' : '/upload');
+      navigate(role === 'recruiter' ? '/dashboard' : '/home');
     } catch (err) {
       setError(err.message || 'Invalid email or password.');
     } finally {

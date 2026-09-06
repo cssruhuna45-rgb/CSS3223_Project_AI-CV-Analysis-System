@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp } from 'lucide-react';
+import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp, Home } from 'lucide-react';
 
 export default function Navbar({ user, onLogout }) {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export default function Navbar({ user, onLogout }) {
   // Candidates get their own interview record; recruiters have no
   // progress of their own to look at.
   const candidateLinks = [
+    { path: '/home', label: 'Home', icon: <Home size={15} /> },
     { path: '/progress', label: 'My Progress', icon: <TrendingUp size={15} /> },
   ];
 
@@ -29,7 +30,7 @@ export default function Navbar({ user, onLogout }) {
     }}>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
-        onClick={() => navigate(user ? (user.role === 'recruiter' ? '/dashboard' : '/upload') : '/')}>
+        onClick={() => navigate(user ? (user.role === 'recruiter' ? '/dashboard' : '/home') : '/')}>
         
         <span style={{ fontWeight: 700, fontSize: 25, letterSpacing: '-0.3px' }}>
           AI<span style={{ color: '#D8C4B6' }}>Interview</span>
