@@ -16,8 +16,20 @@ import java.io.IOException;
 @Service
 public class PdfTextExtractionService {
 
+    /**
+     * Where Tesseract's language data lives.
+     *
+     * <p>Only the OCR fallback needs it - a PDF with a text layer never
+     * reaches that path. It used to be hardcoded to a Windows install,
+     * so scanned CVs could only be read on one machine and never in a
+     * container. Set TESSERACT_DATA_PATH to override; the Docker image
+     * points it at the Linux location.
+     */
     private static final String TESSERACT_DATA_PATH =
-            "C:\\Program Files\\Tesseract-OCR\\tessdata";
+            System.getenv().getOrDefault(
+                    "TESSERACT_DATA_PATH",
+                    "C:\\Program Files\\Tesseract-OCR\\tessdata"
+            );
 
     public String extractText(String filePath) {
 

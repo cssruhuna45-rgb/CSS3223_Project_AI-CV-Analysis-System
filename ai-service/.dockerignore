@@ -1,0 +1,16 @@
+__pycache__
+**/__pycache__
+
+# Host virtualenvs hold Windows or macOS binaries that cannot run in the
+# container, and dependencies are installed from requirements.txt anyway.
+venv
+.venv
+
+# The RAG index is runtime data on a volume. Shipping a host copy would
+# also pin the image to whatever documents/ looked like that day.
+chroma_db
+
+# Local secrets - the container gets these from compose.
+.env
+
+tests

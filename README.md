@@ -10,6 +10,10 @@ then sit an adaptive technical interview driven by a RAG knowledge base.
 | `ai-service/` | Python, FastAPI, LangChain, Gemini | 8000 |
 | database | PostgreSQL (Docker) | 5432 |
 
+Under `docker compose`, port 8000 is not published to the host at all -
+the AI service is reachable only from the backend, over the compose
+network.
+
 The browser talks **only** to the Spring backend. Spring authenticates the
 user's JWT and forwards AI calls to the Python service with a shared
 internal key:
@@ -25,59 +29,77 @@ without it, so it can never be left open to whoever can reach port 8000.
 
 ## Setup
 
+Two ways to run it. Docker is the short one; running the services by
+hand is what you want while actually writing code, because nothing
+reloads inside a container.
+
 ### 1. Secrets
 
-Two values must be shared across the team, and both services need to
-agree on them. Neither is in git.
-
-Generate the internal key once, then give the same value to everyone:
+Three values are needed, and none of them are in git.
 
 ```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
+cp .env.example .env
 ```
 
-**`ai-service/.env`** (copy from `ai-service/.env.example`):
+Then fill in `.env`:
 
-```
-GEMINI_API_KEY=<your Gemini key>
-INTERNAL_API_KEY=<the generated key>
-AI_ALLOWED_ORIGINS=http://localhost:3000
+- `GEMINI_API_KEY` — from https://aistudio.google.com/apikey
+- `INTERNAL_API_KEY` — the shared secret the backend uses to prove to
+  the AI service that a request came from it and not from the internet.
+  Generate it once and give the same value to everyone:
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(32))"
+  ```
+- `JWT_SECRET` — signs login tokens:
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(48))"
+  ```
+
+---
+
+### Option A — everything in Docker
+
+```bash
+docker compose up --build
 ```
 
-**`.env`** in the project root — only used by docker-compose:
+First build takes roughly 5-10 minutes: Maven downloads the Java
+dependencies and the AI image bakes the embedding model in so the first
+question is not a fifteen second wait.
 
-```
-GEMINI_API_KEY=<your Gemini key>
-INTERNAL_API_KEY=<the same generated key>
-CORS_ALLOWED_ORIGINS=http://localhost:3000
+Open http://localhost:3000.
+
+```bash
+docker compose down       # stop
+docker compose down -v    # stop and wipe the database, uploads and RAG index
 ```
 
-### 2. Database
+Notes:
+
+- Port 8000 is deliberately not published. Only the backend talks to the
+  AI service, over the compose network, with the internal key.
+- Flyway runs the migrations on backend startup, so the database sets
+  itself up.
+- The frontend's API address is compiled into the JavaScript bundle. It
+  defaults to `localhost:8080`, which is right when you browse from the
+  same machine. Opening the app from your phone or another laptop needs
+  `REACT_APP_API_URL=http://<this machine's IP>:8080` in `.env` and a
+  `docker compose build frontend`.
+
+---
+
+### Option B — services by hand (for development)
+
+The database still comes from Docker:
 
 ```bash
 docker compose up -d postgres-db
 ```
 
-**Already have an `ai_interview_db` from an earlier version?** Run this
-once, or registration and CV upload will fail:
+Each service in its own terminal.
 
-```powershell
-# PowerShell: "<" input redirection is not supported, so pipe instead
-Get-Content scripts\001-align-existing-schema.sql -Raw | docker exec -i interview_postgres psql -U postgres -d ai_interview_db
-```
-
-```bash
-# bash / Git Bash
-docker exec -i interview_postgres psql -U postgres -d ai_interview_db < scripts/001-align-existing-schema.sql
-```
-
-A brand new database needs nothing — Hibernate builds it correctly.
-
-### 3. Run the three services
-
-Each in its own terminal.
-
-**AI service:**
+**AI service** — copy `ai-service/.env.example` to `ai-service/.env`
+and put `GEMINI_API_KEY` and `INTERNAL_API_KEY` in it:
 
 ```bash
 cd ai-service
@@ -86,21 +108,17 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-**Backend** — put the key in `backend/.env` once (copy
-`backend/.env.example`) and it is read on every start:
-
-```
-AI_SERVICE_INTERNAL_API_KEY=<the generated key>
-```
+**Backend** — copy `backend/.env.example` to `backend/.env` and put the
+same `AI_SERVICE_INTERNAL_API_KEY` in it:
 
 ```bash
 cd backend
 ./mvnw spring-boot:run          # .\mvnw spring-boot:run on Windows
 ```
 
-An `AI_SERVICE_INTERNAL_API_KEY` set in the environment overrides the
-file, which is how Docker and CI supply it. Without either, the backend
-refuses to start rather than calling the AI service unauthenticated.
+A value set in the environment overrides that file, which is how Docker
+supplies it. Without either, the backend refuses to start rather than
+calling the AI service unauthenticated.
 
 **Frontend:**
 
@@ -111,6 +129,10 @@ npm start
 ```
 
 Open http://localhost:3000.
+
+> Pulled new commits? The Java backend does not hot reload — stop it and
+> `./mvnw spring-boot:run` again, or you will get 404s on endpoints that
+> exist in the code.
 
 ---
 
@@ -140,17 +162,19 @@ cd backend && ./mvnw test
 | `null value in column "is_active"` on register | Old database; run `scripts/001-align-existing-schema.sql` |
 | `Transaction silently rolled back` on CV upload | Same — run the script above |
 | `502 AI service is unreachable` | The FastAPI service is not running |
+| Docker: `set INTERNAL_API_KEY in .env` | `.env` is missing or a required value is blank |
+| Docker: backend stuck at `waiting` | The AI service is still loading; it gets up to ~2.5 minutes |
+| Docker: the app loads but every call fails | The bundle was built for a different `REACT_APP_API_URL` — `docker compose build frontend` |
 
 ---
 
 ## Known gaps
 
-- Interview sessions live in memory in the AI service, so they are lost on
-  restart and there is no `Interview` entity yet. The recruiter dashboard
-  still shows placeholder data.
-- No Dockerfiles for the three services, so `docker compose up` cannot
-  build them yet.
-- No migration tool. Schema changes are hand-written under `scripts/`;
-  Flyway or Liquibase should replace that.
 - `application.yml` still falls back to a committed JWT secret. Set
-  `JWT_SECRET` before deploying anywhere real.
+  `JWT_SECRET` before deploying anywhere real; the fallback exists only
+  so a fresh clone starts.
+- A CV upload makes two Gemini calls where one would do.
+- There is no fallback when Gemini is down, so a demo depends on it
+  being up.
+- The frontend defines colour tokens but mostly ignores them, so a
+  theme change means editing hex values in every file.

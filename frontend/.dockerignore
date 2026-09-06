@@ -1,0 +1,13 @@
+# Reinstalled inside the image with npm ci. A host node_modules is also
+# often the wrong platform - native modules built for Windows do not
+# run on Alpine.
+node_modules
+
+# Rebuilt in the image.
+build
+
+# REACT_APP_* is inlined into the bundle at build time, so a stray local
+# .env here would silently ship a developer's own API URL to everyone.
+.env
+.env.local
+npm-debug.log*
