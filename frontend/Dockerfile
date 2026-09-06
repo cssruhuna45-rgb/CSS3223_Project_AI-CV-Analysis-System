@@ -41,7 +41,10 @@ COPY --from=build /build/build /usr/share/nginx/html
 
 EXPOSE 3000
 
+# 127.0.0.1 rather than localhost: localhost also resolves to ::1 in
+# the container and wget tries that first, so the container reported
+# unhealthy while the site itself was serving fine.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-    CMD wget -qO- http://localhost:3000/ >/dev/null || exit 1
+    CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
