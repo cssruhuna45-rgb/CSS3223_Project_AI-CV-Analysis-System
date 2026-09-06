@@ -543,8 +543,9 @@ def clean_documents(
 # ============================================================
 #
 # Strategy:
-#   1. Token-aware sizing (tiktoken) — matches what your embedding
-#      model / LLM actually "sees", instead of raw character counts.
+#   1. Token-aware sizing, measured with the embedding model's own
+#      tokenizer, so a chunk is sized in the units that actually
+#      decide whether it gets truncated before embedding.
 #   2. Markdown files: split by header (#, ##, ###) FIRST, so a
 #      chunk never mixes content from two different sections, THEN
 #      token-split any section that's still too long.
