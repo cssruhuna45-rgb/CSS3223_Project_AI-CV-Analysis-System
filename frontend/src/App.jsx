@@ -5,6 +5,7 @@ import './index.css';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Landing from './pages/Landing';
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import CVUpload from './pages/CVUpload';
@@ -16,7 +17,7 @@ import RecruiterDashboard from './pages/RecruiterDashboard';
 
 function ProtectedRoute({ user, children, recruiterOnly }) {
   if (!user) return <Navigate to="/login" replace />;
-  if (recruiterOnly && user.role !== 'recruiter') return <Navigate to="/upload" replace />;
+  if (recruiterOnly && user.role !== 'recruiter') return <Navigate to="/home" replace />;
   return children;
 }
 
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
             <Route path="/register" element={<Register onLogin={setUser} />} />
+            <Route path="/home" element={<ProtectedRoute user={user}><Home user={user} /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute user={user}><CVUpload /></ProtectedRoute>} />
             <Route path="/interview" element={<ProtectedRoute user={user}><InterviewRoom /></ProtectedRoute>} />
             <Route path="/scorecard" element={<ProtectedRoute user={user}><Scorecard /></ProtectedRoute>} />
