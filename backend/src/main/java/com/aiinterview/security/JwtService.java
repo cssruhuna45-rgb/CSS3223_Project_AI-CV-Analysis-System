@@ -20,7 +20,16 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
+    /**
+     * Signs and verifies every login token.
+     *
+     * <p>No default. This annotation used to carry a literal secret,
+     * which meant the key was committed in two places and that removing
+     * it from application.yml would silently hand the application a
+     * published key instead of stopping it. An unset jwt.secret now
+     * fails startup.
+     */
+    @Value("${jwt.secret}")
     private String secretKey;
 
     @Value("${jwt.expiration-ms:86400000}")

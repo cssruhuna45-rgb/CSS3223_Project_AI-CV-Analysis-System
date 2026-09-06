@@ -707,7 +707,9 @@ PORT=8080
 DB_URL=jdbc:postgresql://localhost:5432/ai_interview_db
 DB_USERNAME=postgres
 DB_PASSWORD=postgrespassword
-JWT_SECRET=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+# Required, no default - generate your own, never reuse an example:
+#   python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(48)).decode())"
+JWT_SECRET=<your generated base64 secret>
 JWT_EXPIRATION_MS=86400000
 AI_SERVICE_URL=http://localhost:8000
 FILE_UPLOAD_DIR=uploads/resumes/

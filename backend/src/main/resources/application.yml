@@ -67,10 +67,19 @@ file:
   upload-dir: ${FILE_UPLOAD_DIR:uploads/resumes/}
 
 # JWT Security Configuration
-# NOTE: this still falls back to a committed secret. Override JWT_SECRET
-# before deploying anywhere real.
+#
+# No fallback on purpose. This value signs every login token, so anyone
+# holding it can mint a token for any account without knowing a
+# password. It used to default to a secret committed in this file, and
+# a deployment that forgot to set JWT_SECRET would start normally and
+# sign its tokens with a key published on GitHub - insecure, with
+# nothing on screen to say so.
+#
+# Without JWT_SECRET the application now refuses to start. Generate one
+# with:
+#   python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(48)).decode())"
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours in milliseconds
 
 # Browser origins allowed to call this API (comma separated).
