@@ -6,6 +6,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.DecodingException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,20 @@ public class JwtService {
 
     @Value("${jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
+
+    /**
+     * Rejects an unusable secret at startup rather than at first login.
+     *
+     * <p>getSignInKey is otherwise only reached when a token is signed,
+     * so a secret that is present but too short let the application
+     * start, report itself healthy, and then fail every registration
+     * with a 500 and nothing useful in the log. Checking here turns
+     * that into a startup failure that names the problem.
+     */
+    @PostConstruct
+    void validateSecret() {
+        getSignInKey();
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
