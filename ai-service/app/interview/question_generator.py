@@ -24,6 +24,8 @@ from app.llm_config import (
 load_dotenv()
 
 
+from app.interview.experience_level import audience_for, detect_level
+
 # ============================================================
 # Configuration
 # ============================================================
@@ -71,6 +73,12 @@ JOB DESCRIPTION:
 
 CANDIDATE RESUME:
 {candidate_resume}
+
+WHO THIS QUESTION IS FOR:
+{audience}
+Pitch the question at this level. Do not ask an entry-level candidate
+to reason about production scale they have never seen, and do not ask a
+senior engineer to recite a definition.
 
 MATCHED SKILLS:
 {matched_skills}
@@ -278,7 +286,7 @@ EASY:
 - fundamental concepts
 - simple definitions
 - basic practical understanding
-- suitable for junior candidates
+- suitable as an opening for the stated audience
 
 MEDIUM:
 
@@ -585,6 +593,12 @@ JOB DESCRIPTION:
 CANDIDATE RESUME:
 {candidate_resume}
 
+WHO THIS QUESTION IS FOR:
+{audience}
+Pitch the question at this level. Do not ask an entry-level candidate
+to reason about production scale they have never seen, and do not ask a
+senior engineer to recite a definition.
+
 MATCHED SKILLS:
 {matched_skills}
 
@@ -622,7 +636,7 @@ Check:
 3. Does it match the required difficulty?
 4. Does it test a concept different from previous questions?
 5. Is it technically meaningful?
-6. Is it appropriate for a junior/undergraduate candidate?
+6. Is it appropriate for {audience}?
 7. Does it avoid inventing candidate experience?
 8. Does it correctly distinguish matched, related, and missing
    skills?
@@ -1659,6 +1673,7 @@ def validate_question_with_llm(
             "weak_answer_streak",
             "difficulty",
             "question",
+            "audience",
         ],
         template=QUESTION_VALIDATION_PROMPT,
     )
@@ -1669,9 +1684,19 @@ def validate_question_with_llm(
         | StrOutputParser()
     )
 
+    # Who the question is meant for. This check used to read "is it
+    # appropriate for a junior/undergraduate candidate?" for everyone,
+    # which meant a question written for a principal engineer could be
+    # rejected for being too advanced.
+    audience = audience_for(
+        detect_level(candidate_resume)["level"]
+    )
+
     response = chain.invoke(
         {
             "job_field": job_field,
+
+            "audience": audience,
 
             "job_description":
                 job_description[
@@ -2047,6 +2072,7 @@ def generate_question(
             "question_number",
             "difficulty",
             "retrieved_context",
+            "audience",
         ],
         template=QUESTION_GENERATOR_PROMPT,
     )
@@ -2086,6 +2112,16 @@ def generate_question(
                 {
                     "job_field":
                         job_field,
+
+                    # Derived from the CV in Python, so the level the
+                    # question is written for is our decision and not
+                    # something the model infers on its own.
+                    "audience":
+                        audience_for(
+                            detect_level(
+                                candidate_resume
+                            )["level"]
+                        ),
 
                     "job_description":
                         job_description[
@@ -2347,7 +2383,22 @@ def generate_first_question(
     related_skills: Optional[List[str]] = None,
     missing_skills: Optional[List[str]] = None,
     additional_skills: Optional[List[str]] = None,
+    difficulty: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """
+    The opening question.
+
+    difficulty comes from the session, which derives it from the CV.
+    This used to be hardcoded to "medium" for everyone, so the level
+    computed at session creation never reached the first question and
+    an interview only found the right difficulty after the candidate
+    had already answered one at the wrong one.
+    """
+
+    if not difficulty:
+        difficulty = detect_level(
+            candidate_resume or ""
+        )["starting_difficulty"]
 
     return generate_question(
         session_id=session_id,
@@ -2356,7 +2407,7 @@ def generate_first_question(
         last_candidate_answer="",
         previous_questions=[],
         question_number=1,
-        difficulty="medium",
+        difficulty=difficulty,
         current_topic="",
         topic_history=[],
         weak_answer_streak=0,
