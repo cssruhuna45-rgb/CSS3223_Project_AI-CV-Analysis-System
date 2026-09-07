@@ -890,20 +890,41 @@ def estimate_answer_quality(
 def determine_next_difficulty(
     current_difficulty: str,
     previous_answer: Optional[str],
+    previous_question: str = "",
+    job_field: str = "",
 ) -> str:
+    """
+    Where the next question sits on the ladder.
+
+    previous_question is what makes this judgement about correctness
+    rather than length. Without it - and callers that predate this are
+    allowed to omit it - grading falls back to the word count, which
+    treats a fluent answer to a different question as a strong one.
+    """
 
     current_difficulty = normalize_difficulty(
         current_difficulty
     )
 
-    answer_quality = estimate_answer_quality(
-        previous_answer
+    # Imported here rather than at module scope: answer_quality imports
+    # this module for get_llm and is_non_answer, and evaluator for the
+    # verdict bands, so a top-level import would close the cycle.
+    from app.interview.answer_quality import assess_answer
+
+    assessment = assess_answer(
+        answer=previous_answer,
+        question=previous_question,
+        job_field=job_field,
     )
+
+    answer_quality = assessment["quality"]
 
     print(
         "[QuestionGenerator] "
         f"Current difficulty={current_difficulty}, "
-        f"answer_quality={answer_quality}"
+        f"answer_quality={answer_quality} "
+        f"(score={assessment['score']}, "
+        f"via {assessment['source']})"
     )
 
     if answer_quality in {"weak", "none"}:
@@ -1920,6 +1941,12 @@ def generate_question(
             determine_next_difficulty(
                 difficulty or "medium",
                 last_candidate_answer,
+                previous_question=(
+                    previous_questions[-1]
+                    if previous_questions
+                    else ""
+                ),
+                job_field=job_field,
             )
         )
 
