@@ -629,6 +629,21 @@ REQUIRED DIFFICULTY:
 GENERATED QUESTION:
 {question}
 
+A NOTE ON MISSING SKILLS
+
+A missing skill is a gap this interview exists to probe, not a
+subject to avoid. Asking about one is correct and expected - the
+whole point of the skill-gap step was to find out what to ask
+about. Do NOT reject a question for touching a missing skill.
+
+What matters is the level it is pitched at. A missing skill should
+be asked about foundationally: concepts, purpose, when you would
+reach for it. Reject it only if it assumes hands-on production
+experience the candidate plainly does not have - asking someone to
+debug a specific failure in a system they have never operated.
+
+Judge a question on matched skills the same way you always would.
+
 Check:
 
 1. Is the question relevant to the target job field?
@@ -638,8 +653,9 @@ Check:
 5. Is it technically meaningful?
 6. Is it appropriate for {audience}?
 7. Does it avoid inventing candidate experience?
-8. Does it correctly distinguish matched, related, and missing
-   skills?
+8. If it covers a missing skill, is it pitched at concepts rather
+   than assuming production experience? (Covering a missing skill
+   is not by itself a reason to reject.)
 9. If the weak-answer streak is high, does it avoid repeating
    the same topic?
 10. Is it a valid technical interview question?
