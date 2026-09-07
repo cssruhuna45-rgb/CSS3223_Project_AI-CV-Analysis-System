@@ -1055,6 +1055,9 @@ def start_interview_endpoint(
 
             session_id=session.session_id,
 
+            # Set from the CV when the session was created.
+            difficulty=session.current_difficulty,
+
             job_description=req.job_description,
 
             candidate_resume=(

@@ -3,6 +3,9 @@ from typing import List, Optional
 from uuid import uuid4
 
 
+from app.interview.experience_level import detect_level
+
+
 # ============================================================
 # INTERVIEW SESSION MODEL
 # ============================================================
@@ -68,6 +71,17 @@ class InterviewSession:
 
     current_difficulty: str = "medium"
 
+    # Worked out from the CV when the session is created, not asked of
+    # the model. Kept on the session so every question and the final
+    # scorecard can be told who this interview was pitched at.
+    experience_level: str = "mid"
+
+    experience_years: float = 0.0
+
+    experience_signals: List[str] = field(
+        default_factory=list
+    )
+
     current_topic: str = ""
 
     current_topic_key: str = ""
@@ -126,6 +140,12 @@ def create_session(
 
     session_id = str(uuid4())
 
+    # Where this interview opens. Computed from the CV in Python - see
+    # experience_level.py. Previously every session started at "medium"
+    # regardless of the candidate, so a fresher and a principal engineer
+    # got the same first question difficulty.
+    experience = detect_level(candidate_resume)
+
     session = InterviewSession(
         session_id=session_id,
 
@@ -155,7 +175,13 @@ def create_session(
 
         status="active",
 
-        current_difficulty="medium",
+        current_difficulty=experience["starting_difficulty"],
+
+        experience_level=experience["level"],
+
+        experience_years=experience["years"],
+
+        experience_signals=experience["signals"],
 
         current_topic="",
 
