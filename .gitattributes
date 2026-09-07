@@ -1,0 +1,32 @@
+# Line endings.
+#
+# Git on Windows checks text files out as CRLF by default. For anything
+# executed inside a Linux container that is fatal: a shebang becomes
+# "#!/bin/sh\r", the kernel looks for an interpreter of that literal
+# name, and the build dies with exit code 127. It only shows up in a
+# fresh clone, because an existing working copy keeps whatever endings
+# it already had - which is why this went unnoticed until the project
+# was cloned from scratch.
+
+# Let git decide for everything else.
+*           text=auto
+
+# Executed by /bin/sh inside a container - must stay LF.
+mvnw         text eol=lf
+*.sh         text eol=lf
+Dockerfile   text eol=lf
+*.Dockerfile text eol=lf
+gradlew      text eol=lf
+
+# Windows batch files are the opposite case.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Never touch these.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.ico  binary
+*.zip  binary
