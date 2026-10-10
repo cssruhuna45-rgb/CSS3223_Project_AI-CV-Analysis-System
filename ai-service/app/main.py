@@ -125,6 +125,18 @@ from app.skill_gap.analyzer import analyze_skill_gap
 
 
 # ============================================================
+# Roadmap
+# ============================================================
+
+from app.roadmap.schemas import (
+    RoadmapGenerateRequest,
+    RoadmapResponse,
+)
+from app.roadmap.generator import generate_roadmap
+
+
+
+# ============================================================
 # Load Environment Variables
 # ============================================================
 
@@ -2127,6 +2139,43 @@ def analyze_skill_gap_endpoint(
                 f"{str(e)}"
             ),
         )
+
+
+# ============================================================
+# Roadmap Generation
+# ============================================================
+
+
+@app.post(
+    "/api/v1/roadmap/generate",
+    response_model=RoadmapResponse,
+    tags=["Learning Roadmap"],
+)
+def generate_roadmap_endpoint(
+    req: RoadmapGenerateRequest,
+):
+    """
+    Generate a 14-day personalized upskilling roadmap
+    based on candidate interview weaknesses and skill gaps.
+    """
+    try:
+        result = generate_roadmap(req)
+        print(
+            f"[RoadmapAPI] 14-day roadmap generated for role: {req.target_role}"
+        )
+        return result
+    except Exception as e:
+        print(f"[RoadmapAPI] Error: {e}")
+        if is_rate_limit_error(e):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=RATE_LIMIT_DETAIL,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Roadmap generation failed: {str(e)}",
+        )
+
 
 
 # ============================================================

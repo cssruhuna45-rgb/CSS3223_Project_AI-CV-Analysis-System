@@ -630,3 +630,49 @@ export const healthAPI = {
     ).then(handleResponse),
 
 };
+
+
+// ============================================================
+// 14-DAY LEARNING ROADMAP
+// Spring Boot → /api/v1/roadmaps
+// ============================================================
+
+export const roadmapAPI = {
+
+  generate: (data) =>
+    fetch(`${SPRING}/api/v1/roadmaps/generate`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  getBySessionId: (sessionId) =>
+    fetch(`${SPRING}/api/v1/roadmaps/session/${encodeURIComponent(sessionId)}`, {
+      method: 'GET',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  getLatest: () =>
+    fetch(`${SPRING}/api/v1/roadmaps/latest`, {
+      method: 'GET',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  getById: (id) =>
+    fetch(`${SPRING}/api/v1/roadmaps/${id}`, {
+      method: 'GET',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  updateProgress: (id, dayNumber, completed) =>
+    fetch(`${SPRING}/api/v1/roadmaps/${id}/progress`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        day_number: dayNumber,
+        completed: completed,
+      }),
+    }).then(handleResponse),
+
+};
+

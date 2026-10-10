@@ -92,6 +92,22 @@ public class AiProxyController {
     }
 
     // ========================================================
+    // Roadmap
+    // ========================================================
+
+    @Operation(
+            summary = "Generate a personalized 14-day learning roadmap",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @PostMapping("/roadmap/generate")
+    public ResponseEntity<JsonNode> generateRoadmap(
+            @RequestBody JsonNode body,
+            Authentication authentication
+    ) {
+        return forward("/api/v1/roadmap/generate", body, authentication);
+    }
+
+    // ========================================================
     // Interview
     // ========================================================
 

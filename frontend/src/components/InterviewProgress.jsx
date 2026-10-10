@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  TrendingUp, TrendingDown, Minus, Flag, Award, History, AlertTriangle,
+  TrendingUp, TrendingDown, Minus, Flag, Award, History, AlertTriangle, ChevronRight,
 } from 'lucide-react';
 import { interviewAPI } from '../services/api';
 
 // Same palette the scorecard uses, so this reads as part of the app
 // rather than a bolted-on page.
-const ACCENT = '#D8C4B6';
-const TEXT = '#F5EFE7';
-const TRACK = '#3E5879';
-const CARD = '#000000';
+const ACCENT = '#6366F1';
+const ACCENT_LIGHT = '#818CF8';
+const TEXT = '#F8FAFC';
+const MUTED = '#94A3B8';
+const TRACK = 'rgba(255, 255, 255, 0.08)';
+const CARD = 'rgba(15, 23, 42, 0.75)';
 
 // The scorecard's hues, kept in step so a colour means the same thing
 // on both panels: green is progress, rose is a drop back.
-const GREEN = '#4ADE80';
-const BLUE = '#60A5FA';
-const AMBER = '#FBBF24';
-const PURPLE = '#C084FC';
-const CYAN = '#22D3EE';
-const ROSE = '#F472B6';
+const GREEN = '#10B981';
+const BLUE = '#38BDF8';
+const AMBER = '#F59E0B';
+const PURPLE = '#A855F7';
+const CYAN = '#06B6D4';
+const ROSE = '#F43F5E';
 
 // Each trend gets its own colour, so the badge reads before the words do.
 const TREND_COLORS = {
@@ -195,6 +198,7 @@ function ScoreChart({ points }) {
  *   scorecard where the page already has one.
  */
 export default function InterviewProgress({ compact = false }) {
+  const navigate = useNavigate();
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -368,29 +372,56 @@ export default function InterviewProgress({ compact = false }) {
                 <th style={{ textAlign: 'right', padding: '8px 12px 12px', color: PURPLE, fontWeight: 600 }}>
                   Score
                 </th>
-                <th style={{ textAlign: 'right', padding: '8px 0 12px 12px', color: PURPLE, fontWeight: 600 }}>
+                <th style={{ textAlign: 'right', padding: '8px 12px 12px', color: PURPLE, fontWeight: 600 }}>
                   Change
+                </th>
+                <th style={{ textAlign: 'right', padding: '8px 0 12px 12px', color: PURPLE, fontWeight: 600 }}>
+                  Action
                 </th>
               </tr>
             </thead>
             <tbody>
               {rows.map(item => (
-                <tr key={item.sessionId} style={{ borderBottom: `1px solid ${TRACK}` }}>
+                <tr
+                  key={item.sessionId}
+                  onClick={() => item.sessionId && navigate(`/scorecard?session=${encodeURIComponent(item.sessionId)}`)}
+                  style={{
+                    borderBottom: `1px solid ${TRACK}`,
+                    cursor: item.sessionId ? 'pointer' : 'default',
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(216,196,182,0.06)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
                   <td style={{ padding: '12px 12px 12px 0', color: TEXT }}>
                     {formatDate(item.completedAt || item.startedAt)}
                   </td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: CYAN }}>
-                    {/* An interview that could not be graded is still
-                        listed - it happened - but has no score. */}
                     {item.score ?? 'Not graded'}
                   </td>
                   <td style={{
-                    padding: '12px 0 12px 12px',
+                    padding: '12px',
                     textAlign: 'right',
                     fontWeight: 600,
                     color: changeColor(item.scoreChange),
                   }}>
                     {formatChange(item.scoreChange)}
+                  </td>
+                  <td style={{ padding: '12px 0 12px 12px', textAlign: 'right' }}>
+                    {item.sessionId && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 12,
+                          color: ACCENT,
+                          fontWeight: 600,
+                        }}
+                      >
+                        View Report <ChevronRight size={13} />
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

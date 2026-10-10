@@ -2,20 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText, Play, Upload, BarChart2, TrendingUp, TrendingDown,
-  Minus, Flag, Clock, Trophy, AlertTriangle, ChevronRight,
+  Minus, Flag, Clock, Trophy, AlertTriangle, ChevronRight, Sparkles, Award
 } from 'lucide-react';
 import { resumeAPI, interviewAPI } from '../services/api';
 
-// Same palette as InterviewProgress, so the two pages read as one app.
-const ACCENT = '#D8C4B6';
-const TEXT = '#F5EFE7';
-const TRACK = '#3E5879';
-const CARD = '#000000';
+const ACCENT = '#6366F1';
+const ACCENT_LIGHT = '#818CF8';
+const CYAN = '#06B6D4';
+const TEXT = '#F8FAFC';
+const MUTED = '#94A3B8';
+const SUB = '#64748B';
+const TRACK = 'rgba(255, 255, 255, 0.08)';
+const CARD = 'rgba(15, 23, 42, 0.72)';
 
-const GREEN = '#4ADE80';
-const BLUE = '#60A5FA';
-const AMBER = '#FBBF24';
-const ROSE = '#F472B6';
+const GREEN = '#10B981';
+const BLUE = '#38BDF8';
+const AMBER = '#F59E0B';
+const ROSE = '#F43F5E';
 
 const TREND = {
   IMPROVING: { color: GREEN, icon: <TrendingUp size={14} />, label: 'Improving' },
@@ -25,9 +28,8 @@ const TREND = {
   NO_DATA: { color: BLUE, icon: <Flag size={14} />, label: 'Not started' },
 };
 
-// A score means nothing without knowing whether it is good.
 function scoreColor(score) {
-  if (typeof score !== 'number') return TEXT;
+  if (typeof score !== 'number') return MUTED;
   if (score >= 70) return GREEN;
   if (score >= 45) return AMBER;
   return ROSE;
@@ -41,15 +43,24 @@ function formatDate(iso) {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function Stat({ label, value, hint, color }) {
+function Stat({ label, value, hint, color, delay = 0 }) {
   return (
-    <div className="card" style={{ padding: 18, background: CARD }}>
-      <p style={{ fontSize: 12, color: TEXT, opacity: 0.75, marginBottom: 8 }}>{label}</p>
-      <div style={{ fontSize: 28, fontWeight: 700, color: color || ACCENT, lineHeight: 1 }}>
+    <div
+      className="stat-card stagger-item"
+      style={{
+        '--stat-accent': color || ACCENT,
+        '--stat-glow': color || ACCENT,
+        animationDelay: `${delay}s`,
+      }}
+    >
+      <p style={{ fontSize: 12, color: MUTED, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+        {label}
+      </p>
+      <div style={{ fontSize: 32, fontWeight: 800, color: color || '#FFFFFF', lineHeight: 1 }}>
         {value}
       </div>
       {hint && (
-        <p style={{ fontSize: 11.5, color: TEXT, opacity: 0.6, marginTop: 8 }}>{hint}</p>
+        <p style={{ fontSize: 12, color: SUB, marginTop: 8 }}>{hint}</p>
       )}
     </div>
   );
@@ -57,12 +68,12 @@ function Stat({ label, value, hint, color }) {
 
 function Section({ title, action, children }) {
   return (
-    <section style={{ marginBottom: 28 }}>
+    <section style={{ marginBottom: 32 }}>
       <div style={{
-        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-        marginBottom: 12, gap: 16,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 14, gap: 16,
       }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>{title}</h2>
+        <h2 style={{ fontSize: 17, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</h2>
         {action}
       </div>
       {children}
@@ -81,7 +92,6 @@ export default function Home({ user }) {
   useEffect(() => {
     let cancelled = false;
 
-    // Both are independent; one failing should not blank the page.
     Promise.allSettled([resumeAPI.getAll(), interviewAPI.progress()])
       .then(([resumeResult, progressResult]) => {
         if (cancelled) return;
@@ -104,7 +114,6 @@ export default function Home({ user }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Newest first; the backend does not guarantee an order.
   const latestResume = resumes.length
     ? [...resumes].sort(
         (a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0)
@@ -114,8 +123,6 @@ export default function Home({ user }) {
   const interviews = progress?.interviews || [];
   const trend = TREND[progress?.trend] || TREND.NO_DATA;
 
-  // Carry the saved CV into the upload page so it can offer to reuse it
-  // rather than making the candidate find the file again.
   const startFromSaved = () => {
     if (!latestResume) return;
     sessionStorage.setItem('resumeId', String(latestResume.id));
@@ -127,9 +134,17 @@ export default function Home({ user }) {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
-        <Clock size={32} color={ACCENT} />
-        <p style={{ color: TEXT, marginTop: 14 }}>Loading your workspace…</p>
+      <div style={{ maxWidth: 940, margin: '0 auto', padding: '100px 24px', textAlign: 'center' }}>
+        <div style={{
+          width: 60, height: 60, borderRadius: '50%',
+          background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px',
+          animation: 'breathe 2s ease-in-out infinite',
+        }}>
+          <Clock size={28} color={ACCENT_LIGHT} className="animate-spin" />
+        </div>
+        <p style={{ color: TEXT, fontSize: 16, fontWeight: 600 }}>Loading your workspace…</p>
+        <p style={{ color: MUTED, fontSize: 13, marginTop: 4 }}>Syncing your interviews, CV profile, and performance metrics.</p>
       </div>
     );
   }
@@ -137,45 +152,69 @@ export default function Home({ user }) {
   const firstName = (user?.name || '').trim().split(' ')[0] || 'there';
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
+    <div style={{ maxWidth: 940, margin: '0 auto', padding: '40px 24px 80px' }} className="animate-fade-in-up">
 
-      {/* Greeting */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>
+      {/* Greeting Header */}
+      <div style={{ marginBottom: 32, position: 'relative' }}>
+        <div style={{
+          position: 'absolute', top: -30, right: 0, width: 300, height: 200,
+          background: 'radial-gradient(ellipse, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px',
+          borderRadius: 20, background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)',
+          animation: 'pillGlow 3s ease-in-out infinite',
+        }}>
+          <Sparkles size={13} color={CYAN} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#A5B4FC' }}>Candidate Cockpit</span>
+        </div>
+        <h1 style={{
+          fontSize: 30, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em',
+          background: 'linear-gradient(135deg, #F8FAFC 0%, #A5B4FC 80%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}>
           Welcome back, {firstName}
         </h1>
-        <p style={{ color: TEXT, fontSize: 14, opacity: 0.8 }}>
+        <p style={{ color: MUTED, fontSize: 14.5 }}>
           {interviews.length === 0
-            ? 'Upload your CV and sit your first practice interview.'
-            : `You have completed ${progress.totalInterviews} interview${progress.totalInterviews === 1 ? '' : 's'}. Pick up where you left off.`}
+            ? 'Upload your CV to identify skill gaps and sit your first practice interview.'
+            : `You have completed ${progress.totalInterviews} interview${progress.totalInterviews === 1 ? '' : 's'}. Review your progress or prepare for your next challenge.`}
         </p>
       </div>
 
       {error && (
-        <div className="card" style={{ background: CARD, padding: 16, marginBottom: 24, display: 'flex', gap: 10 }}>
-          <AlertTriangle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} />
-          <span style={{ fontSize: 14, color: TEXT }}>{error}</span>
+        <div className="card" style={{
+          background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.25)',
+          padding: 16, marginBottom: 28, display: 'flex', gap: 12, alignItems: 'center',
+          animation: 'fadeIn 0.4s ease',
+        }}>
+          <AlertTriangle size={18} color={ROSE} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 14, color: '#FECDD3' }}>{error}</span>
         </div>
       )}
 
-      {/* Stats — only once there is something to show */}
+      {/* Stats Cards */}
       {progress && progress.totalInterviews > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 30 }}>
-          <Stat label="Interviews" value={progress.totalInterviews} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 36 }}>
+          <Stat label="Total Interviews" value={progress.totalInterviews} color="#F8FAFC" delay={0.05} />
           <Stat
-            label="Latest score"
-            value={progress.latestScore ?? '—'}
+            label="Latest Score"
+            value={progress.latestScore != null ? `${progress.latestScore}/100` : '—'}
             color={scoreColor(progress.latestScore)}
+            delay={0.1}
           />
           <Stat
-            label="Best score"
-            value={progress.bestScore ?? '—'}
+            label="Best Score"
+            value={progress.bestScore != null ? `${progress.bestScore}/100` : '—'}
             color={scoreColor(progress.bestScore)}
+            delay={0.15}
           />
           <Stat
             label="Trend"
             value={
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 18 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
                 {trend.icon}
                 {progress.scoreDifference != null && progress.scoreDifference !== 0
                   ? `${progress.scoreDifference > 0 ? '+' : ''}${progress.scoreDifference}`
@@ -183,80 +222,93 @@ export default function Home({ user }) {
               </span>
             }
             color={trend.color}
+            delay={0.2}
           />
         </div>
       )}
 
-      {/* Your CV — the thing that used to be forgotten every session */}
+      {/* Your CV Section */}
       <Section
-        title="Your CV"
+        title="Your Resume / CV"
         action={
           latestResume && (
             <button
               className="btn btn-ghost"
-              style={{ fontSize: 12.5, padding: '6px 10px' }}
+              style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
               onClick={() => navigate('/upload')}
             >
-              <Upload size={13} /> Upload a different CV
+              <Upload size={14} /> Upload another CV
             </button>
           )
         }
       >
         {latestResume ? (
-          <div className="card" style={{ background: CARD, padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div className="card card-glow" style={{ background: CARD, padding: '22px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{
-                width: 42, height: 42, borderRadius: 10, background: `${ACCENT}22`,
+                width: 52, height: 52, borderRadius: 14,
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.2))',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: ACCENT, flexShrink: 0,
-              }}>
-                <FileText size={20} />
+                color: ACCENT_LIGHT, flexShrink: 0,
+                transition: 'transform 0.3s var(--ease-spring)',
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'rotate(-5deg) scale(1.08)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'rotate(0) scale(1)'; }}
+              >
+                <FileText size={24} />
               </div>
-              <div style={{ flex: 1, minWidth: 180 }}>
-                <p style={{ fontSize: 15, fontWeight: 600 }}>{latestResume.originalFileName}</p>
-                <p style={{ fontSize: 12.5, color: TEXT, opacity: 0.7, marginTop: 2 }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{latestResume.originalFileName}</p>
+                <p style={{ fontSize: 13, color: MUTED, marginTop: 3 }}>
                   Uploaded {formatDate(latestResume.uploadedAt)}
-                  {resumes.length > 1 && ` · ${resumes.length} CVs saved`}
+                  {resumes.length > 1 && ` · ${resumes.length} CVs on file`}
                 </p>
               </div>
               <button
-                className="btn btn-primary"
-                style={{ fontSize: 13, padding: '10px 18px' }}
+                className="btn btn-cta"
+                style={{ fontSize: 14, padding: '12px 24px' }}
                 onClick={startFromSaved}
               >
-                <Play size={14} /> Start an interview
+                <Play size={15} /> Start an interview
               </button>
             </div>
           </div>
         ) : (
-          <div className="card" style={{ background: CARD, padding: 28, textAlign: 'center' }}>
-            <Upload size={26} color={ACCENT} style={{ marginBottom: 12 }} />
-            <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No CV yet</p>
-            <p style={{ fontSize: 13.5, color: TEXT, opacity: 0.8, marginBottom: 18, lineHeight: 1.6 }}>
-              Upload one and we will review it, find your skill gaps, and build an interview around them.
+          <div className="card card-glow" style={{ background: CARD, padding: '40px 24px', textAlign: 'center' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16,
+              background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+            }} className="animate-float">
+              <Upload size={24} color={CYAN} />
+            </div>
+            <p style={{ fontSize: 17, fontWeight: 700, color: TEXT, marginBottom: 6 }}>No CV uploaded yet</p>
+            <p style={{ fontSize: 14, color: MUTED, marginBottom: 22, maxWidth: 460, margin: '0 auto 22px', lineHeight: 1.6 }}>
+              Upload your resume and our AI will extract your skills, highlight experience gaps, and generate questions tailored to your target job role.
             </p>
             <button
-              className="btn btn-primary"
-              style={{ fontSize: 13, padding: '10px 20px' }}
+              className="btn btn-cta"
+              style={{ fontSize: 14, padding: '13px 26px' }}
               onClick={() => navigate('/upload')}
             >
-              <Upload size={14} /> Upload your CV
+              <Upload size={15} /> Upload your CV
             </button>
           </div>
         )}
       </Section>
 
-      {/* Past interviews */}
+      {/* Past Interviews Section */}
       {interviews.length > 0 && (
         <Section
-          title="Past interviews"
+          title="Past Practice Interviews"
           action={
             <button
               className="btn btn-ghost"
-              style={{ fontSize: 12.5, padding: '6px 10px' }}
+              style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
               onClick={() => navigate('/progress')}
             >
-              <BarChart2 size={13} /> See progress
+              <BarChart2 size={14} /> Full Analytics
             </button>
           }
         >
@@ -266,40 +318,48 @@ export default function Home({ user }) {
                 key={it.sessionId || i}
                 role="button"
                 tabIndex={0}
-                onClick={() => it.sessionId && navigate(`/scorecard?session=${it.sessionId}`)}
-                onKeyDown={e => {
+                onClick={() => it.sessionId && navigate(`/scorecard?session=${encodeURIComponent(it.sessionId)}`)}
+                onKeyDown={(e) => {
                   if ((e.key === 'Enter' || e.key === ' ') && it.sessionId) {
                     e.preventDefault();
-                    navigate(`/scorecard?session=${it.sessionId}`);
+                    navigate(`/scorecard?session=${encodeURIComponent(it.sessionId)}`);
                   }
                 }}
+                className="table-row-interactive"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
+                  display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px',
                   borderTop: i === 0 ? 'none' : `1px solid ${TRACK}`,
                   cursor: it.sessionId ? 'pointer' : 'default',
                 }}
               >
                 <div style={{
-                  width: 38, height: 38, borderRadius: '50%',
-                  background: `${scoreColor(it.score)}1F`,
+                  width: 44, height: 44, borderRadius: '50%',
+                  background: `${scoreColor(it.score)}1A`,
+                  border: `1.5px solid ${scoreColor(it.score)}4D`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: scoreColor(it.score), fontWeight: 700, fontSize: 13, flexShrink: 0,
+                  color: scoreColor(it.score), fontWeight: 800, fontSize: 15, flexShrink: 0,
+                  boxShadow: `0 0 12px ${scoreColor(it.score)}22`,
+                  transition: 'transform 0.25s var(--ease-spring), box-shadow 0.25s ease',
                 }}>
                   {typeof it.score === 'number' ? it.score : '—'}
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13.5, fontWeight: 500 }}>
+                  <p style={{ fontSize: 14.5, fontWeight: 600, color: TEXT }}>
                     {formatDate(it.completedAt || it.startedAt)}
                     {it.status !== 'completed' && (
-                      <span style={{ color: AMBER, fontSize: 12, marginLeft: 8 }}>
-                        · unfinished
+                      <span style={{
+                        color: AMBER, fontSize: 11.5, marginLeft: 10,
+                        padding: '2px 8px', borderRadius: 8, background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                      }}>
+                        Incomplete
                       </span>
                     )}
                   </p>
                   {it.feedbackSummary && (
                     <p style={{
-                      fontSize: 12.5, color: TEXT, opacity: 0.7, marginTop: 2,
+                      fontSize: 13, color: MUTED, marginTop: 3,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       {it.feedbackSummary}
@@ -309,7 +369,7 @@ export default function Home({ user }) {
 
                 {typeof it.scoreChange === 'number' && it.scoreChange !== 0 && (
                   <span style={{
-                    fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+                    fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
                     color: it.scoreChange > 0 ? GREEN : ROSE,
                   }}>
                     {it.scoreChange > 0 ? '+' : ''}{it.scoreChange}
@@ -317,7 +377,22 @@ export default function Home({ user }) {
                 )}
 
                 {it.sessionId && (
-                  <ChevronRight size={15} color={TEXT} style={{ opacity: 0.5, flexShrink: 0 }} />
+                  <span style={{
+                    fontSize: 12.5,
+                    color: CYAN,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    whiteSpace: 'nowrap',
+                    fontWeight: 600,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: 'rgba(6, 182, 212, 0.1)',
+                    border: '1px solid rgba(6, 182, 212, 0.25)',
+                    transition: 'all 0.2s ease',
+                  }}>
+                    View Scorecard <ChevronRight size={14} />
+                  </span>
                 )}
               </div>
             ))}
@@ -326,30 +401,43 @@ export default function Home({ user }) {
               <button
                 onClick={() => navigate('/progress')}
                 style={{
-                  width: '100%', padding: '12px 20px', border: 'none', cursor: 'pointer',
+                  width: '100%', padding: '14px 20px', border: 'none', cursor: 'pointer',
                   borderTop: `1px solid ${TRACK}`, background: 'transparent',
-                  color: ACCENT, fontFamily: 'Inter, sans-serif', fontSize: 12.5,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  color: ACCENT_LIGHT, fontFamily: 'var(--font-sans)', fontSize: 13,
+                  fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  transition: 'background 0.2s ease',
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.06)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                See all {interviews.length} interviews <ChevronRight size={13} />
+                See all {interviews.length} interviews <ChevronRight size={14} />
               </button>
             )}
           </div>
         </Section>
       )}
 
-      {/* First-run nudge, once a CV exists but no interview has been sat */}
+      {/* First-Run Nudge Card */}
       {latestResume && interviews.length === 0 && (
-        <div className="card" style={{ background: CARD, padding: 20, display: 'flex', gap: 12 }}>
-          <Trophy size={18} color={ACCENT} style={{ flexShrink: 0, marginTop: 2 }} />
+        <div className="card card-glow" style={{
+          background: 'rgba(99, 102, 241, 0.08)',
+          border: '1px solid rgba(99, 102, 241, 0.25)',
+          padding: '24px 28px', display: 'flex', gap: 16, alignItems: 'flex-start',
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: 'rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: ACCENT_LIGHT, flexShrink: 0,
+          }} className="animate-float">
+            <Trophy size={22} />
+          </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-              You have not sat an interview yet
+            <p style={{ fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 4 }}>
+              You have not sat your first interview yet
             </p>
-            <p style={{ fontSize: 13, color: TEXT, opacity: 0.8, lineHeight: 1.6 }}>
-              Questions are built from your CV and the skills your target role needs.
-              Your score and a question-by-question breakdown come at the end.
+            <p style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.6 }}>
+              Questions will be dynamically synthesized from your CV and tailored to your target job track.
+              Once finished, you will receive an in-depth scorecard with audio transcripts, feedback, and a 14-day study plan.
             </p>
           </div>
         </div>
