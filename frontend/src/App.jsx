@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './index.css';
 
+import ParticleField from './components/ParticleField';
+import AuroraBlobs from './components/AuroraBlobs';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Landing from './pages/Landing';
@@ -43,8 +45,17 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="app-shell">
+        {/* Skip to content link for keyboard/screen reader users (WCAG 2.1) */}
+        <a href="#main-content" className="skip-to-content">
+          Skip to main content
+        </a>
+
+        {/* Immersive background layers */}
+        <AuroraBlobs />
+        <ParticleField particleCount={50} connectionDistance={130} style={{ opacity: 0.6 }} />
+
         <Navbar user={user} onLogout={handleLogout} />
-        <main className="app-content">
+        <main id="main-content" className="app-content" role="main">
           <Routes>
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />

@@ -1,25 +1,15 @@
 import React from 'react';
-import { BookOpen, CheckCircle, XCircle, FileWarning } from 'lucide-react';
+import { BookOpen, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 
-const ACCENT = '#D8C4B6';
-const TEXT = '#F5EFE7';
-const GOOD = '#4ADE80';
-const GAP = '#FBBF24';
-const LINE = 'rgba(216,196,182,0.2)';
+const ACCENT = '#6366F1';
+const CYAN = '#06B6D4';
+const TEXT = '#F8FAFC';
+const MUTED = '#94A3B8';
+const GOOD = '#10B981';
+const GAP = '#F59E0B';
+const CARD_BG = 'rgba(15, 23, 42, 0.75)';
+const BORDER = 'rgba(255, 255, 255, 0.08)';
 
-/**
- * The answer the candidate should have given, shown once they submit.
- *
- * It is built from the same Chroma knowledge base that produced the
- * question, so "you did not mention X" traces back to documents/ rather
- * than to whatever the model happens to recall. When retrieval finds
- * nothing the answer still appears, labelled as general knowledge, so
- * the candidate knows how much weight to give it.
- *
- * A failure here is never fatal: the interview turn is already saved,
- * so this panel just says the answer is unavailable and the candidate
- * moves on.
- */
 export default function ModelAnswer({ data, loading, error }) {
   if (loading) {
     return (
@@ -27,15 +17,15 @@ export default function ModelAnswer({ data, loading, error }) {
         className="card"
         style={{
           marginBottom: 20,
-          padding: 18,
-          background: '#000000',
-          border: `1px solid ${LINE}`,
+          padding: 20,
+          background: CARD_BG,
+          border: `1px solid ${BORDER}`,
         }}
       >
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <BookOpen size={16} color={ACCENT} />
-          <span style={{ color: TEXT, fontSize: 14 }}>
-            Looking up the expected answer…
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <Sparkles size={18} color={CYAN} className="animate-spin" />
+          <span style={{ color: TEXT, fontSize: 14, fontWeight: 500 }}>
+            Consulting domain knowledge base for ideal model answer…
           </span>
         </div>
       </div>
@@ -49,19 +39,18 @@ export default function ModelAnswer({ data, loading, error }) {
         style={{
           marginBottom: 20,
           padding: 18,
-          background: '#000000',
-          border: `1px solid ${LINE}`,
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
         }}
       >
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <FileWarning
+          <AlertCircle
             size={16}
             color={GAP}
             style={{ flexShrink: 0, marginTop: 2 }}
           />
-          <span style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
-            Expected answer unavailable: {error}. Your answer was still
-            recorded.
+          <span style={{ color: '#FEF3C7', fontSize: 13, lineHeight: 1.6 }}>
+            Expected answer unavailable: {error}. Your answer was still securely recorded.
           </span>
         </div>
       </div>
@@ -78,10 +67,12 @@ export default function ModelAnswer({ data, loading, error }) {
     <div
       className="card"
       style={{
-        marginBottom: 20,
-        background: '#000000',
-        border: `1px solid ${LINE}`,
-        borderTop: `3px solid ${ACCENT}`,
+        marginBottom: 24,
+        background: CARD_BG,
+        border: `1px solid ${BORDER}`,
+        borderTop: '3px solid #06B6D4',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {/* Header */}
@@ -91,64 +82,84 @@ export default function ModelAnswer({ data, loading, error }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 12,
-          marginBottom: 14,
+          marginBottom: 16,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <BookOpen size={18} color={ACCENT} />
-          <span style={{ fontWeight: 700, fontSize: 15, color: ACCENT }}>
-            Expected Answer
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'rgba(6, 182, 212, 0.15)',
+            border: '1px solid rgba(6, 182, 212, 0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: CYAN,
+          }}>
+            <BookOpen size={16} />
+          </div>
+          <div>
+            <span style={{ fontWeight: 700, fontSize: 15, color: TEXT }}>
+              Ideal Model Answer
+            </span>
+            <span style={{ fontSize: 12, color: MUTED, display: 'block' }}>
+              Standard industry benchmark
+            </span>
+          </div>
         </div>
 
         <span
           className="badge"
           style={{
-            fontSize: 11,
-            padding: '3px 10px',
-            borderRadius: 12,
+            fontSize: 11.5,
+            padding: '4px 10px',
             background: data.grounded
-              ? 'rgba(74,222,128,0.12)'
-              : 'rgba(251,191,36,0.12)',
+              ? 'rgba(16, 185, 129, 0.12)'
+              : 'rgba(245, 158, 11, 0.12)',
             color: data.grounded ? GOOD : GAP,
             border: `1px solid ${
               data.grounded
-                ? 'rgba(74,222,128,0.35)'
-                : 'rgba(251,191,36,0.35)'
+                ? 'rgba(16, 185, 129, 0.3)'
+                : 'rgba(245, 158, 11, 0.3)'
             }`,
           }}
         >
-          {data.grounded ? 'From knowledge base' : 'General knowledge'}
+          {data.grounded ? 'Knowledge Base Verified' : 'General Engineering Baseline'}
         </span>
       </div>
 
-      {/* The answer itself */}
-      <p
-        style={{
-          fontSize: 14,
-          color: TEXT,
-          lineHeight: 1.7,
-          margin: 0,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {data.model_answer}
-      </p>
+      {/* The model answer text */}
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.02)',
+        border: '1px solid rgba(255, 255, 255, 0.05)',
+        borderRadius: 12,
+        padding: '16px 18px',
+        marginBottom: 16,
+      }}>
+        <p
+          style={{
+            fontSize: 14,
+            color: TEXT,
+            lineHeight: 1.7,
+            margin: 0,
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {data.model_answer}
+        </p>
+      </div>
 
-      {/* What a complete answer covers */}
+      {/* Key Points */}
       {keyPoints.length > 0 && (
-        <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: 16, marginTop: 16 }}>
+        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginTop: 16 }}>
           <p
             style={{
               fontSize: 12,
               color: GOOD,
               textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              letterSpacing: '0.06em',
               marginBottom: 10,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
-            Key points
+            Core Competencies Covered
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -157,12 +168,12 @@ export default function ModelAnswer({ data, loading, error }) {
                 key={i}
                 style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}
               >
-                <CheckCircle
-                  size={15}
+                <CheckCircle2
+                  size={16}
                   color={GOOD}
-                  style={{ flexShrink: 0, marginTop: 3 }}
+                  style={{ flexShrink: 0, marginTop: 2 }}
                 />
-                <p style={{ fontSize: 13, color: TEXT, lineHeight: 1.6, margin: 0 }}>
+                <p style={{ fontSize: 13.5, color: TEXT, lineHeight: 1.5, margin: 0 }}>
                   {point}
                 </p>
               </div>
@@ -171,20 +182,20 @@ export default function ModelAnswer({ data, loading, error }) {
         </div>
       )}
 
-      {/* What their own answer left out */}
+      {/* Missing from answer */}
       {missing.length > 0 && (
-        <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: 16, marginTop: 16 }}>
+        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginTop: 16 }}>
           <p
             style={{
               fontSize: 12,
               color: GAP,
               textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              letterSpacing: '0.06em',
               marginBottom: 10,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
-            Missing from your answer
+            Points To Enhance Next Time
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -193,12 +204,12 @@ export default function ModelAnswer({ data, loading, error }) {
                 key={i}
                 style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}
               >
-                <XCircle
-                  size={15}
+                <AlertCircle
+                  size={16}
                   color={GAP}
-                  style={{ flexShrink: 0, marginTop: 3 }}
+                  style={{ flexShrink: 0, marginTop: 2 }}
                 />
-                <p style={{ fontSize: 13, color: TEXT, lineHeight: 1.6, margin: 0 }}>
+                <p style={{ fontSize: 13.5, color: '#FEF3C7', lineHeight: 1.5, margin: 0 }}>
                   {item}
                 </p>
               </div>
@@ -207,18 +218,17 @@ export default function ModelAnswer({ data, loading, error }) {
         </div>
       )}
 
-      {/* Where it came from, so the candidate can go and read it */}
+      {/* Sources */}
       {sources.length > 0 && (
         <p
           style={{
             fontSize: 12,
-            color: TEXT,
-            opacity: 0.65,
+            color: MUTED,
             marginTop: 16,
             marginBottom: 0,
           }}
         >
-          Source: {sources.join(', ')}
+          Grounding Sources: {sources.join(', ')}
         </p>
       )}
     </div>

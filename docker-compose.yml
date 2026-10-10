@@ -109,3 +109,22 @@ volumes:
   postgres_data:
   chroma_data:
   resume_uploads:
+
+# --------------------------------------------------------------------
+# The network every service shares.
+#
+# IPv6 is on because a Docker network without it cannot reach an
+# IPv6-only internet. On a Wi-Fi network that hands out no IPv4 address
+# (Windows shows a 169.254.x.x "Autoconfiguration IPv4 Address" and an
+# IPv6-only DNS server), DNS inside the container returns only AAAA
+# records for generativelanguage.googleapis.com - and an IPv4-only
+# bridge has no route to them. Every Gemini call then dies as
+# "Resume analysis failed: [Errno 101] Network is unreachable", which
+# reads like an application bug and is not one.
+#
+# Docker allocates the IPv6 subnet itself, and this changes nothing on
+# a normal dual-stack network: containers keep their IPv4 addresses and
+# still reach each other by service name.
+networks:
+  default:
+    enable_ipv6: true

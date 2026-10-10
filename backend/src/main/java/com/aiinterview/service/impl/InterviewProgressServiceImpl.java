@@ -252,7 +252,21 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
         }
 
         try {
-            return objectMapper.readTree(stored);
+            JsonNode root = objectMapper.readTree(stored);
+            if (root instanceof com.fasterxml.jackson.databind.node.ObjectNode obj) {
+                obj.put("session_id", session.getSessionId());
+                if (session.getJobDescription() != null) {
+                    obj.put("job_description", session.getJobDescription());
+                }
+                if (session.getScore() != null && !obj.has("overall_score")) {
+                    obj.put("overall_score", session.getScore());
+                }
+                if (session.getTurns() != null && !session.getTurns().isEmpty()) {
+                    obj.set("turns", objectMapper.valueToTree(session.getTurns()));
+                }
+                return obj;
+            }
+            return root;
         } catch (Exception e) {
             // Stored JSON that will not parse is a data problem, not a
             // missing row; say so rather than reporting "not found".
