@@ -159,6 +159,39 @@ class InterviewPersistenceServiceTest {
     }
 
     @Test
+    @DisplayName("Start stores the chosen mode, and only a known one")
+    void recordStartStoresMode() {
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        JsonNode response = json("""
+                {"session_id": "sess-abc123", "question": {"question": "Q1"}}
+                """);
+
+        persistenceService.recordStart(
+                EMAIL, json("{\"job_description\": \"x\", \"mode\": \"practice\"}"), response);
+
+        assertEquals(InterviewSession.MODE_PRACTICE, captureSaved().getMode());
+    }
+
+    @Test
+    @DisplayName("An unknown mode is stored as none, not passed to the database")
+    void recordStartDropsUnknownMode() {
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        persistenceService.recordStart(
+                EMAIL,
+                json("{\"job_description\": \"x\", \"mode\": \"speedrun\"}"),
+                json("{\"session_id\": \"sess-abc123\", \"question\": {\"question\": \"Q1\"}}")
+        );
+
+        assertNull(captureSaved().getMode());
+    }
+
+    @Test
     @DisplayName("Start links a resume the candidate owns")
     void recordStartLinksOwnedResume() {
 

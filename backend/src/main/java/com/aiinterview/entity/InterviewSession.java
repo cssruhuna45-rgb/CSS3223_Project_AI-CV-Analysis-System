@@ -69,6 +69,17 @@ public class InterviewSession {
      */
     public static final String STATUS_COMPLETED = "completed";
 
+    /**
+     * Untimed, with the model answer after each question and the
+     * chance to revise. Its scores are not compared with exam scores.
+     */
+    public static final String MODE_PRACTICE = "practice";
+
+    /**
+     * Timed, with no model answers until the scorecard.
+     */
+    public static final String MODE_EXAM = "exam";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -131,6 +142,13 @@ public class InterviewSession {
      */
     @Column(name = "feedback_json", columnDefinition = "TEXT")
     private String feedbackJson;
+
+    /**
+     * MODE_PRACTICE or MODE_EXAM. Null for interviews sat before the
+     * choice existed.
+     */
+    @Column(name = "mode", length = 16)
+    private String mode;
 
     @Column(name = "started_at", nullable = false, updatable = false)
     private LocalDateTime startedAt;
@@ -202,5 +220,9 @@ public class InterviewSession {
 
     public boolean isCompleted() {
         return STATUS_COMPLETED.equals(status);
+    }
+
+    public boolean isPractice() {
+        return MODE_PRACTICE.equals(mode);
     }
 }

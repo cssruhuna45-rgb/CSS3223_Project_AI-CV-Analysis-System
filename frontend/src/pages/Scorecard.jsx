@@ -327,6 +327,9 @@ export default function Scorecard() {
                         <span style={{ fontSize: 'var(--fs-xs)', color: MUTED }}>
                           • {formatDate(it.completedAt || it.startedAt)}
                         </span>
+                        {it.mode && (
+                          <span className="badge badge-neutral">{it.mode === 'practice' ? 'Practice' : 'Exam'}</span>
+                        )}
                         {it.status !== 'completed' && (
                           <span style={{ fontSize: 'var(--fs-xs)', padding: '2px 8px', borderRadius: 8, background: `color-mix(in srgb, ${AMBER} 13%, transparent)`, color: AMBER }}>
                             Unfinished
@@ -450,6 +453,15 @@ export default function Scorecard() {
           {perQuestion.length} of {result.total_questions || perQuestion.length} question
           {(result.total_questions || perQuestion.length) === 1 ? '' : 's'} answered
         </p>
+        {/* Which mode it was sat in. A practice score could be revised
+            after seeing the expected answers, so it is said plainly that
+            it does not count towards progress. */}
+        {result.mode && (
+          <p style={{ marginTop: 'var(--space-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', fontSize: 'var(--fs-sm)', color: MUTED }}>
+            <span className="badge badge-neutral">{result.mode === 'practice' ? 'Practice' : 'Exam'}</span>
+            {result.mode === 'practice' && 'Practice scores are not counted in your progress.'}
+          </p>
+        )}
       </div>
 
       {/* Overall Score & Readiness Badge */}

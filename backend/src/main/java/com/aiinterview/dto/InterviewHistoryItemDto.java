@@ -35,6 +35,11 @@ public class InterviewHistoryItemDto {
     private String status;
 
     /**
+     * "practice", "exam", or null for interviews from before modes.
+     */
+    private String mode;
+
+    /**
      * Points gained or lost against the previous scored interview.
      * Null for the earliest one, which has nothing to compare to.
      */
