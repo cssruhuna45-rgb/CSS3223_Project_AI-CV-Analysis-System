@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Any, Dict, List, Optional
 
@@ -15,9 +14,8 @@ from app.rag.retriever import retrieve_relevant_chunks
 from app.ai_errors import is_rate_limit_error
 
 from app.llm_config import (
-    get_max_retries,
+    build_llm,
     get_model_name,
-    get_timeout,
 )
 
 
@@ -677,27 +675,14 @@ The "valid" field must be true or false.
 # LLM
 # ============================================================
 
-def get_llm() -> ChatGoogleGenerativeAI:
+def get_llm():
+    """
+    The model behind question generation and, through imports, the
+    evaluator, model answers, answer quality and CV review. Falls back
+    to the next Gemini model when the main one is busy.
+    """
 
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        raise ValueError(
-            "GEMINI_API_KEY environment variable is missing."
-        )
-
-    print(
-        "[QuestionGenerator] "
-        f"Initializing Gemini model: {LLM_MODEL}"
-    )
-
-    return ChatGoogleGenerativeAI(
-        model=LLM_MODEL,
-        google_api_key=api_key,
-        temperature=LLM_TEMPERATURE,
-        timeout=get_timeout(),
-        max_retries=get_max_retries(),
-    )
+    return build_llm(temperature=LLM_TEMPERATURE)
 
 
 # ============================================================

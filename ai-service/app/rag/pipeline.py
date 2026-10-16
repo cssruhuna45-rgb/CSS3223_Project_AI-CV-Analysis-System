@@ -4,12 +4,10 @@ import os
 import sys
 
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.llm_config import (
-    get_max_retries,
+    build_llm,
     get_model_name,
-    get_timeout,
 )
 
 
@@ -163,10 +161,9 @@ def build_rag_chain(
     # Gemini LLM
     # --------------------------------------------------------
 
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=api_key,
+    llm = build_llm(
         temperature=temperature,
+        primary=model_name,
     )
 
     # --------------------------------------------------------

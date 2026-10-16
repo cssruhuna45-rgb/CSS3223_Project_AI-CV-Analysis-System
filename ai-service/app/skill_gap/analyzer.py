@@ -2,13 +2,7 @@
 
 from typing import List, Set
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-
-from app.llm_config import (
-    get_max_retries,
-    get_model_name,
-    get_timeout,
-)
+from app.llm_config import build_llm
 
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
@@ -26,13 +20,6 @@ from app.skill_gap.skill_catalog import (
     SKILL_ALIASES,
     RELATED_SKILLS,
 )
-
-
-# ============================================================
-# Gemini Configuration
-# ============================================================
-
-MODEL_NAME = get_model_name()
 
 
 # ============================================================
@@ -67,13 +54,15 @@ class CandidateSkillExtraction(BaseModel):
 def _get_llm():
     """
     Create Gemini model for factual skill extraction only.
+
+    The structured-output schema is applied here, to every model in
+    the fallback chain, because the combined runnable build_llm()
+    returns has no with_structured_output() of its own.
     """
 
-    return ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    return build_llm(
         temperature=0,
-        timeout=get_timeout(),
-        max_retries=get_max_retries(),
+        structured_output=CandidateSkillExtraction,
     )
 
 
@@ -154,11 +143,7 @@ Candidate Resume:
         ]
     )
 
-    llm = _get_llm()
-
-    structured_llm = llm.with_structured_output(
-        CandidateSkillExtraction
-    )
+    structured_llm = _get_llm()
 
     chain = prompt | structured_llm
 
