@@ -239,10 +239,10 @@ export default function CVUpload() {
 
       {/* Header */}
       <div style={{ marginBottom: 36, textAlign: 'center' }}>
-        <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, color: '#F8FAFC', letterSpacing: '-0.02em' }}>
+        <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, marginBottom: 8, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
           Upload Your Resume
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 15, maxWidth: 580, margin: '0 auto', lineHeight: 1.6 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-base)', maxWidth: 580, margin: '0 auto', lineHeight: 1.6 }}>
           Our AI extracts your technical qualifications, identifies your strongest career matches, and prepares a tailored interview plan.
         </p>
       </div>
@@ -252,8 +252,8 @@ export default function CVUpload() {
         <div
           className="card"
           style={{
-            marginBottom: 32, background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #6366F1',
+            marginBottom: 32, background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)',
             padding: 40, textAlign: 'center',
           }}
           role="status"
@@ -261,13 +261,13 @@ export default function CVUpload() {
         >
           <Loader
             size={28}
-            color="#818CF8"
+            color="var(--accent)"
             style={{ animation: 'spin 1s linear infinite', margin: '0 auto' }}
           />
-          <p style={{ fontSize: 16, fontWeight: 700, margin: '14px 0 6px', color: '#F8FAFC' }}>
+          <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, margin: '14px 0 6px', color: 'var(--text-primary)' }}>
             Loading your CV
           </p>
-          <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)' }}>
             Bringing back the analysis from your last visit.
           </p>
         </div>
@@ -275,7 +275,7 @@ export default function CVUpload() {
 
       {/* Upload Zone & Actions */}
       {!analysis && !restoring && (
-        <div className="card" style={{ marginBottom: 32, background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #6366F1' }}>
+        <div className="card" style={{ marginBottom: 32, background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
           <div
             role="button"
             tabIndex={0}
@@ -294,11 +294,11 @@ export default function CVUpload() {
               padding: '44px 24px',
               textAlign: 'center',
               cursor: file ? 'default' : 'pointer',
-              border: `2px dashed ${drag ? '#22D3EE' : file ? 'rgba(99, 102, 241, 0.45)' : 'rgba(255, 255, 255, 0.15)'}`,
+              border: `2px dashed ${drag ? 'var(--accent)' : file ? 'color-mix(in srgb, var(--accent) 45%, transparent)' : 'color-mix(in srgb, var(--fg) 15%, transparent)'}`,
               borderRadius: 16,
-              background: drag ? 'rgba(6, 182, 212, 0.08)' : file ? 'rgba(99, 102, 241, 0.06)' : 'rgba(255, 255, 255, 0.02)',
+              background: drag ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : file ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'color-mix(in srgb, var(--fg) 2%, transparent)',
               transition: 'all 0.22s ease',
-              boxShadow: drag ? '0 0 24px rgba(6, 182, 212, 0.2) inset' : 'none',
+              boxShadow: drag ? '0 0 24px color-mix(in srgb, var(--accent) 20%, transparent) inset' : 'none',
               outline: 'none',
             }}
           >
@@ -316,20 +316,20 @@ export default function CVUpload() {
                   width: 60,
                   height: 60,
                   borderRadius: 14,
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(6, 182, 212, 0.25))',
-                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  background: 'linear-gradient(color-mix(in srgb, var(--accent) 25%, transparent), color-mix(in srgb, var(--accent) 25%, transparent))',
+                  border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px',
-                  boxShadow: '0 4px 18px rgba(99, 102, 241, 0.3)',
+                  boxShadow: 'none',
                 }}>
-                  <FileText size={30} color="#22D3EE" />
+                  <FileText size={30} color="var(--accent)" />
                 </div>
-                <h3 style={{ fontWeight: 700, fontSize: 16.5, color: '#F8FAFC', marginBottom: 4 }}>
+                <h3 style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: 'var(--text-primary)', marginBottom: 4 }}>
                   {file.name}
                 </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', marginBottom: 18 }}>
                   {(file.size / 1024).toFixed(1)} KB · PDF Document
                 </p>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
@@ -337,7 +337,7 @@ export default function CVUpload() {
                     type="button"
                     className="btn btn-danger"
                     onClick={(e) => { e.stopPropagation(); setFile(null); setError(''); }}
-                    style={{ fontSize: 13, padding: '8px 16px' }}
+                    style={{ fontSize: 'var(--fs-sm)', padding: '8px 16px' }}
                     aria-label="Remove chosen file"
                   >
                     <X size={14} /> Remove File
@@ -346,7 +346,7 @@ export default function CVUpload() {
                     type="button"
                     className="btn btn-outline"
                     onClick={(e) => { e.stopPropagation(); fileRef.current && fileRef.current.click(); }}
-                    style={{ fontSize: 13, padding: '8px 16px' }}
+                    style={{ fontSize: 'var(--fs-sm)', padding: '8px 16px' }}
                     aria-label="Choose a different PDF file"
                   >
                     Change File
@@ -359,22 +359,22 @@ export default function CVUpload() {
                   width: 60,
                   height: 60,
                   borderRadius: 14,
-                  background: 'rgba(99, 102, 241, 0.12)',
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px',
                 }}>
-                  <Upload size={28} color="#22D3EE" />
+                  <Upload size={28} color="var(--accent)" />
                 </div>
-                <h3 style={{ fontWeight: 700, fontSize: 16.5, color: '#F8FAFC', marginBottom: 6 }}>
+                <h3 style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: 'var(--text-primary)', marginBottom: 6 }}>
                   Drag & drop your resume PDF here
                 </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13.5, marginBottom: 16 }}>
-                  or <span style={{ color: '#22D3EE', textDecoration: 'underline', fontWeight: 600 }}>browse files</span> on your device
+                <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', marginBottom: 16 }}>
+                  or <span style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>browse files</span> on your device
                 </p>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-sub)' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-xs)', color: 'var(--text-sub)' }}>
                   <span>Supported format: PDF only</span>
                   <span>•</span>
                   <span>Max size: 10MB</span>
@@ -391,20 +391,20 @@ export default function CVUpload() {
                 display: 'flex',
                 gap: 12,
                 alignItems: 'center',
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
+                background: 'color-mix(in srgb, var(--danger) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
                 borderRadius: 12,
                 padding: '12px 16px',
                 marginTop: 18,
               }}
             >
               <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} />
-              <p style={{ fontSize: 13, color: '#FCA5A5', margin: 0, flex: 1 }}>{error}</p>
+              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>{error}</p>
               <button
                 type="button"
                 className="btn btn-outline"
                 onClick={handleAnalyze}
-                style={{ fontSize: 12, padding: '6px 12px' }}
+                style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }}
               >
                 Retry
               </button>
@@ -422,7 +422,7 @@ export default function CVUpload() {
                 width: '100%',
                 justifyContent: 'center',
                 padding: '14px',
-                fontSize: 15,
+                fontSize: 'var(--fs-base)',
                 fontWeight: 600,
                 opacity: (!file || loading) ? 0.6 : 1,
                 cursor: (!file || loading) ? 'not-allowed' : 'pointer',
@@ -455,9 +455,9 @@ export default function CVUpload() {
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: 14,
-            background: 'rgba(16, 185, 129, 0.08)',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
-            borderLeft: '4px solid #10B981',
+            background: 'color-mix(in srgb, var(--success) 8%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)',
+            borderLeft: '4px solid var(--success)',
             borderRadius: 14,
             padding: '16px 20px',
           }}>
@@ -466,20 +466,20 @@ export default function CVUpload() {
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: '#34D399',
+                background: 'color-mix(in srgb, var(--success) 15%, transparent)',
+                color: 'var(--success)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
+                border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)',
               }}>
                 <CheckCircle size={20} />
               </div>
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#34D399', margin: 0 }}>
+                <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--success)', margin: 0 }}>
                   Resume Analysis Complete ✓
                 </h3>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', margin: 0 }}>
                   Profile extracted successfully. Select your target career track to proceed.
                 </p>
               </div>
@@ -489,7 +489,7 @@ export default function CVUpload() {
               type="button"
               className="btn btn-outline"
               onClick={handleReset}
-              style={{ fontSize: 12.5, padding: '6px 14px' }}
+              style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}
               aria-label="Upload a different resume"
             >
               <RotateCcw size={13} /> Re-upload
@@ -501,8 +501,8 @@ export default function CVUpload() {
             <div
               className="card"
               style={{
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(6, 182, 212, 0.08))',
-                border: '1.5px solid rgba(99, 102, 241, 0.35)',
+                background: 'linear-gradient(color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 12%, transparent))',
+                border: '1.5px solid color-mix(in srgb, var(--accent) 35%, transparent)',
                 borderRadius: 16,
                 padding: '20px 24px',
                 display: 'flex',
@@ -513,14 +513,14 @@ export default function CVUpload() {
               }}
             >
               <div style={{ flex: 1, minWidth: 260 }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#A5B4FC', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                  <Sparkles size={12} color="#22D3EE" /> Recommended Career Track
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-xs)', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  <Sparkles size={12} color="var(--accent)" /> Recommended Career Track
                 </div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#F8FAFC', margin: '0 0 6px' }}>
+                <h2 style={{ fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px' }}>
                   {topMatch.name || getJobFieldName(topMatch.field)}
                 </h2>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                  <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#C7D2FE', border: '1px solid rgba(99, 102, 241, 0.4)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>
+                  <span className="badge" style={{ background: 'color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)' }}>
                     {topMatch.match_percentage}% Match
                   </span>
                   <span>•</span>
@@ -541,9 +541,9 @@ export default function CVUpload() {
                   onClick={() => handleSelectJobField(topMatch.field, topMatch.name)}
                   style={{
                     padding: '12px 22px',
-                    fontSize: 14,
+                    fontSize: 'var(--fs-sm)',
                     fontWeight: 700,
-                    boxShadow: '0 4px 18px rgba(99, 102, 241, 0.4)',
+                    boxShadow: 'none',
                   }}
                 >
                   Accept & Continue to Skill Gap <ArrowRight size={15} />
@@ -584,7 +584,7 @@ export default function CVUpload() {
               <FileText size={16} />
               <span>Resume Review</span>
               {review?.score != null && (
-                <span className="tab-badge" style={{ color: review.score >= 70 ? '#34D399' : '#FBBF24' }}>
+                <span className="tab-badge" style={{ color: review.score >= 70 ? 'var(--success)' : 'var(--warning)' }}>
                   {review.score}/100
                 </span>
               )}
@@ -609,10 +609,10 @@ export default function CVUpload() {
           {activeTab === 'career' && (
             <div id="panel-career" role="tabpanel" aria-labelledby="tab-career" className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ marginBottom: 4 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#F8FAFC', marginBottom: 4 }}>
+                <h3 style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
                   Ranked Career Tracks
                 </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', margin: 0 }}>
                   Based on your technical qualifications, we have evaluated your compatibility with industry tracks.
                 </p>
               </div>
@@ -628,12 +628,12 @@ export default function CVUpload() {
                       key={rec.field || idx}
                       className="card"
                       style={{
-                        background: 'rgba(15, 23, 42, 0.75)',
-                        border: isTopMatch ? '1.5px solid #6366F1' : '1px solid rgba(255, 255, 255, 0.08)',
+                        background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+                        border: isTopMatch ? '1.5px solid var(--accent)' : '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                         borderRadius: 16,
                         padding: 22,
                         position: 'relative',
-                        boxShadow: isTopMatch ? '0 10px 30px rgba(99, 102, 241, 0.22)' : 'none',
+                        boxShadow: isTopMatch ? '0 10px 30px color-mix(in srgb, var(--accent) 22%, transparent)' : 'none',
                         transition: 'all 0.2s ease',
                       }}
                     >
@@ -642,9 +642,9 @@ export default function CVUpload() {
                           position: 'absolute',
                           top: -11,
                           right: 20,
-                          background: 'linear-gradient(135deg, #6366F1, #06B6D4)',
-                          color: '#FFFFFF',
-                          fontSize: 11,
+                          background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
+                          color: 'var(--on-accent)',
+                          fontSize: 'var(--fs-xs)',
                           fontWeight: 700,
                           padding: '3px 12px',
                           borderRadius: 12,
@@ -653,7 +653,7 @@ export default function CVUpload() {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 5,
-                          boxShadow: '0 2px 10px rgba(99, 102, 241, 0.4)',
+                          boxShadow: '0 2px 10px color-mix(in srgb, var(--accent) 40%, transparent)',
                         }}>
                           <Sparkles size={12} /> Top AI Match
                         </div>
@@ -668,11 +668,11 @@ export default function CVUpload() {
                       }}>
                         <div style={{ flex: 1, minWidth: 260 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <h4 style={{ fontSize: 17, fontWeight: 700, color: '#F8FAFC', margin: 0 }}>
+                            <h4 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                               {rec.name || getJobFieldName(rec.field)}
                             </h4>
                           </div>
-                          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
                             {matchPct >= 60
                               ? 'Strong foundational alignment with your existing skillset and background.'
                               : matchPct >= 35
@@ -682,20 +682,20 @@ export default function CVUpload() {
 
                           {/* Visual Progress Indicator */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, maxWidth: 360 }}>
-                            <div style={{ flex: 1, height: 8, background: 'rgba(255, 255, 255, 0.08)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ flex: 1, height: 8, background: 'color-mix(in srgb, var(--fg) 8%, transparent)', borderRadius: 4, overflow: 'hidden' }}>
                               <div
                                 style={{
                                   height: '100%',
                                   background: isTopMatch
-                                    ? 'linear-gradient(90deg, #6366F1, #06B6D4)'
-                                    : 'linear-gradient(90deg, #818CF8, #38BDF8)',
+                                    ? 'linear-gradient(var(--accent-solid), var(--accent-solid))'
+                                    : 'linear-gradient(var(--accent-solid), var(--accent-solid))',
                                   width: `${matchPct}%`,
                                   borderRadius: 4,
                                   transition: 'width 0.8s ease',
                                 }}
                               />
                             </div>
-                            <span style={{ fontSize: 13.5, fontWeight: 700, color: isTopMatch ? '#22D3EE' : '#94A3B8', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: isTopMatch ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                               {matchPct}% Match
                             </span>
                           </div>
@@ -708,7 +708,7 @@ export default function CVUpload() {
                             onClick={() => handleSelectJobField(rec.field, rec.name)}
                             style={{
                               padding: '11px 20px',
-                              fontSize: 13.5,
+                              fontSize: 'var(--fs-sm)',
                               fontWeight: 600,
                               whiteSpace: 'nowrap',
                             }}
@@ -726,8 +726,8 @@ export default function CVUpload() {
               <div
                 className="card"
                 style={{
-                  background: 'rgba(15, 23, 42, 0.6)',
-                  border: '1px dashed rgba(255, 255, 255, 0.15)',
+                  background: 'color-mix(in srgb, var(--bg-surface) 60%, transparent)',
+                  border: '1px dashed color-mix(in srgb, var(--fg) 15%, transparent)',
                   borderRadius: 16,
                   padding: 24,
                   textAlign: 'center',
@@ -735,10 +735,10 @@ export default function CVUpload() {
                 }}
               >
                 <div style={{ marginBottom: 14 }}>
-                  <h4 style={{ fontSize: 16, fontWeight: 700, color: '#F8FAFC', marginBottom: 4 }}>
+                  <h4 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
                     Want to interview for a different role?
                   </h4>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                  <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', margin: 0 }}>
                     Select any of our specialized tracks to tailor your skill gap analysis and mock questions.
                   </p>
                 </div>
@@ -748,7 +748,7 @@ export default function CVUpload() {
                     type="button"
                     className="btn btn-outline"
                     onClick={() => setShowManualSelection(true)}
-                    style={{ fontSize: 13, padding: '9px 20px', margin: '4px auto 0' }}
+                    style={{ fontSize: 'var(--fs-sm)', padding: '9px 20px', margin: '4px auto 0' }}
                   >
                     <Compass size={14} /> Choose Another Track
                   </button>
@@ -777,8 +777,8 @@ export default function CVUpload() {
                             style={{
                               padding: '12px 14px',
                               borderRadius: 10,
-                              background: isSelected ? 'rgba(99, 102, 241, 0.18)' : 'rgba(30, 41, 59, 0.5)',
-                              border: `1px solid ${isSelected ? '#818CF8' : 'rgba(255, 255, 255, 0.08)'}`,
+                              background: isSelected ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'color-mix(in srgb, var(--bg-surface) 50%, transparent)',
+                              border: `1px solid ${isSelected ? 'var(--accent)' : 'color-mix(in srgb, var(--fg) 8%, transparent)'}`,
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                               display: 'flex',
@@ -788,14 +788,14 @@ export default function CVUpload() {
                             }}
                           >
                             <div>
-                              <div style={{ fontSize: 13.5, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#A5B4FC' : '#F8FAFC' }}>
+                              <div style={{ fontSize: 'var(--fs-sm)', fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>
                                 {jf.name}
                               </div>
-                              <div style={{ fontSize: 11, color: 'var(--text-sub)', marginTop: 2 }}>
+                              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-sub)', marginTop: 2 }}>
                                 {jf.category}
                               </div>
                             </div>
-                            {isSelected && <Check size={16} color="#22D3EE" />}
+                            {isSelected && <Check size={16} color="var(--accent)" />}
                           </div>
                         );
                       })}
@@ -806,7 +806,7 @@ export default function CVUpload() {
                         type="button"
                         className="btn btn-ghost"
                         onClick={() => setShowManualSelection(false)}
-                        style={{ fontSize: 13 }}
+                        style={{ fontSize: 'var(--fs-sm)' }}
                       >
                         Cancel
                       </button>
@@ -817,7 +817,7 @@ export default function CVUpload() {
                         onClick={() => handleSelectJobField(manualField)}
                         style={{
                           padding: '10px 22px',
-                          fontSize: 13.5,
+                          fontSize: 'var(--fs-sm)',
                           fontWeight: 600,
                           opacity: !manualField ? 0.6 : 1,
                         }}
@@ -847,12 +847,12 @@ export default function CVUpload() {
             <div id="panel-profile" role="tabpanel" aria-labelledby="tab-profile" className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Candidate Summary */}
               {analysis.summary && (
-                <div className="card" style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #38BDF8' }}>
+                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <FileText size={18} color="#38BDF8" />
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#38BDF8', margin: 0 }}>Executive Summary</h3>
+                    <FileText size={18} color="var(--accent)" />
+                    <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Executive Summary</h3>
                   </div>
-                  <p style={{ fontSize: 14, lineHeight: 1.7, color: '#E2E8F0', margin: 0 }}>
+                  <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.7, color: 'var(--text-primary)', margin: 0 }}>
                     {analysis.summary}
                   </p>
                 </div>
@@ -860,18 +860,18 @@ export default function CVUpload() {
 
               {/* Technical Skills */}
               {analysis.skills && analysis.skills.length > 0 && (
-                <div className="card" style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #10B981' }}>
+                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--success)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Sparkles size={18} color="#10B981" />
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#10B981', margin: 0 }}>Technical Skills</h3>
+                      <Sparkles size={18} color="var(--success)" />
+                      <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--success)', margin: 0 }}>Technical Skills</h3>
                     </div>
                     <span
                       className="badge"
                       style={{
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        color: '#34D399',
-                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                        color: 'var(--success)',
+                        border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)',
                       }}
                     >
                       {analysis.skills.length} Extracted
@@ -884,10 +884,10 @@ export default function CVUpload() {
                         className="badge"
                         style={{
                           padding: '6px 12px',
-                          fontSize: 13,
-                          background: 'rgba(16, 185, 129, 0.1)',
-                          color: '#6EE7B7',
-                          border: '1px solid rgba(16, 185, 129, 0.28)',
+                          fontSize: 'var(--fs-sm)',
+                          background: 'color-mix(in srgb, var(--success) 10%, transparent)',
+                          color: 'var(--success)',
+                          border: '1px solid color-mix(in srgb, var(--success) 28%, transparent)',
                         }}
                       >
                         {s}
@@ -901,10 +901,10 @@ export default function CVUpload() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
                 {/* Experience */}
                 {analysis.experience && analysis.experience.length > 0 && (
-                  <div className="card" style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #F59E0B' }}>
+                  <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--warning)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                      <Briefcase size={18} color="#F59E0B" />
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#FBBF24', margin: 0 }}>Work Experience</h3>
+                      <Briefcase size={18} color="var(--warning)" />
+                      <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--warning)', margin: 0 }}>Work Experience</h3>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       {analysis.experience.map((exp, idx) => (
@@ -913,25 +913,25 @@ export default function CVUpload() {
                           style={{
                             padding: '12px 14px',
                             borderRadius: 10,
-                            background: 'rgba(245, 158, 11, 0.07)',
-                            border: '1px solid rgba(245, 158, 11, 0.22)',
+                            background: 'color-mix(in srgb, var(--warning) 7%, transparent)',
+                            border: '1px solid color-mix(in srgb, var(--warning) 22%, transparent)',
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: '#F8FAFC' }}>
+                            <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>
                               {exp.role || 'Role'}
                             </div>
                             {exp.duration && (
-                              <span style={{ fontSize: 11.5, color: '#FBBF24', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
                                 {exp.duration}
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: 13, color: '#FDE68A', marginTop: 2 }}>
+                          <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--warning)', marginTop: 2 }}>
                             {exp.company || 'Company'}
                           </div>
                           {exp.description && (
-                            <p style={{ fontSize: 12.5, color: '#E2E8F0', marginTop: 6, lineHeight: 1.5, margin: '6px 0 0' }}>
+                            <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-primary)', marginTop: 6, lineHeight: 1.5, margin: '6px 0 0' }}>
                               {exp.description}
                             </p>
                           )}
@@ -943,10 +943,10 @@ export default function CVUpload() {
 
                 {/* Education */}
                 {analysis.education && analysis.education.length > 0 && (
-                  <div className="card" style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #A855F7' }}>
+                  <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                      <GraduationCap size={18} color="#A855F7" />
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#C084FC', margin: 0 }}>Education</h3>
+                      <GraduationCap size={18} color="var(--accent)" />
+                      <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Education</h3>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       {analysis.education.map((edu, idx) => (
@@ -955,18 +955,18 @@ export default function CVUpload() {
                           style={{
                             padding: '12px 14px',
                             borderRadius: 10,
-                            background: 'rgba(168, 85, 247, 0.08)',
-                            border: '1px solid rgba(168, 85, 247, 0.22)',
+                            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+                            border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
                           }}
                         >
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#F8FAFC' }}>
+                          <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>
                             {edu.degree || 'Degree'} {edu.field ? `in ${edu.field}` : ''}
                           </div>
-                          <div style={{ fontSize: 13, color: '#E9D5FF', marginTop: 2 }}>
+                          <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--accent)', marginTop: 2 }}>
                             {edu.institution || 'University / Institution'}
                           </div>
                           {edu.year && (
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                            <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
                               Year: {edu.year}
                             </div>
                           )}
@@ -979,10 +979,10 @@ export default function CVUpload() {
 
               {/* Projects */}
               {analysis.projects && analysis.projects.length > 0 && (
-                <div className="card" style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #06B6D4' }}>
+                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                    <FolderGit2 size={18} color="#06B6D4" />
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#06B6D4', margin: 0 }}>Projects</h3>
+                    <FolderGit2 size={18} color="var(--accent)" />
+                    <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Projects</h3>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
                     {analysis.projects.map((proj, idx) => (
@@ -991,15 +991,15 @@ export default function CVUpload() {
                         style={{
                           padding: '14px',
                           borderRadius: 10,
-                          background: 'rgba(6, 182, 212, 0.07)',
-                          border: '1px solid rgba(6, 182, 212, 0.22)',
+                          background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
                         }}
                       >
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#67E8F9', marginBottom: 4 }}>
+                        <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>
                           {proj.name}
                         </div>
                         {proj.description && (
-                          <p style={{ fontSize: 13, color: '#E2E8F0', marginBottom: 10, lineHeight: 1.5, margin: '0 0 10px' }}>
+                          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', marginBottom: 10, lineHeight: 1.5, margin: '0 0 10px' }}>
                             {proj.description}
                           </p>
                         )}
@@ -1010,11 +1010,11 @@ export default function CVUpload() {
                                 key={tidx}
                                 className="badge"
                                 style={{
-                                  fontSize: 11,
+                                  fontSize: 'var(--fs-xs)',
                                   padding: '2px 8px',
-                                  background: 'rgba(6, 182, 212, 0.12)',
-                                  color: '#22D3EE',
-                                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                                  background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                                  color: 'var(--accent)',
+                                  border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
                                 }}
                               >
                                 {t}
@@ -1030,10 +1030,10 @@ export default function CVUpload() {
 
               {/* Certifications */}
               {analysis.certifications && analysis.certifications.length > 0 && (
-                <div className="card" style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255, 255, 255, 0.08)', borderTop: '3px solid #EC4899' }}>
+                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <Award size={18} color="#EC4899" />
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#F472B6', margin: 0 }}>Certifications</h3>
+                    <Award size={18} color="var(--accent)" />
+                    <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Certifications</h3>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {analysis.certifications.map((cert, idx) => (
@@ -1042,10 +1042,10 @@ export default function CVUpload() {
                         className="badge"
                         style={{
                           padding: '6px 12px',
-                          fontSize: 13,
-                          background: 'rgba(236, 72, 153, 0.12)',
-                          color: '#F472B6',
-                          border: '1px solid rgba(236, 72, 153, 0.35)',
+                          fontSize: 'var(--fs-sm)',
+                          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                          color: 'var(--accent)',
+                          border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
                         }}
                       >
                         <Award size={13} /> {cert}

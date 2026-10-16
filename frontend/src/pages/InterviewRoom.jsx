@@ -20,9 +20,18 @@ import {
 import { interviewAPI } from '../services/api';
 import StepBar from '../components/StepBar';
 import ModelAnswer from '../components/ModelAnswer';
+import { CodeText, stripBackticks } from '../components/ui';
 
 const MAX_QUESTIONS = 5;
 const TOTAL_TIME = 120;
+
+// What the scoring overlay shows while the interview is being graded.
+const FINISH_STAGES = [
+  { step: 1, label: 'Recording final transcripts and verbal answers' },
+  { step: 2, label: 'Benchmarking answers against domain knowledge base' },
+  { step: 3, label: 'Grading 4 core competencies (Knowledge, Depth, Reasoning, Clarity)' },
+  { step: 4, label: 'Preparing personalized 14-Day Upskilling Roadmap' },
+];
 
 
 // ============================================================
@@ -102,12 +111,23 @@ export default function InterviewRoom() {
 
   const [speaking, setSpeaking] = useState(false);
 
+  // Seconds the first question has been loading. A busy AI service can
+  // take a minute, and a spinner with no change for that long looks
+  // like a frozen page.
+  const [waitSeconds, setWaitSeconds] = useState(0);
+
   // ==========================================================
   // REFS
   // ==========================================================
 
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
+
+  // Keyboard focus is moved to the answer box when a question arrives
+  // and to the Next button after submitting, so the whole interview
+  // can be done from the keyboard without hunting for the next control.
+  const answerRef = useRef(null);
+  const nextButtonRef = useRef(null);
 
   // Prevent duplicate START request
   const interviewStartedRef = useRef(false);
@@ -462,6 +482,47 @@ export default function InterviewRoom() {
   }, [qIndex]);
 
   // ==========================================================
+  // FIRST-QUESTION WAIT COUNTER
+  // ==========================================================
+
+  const waitingForFirstQuestion = loading && !question;
+
+  useEffect(() => {
+    if (!waitingForFirstQuestion) {
+      setWaitSeconds(0);
+      return undefined;
+    }
+
+    const id = setInterval(() => setWaitSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [waitingForFirstQuestion]);
+
+  // ==========================================================
+  // KEYBOARD FOCUS
+  // ==========================================================
+
+  // Answer box, once the question has finished typing out. Only with a
+  // mouse or trackpad: on a phone, focusing it would pop the keyboard
+  // up over the question before the candidate has read it.
+  useEffect(() => {
+    if (aiTyping || submitted || !question) return;
+
+    const finePointer = window.matchMedia
+      && window.matchMedia('(pointer: fine)').matches;
+
+    if (finePointer && answerRef.current) {
+      answerRef.current.focus({ preventScroll: true });
+    }
+  }, [aiTyping, submitted, question]);
+
+  // Next button, once the answer is recorded.
+  useEffect(() => {
+    if (submitted && nextButtonRef.current) {
+      nextButtonRef.current.focus({ preventScroll: true });
+    }
+  }, [submitted]);
+
+  // ==========================================================
   // CLEANUP MICROPHONE ON UNMOUNT
   // ==========================================================
 
@@ -520,7 +581,8 @@ export default function InterviewRoom() {
       return;
     }
 
-    const text = (question || displayedQ || '').trim();
+    // Without the backticks, which a speech voice may read out loud.
+    const text = stripBackticks(question || displayedQ || '').trim();
 
     if (!text) {
       return;
@@ -1067,10 +1129,29 @@ export default function InterviewRoom() {
   const timerPct =
     (timeLeft / TOTAL_TIME) * 100;
 
+  // Three stages instead of two, so the change to red is not the first
+  // warning: amber at 30 seconds, red only for the last 10.
   const timerColor =
     timeLeft > 30
-      ? '#06B6D4'
-      : '#EF4444';
+      ? 'var(--accent)'
+      : timeLeft > 10
+        ? 'var(--warning)'
+        : 'var(--danger)';
+
+  // Colour alone tells nothing to a screen reader user or to someone
+  // not looking at the corner of the screen, so the same moments are
+  // also put into words. Empty the rest of the time, which announces
+  // nothing.
+  const timeUp = timeLeft === 0;
+
+  const timerAnnouncement =
+    timeLeft === 60
+      ? 'One minute left.'
+      : timeLeft === 30
+        ? '30 seconds left.'
+        : timeUp
+          ? "Time's up. You can still finish and submit your answer."
+          : '';
 
   const mins = String(
     Math.floor(timeLeft / 60)
@@ -1084,7 +1165,7 @@ export default function InterviewRoom() {
   // INITIAL LOADING
   // ==========================================================
 
-  if (loading && !question) {
+  if (waitingForFirstQuestion) {
     return (
       <div
         style={{
@@ -1100,20 +1181,20 @@ export default function InterviewRoom() {
       >
         <div style={{
           width: 60, height: 60, borderRadius: '50%',
-          background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.3)',
+          background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <Brain
             size={32}
-            color="#818CF8"
+            color="var(--accent)"
             className="animate-spin"
           />
         </div>
 
         <p
           style={{
-            color: '#F8FAFC',
-            fontSize: 18,
+            color: 'var(--text-primary)',
+            fontSize: 'var(--fs-lg)',
             fontWeight: 700,
           }}
         >
@@ -1122,8 +1203,8 @@ export default function InterviewRoom() {
 
         <p
           style={{
-            color: '#94A3B8',
-            fontSize: 13.5,
+            color: 'var(--text-muted)',
+            fontSize: 'var(--fs-sm)',
             textAlign: 'center',
             maxWidth: 480,
             lineHeight: 1.6,
@@ -1132,16 +1213,43 @@ export default function InterviewRoom() {
           Your interview is being generated using your selected job field and skill-gap analysis.
         </p>
 
+        {/* After 10 seconds, say that the wait is normal and how long it
+            can last, so a slow AI service is not mistaken for a crash. */}
+        {/* What a screen reader announces: text that changes once, at
+            10 seconds, not the counter, which would be read out every
+            second. */}
+        <p className="sr-only" role="status">
+          {waitSeconds >= 10
+            ? 'Still preparing your interview. This can take up to a minute.'
+            : 'Preparing your interview.'}
+        </p>
+
+        {waitSeconds >= 10 && !error && (
+          <p
+            aria-hidden="true"
+            style={{
+              color: 'var(--warning-light)',
+              fontSize: 'var(--fs-sm)',
+              textAlign: 'center',
+              maxWidth: 480,
+              lineHeight: 'var(--lh-normal)',
+            }}
+          >
+            Still working ({waitSeconds}s). The AI service is busy right now,
+            so this can take up to a minute.
+          </p>
+        )}
+
         {selectedJobFieldName && (
           <span
             style={{
-              color: '#22D3EE',
-              fontSize: 12.5,
+              color: 'var(--accent)',
+              fontSize: 'var(--fs-xs)',
               fontWeight: 600,
               padding: '4px 12px',
               borderRadius: 20,
-              background: 'rgba(6, 182, 212, 0.12)',
-              border: '1px solid rgba(6, 182, 212, 0.25)',
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
             }}
           >
             Target role: {selectedJobFieldName}
@@ -1149,15 +1257,15 @@ export default function InterviewRoom() {
         )}
 
         {error && (
-          <div
+          <div role="alert"
             style={{
               marginTop: 12,
               padding: '12px 18px',
               borderRadius: 12,
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              color: '#FCA5A5',
-              fontSize: 13.5,
+              background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
+              color: 'var(--danger)',
+              fontSize: 'var(--fs-sm)',
               maxWidth: 600,
               textAlign: 'center',
             }}
@@ -1210,16 +1318,16 @@ export default function InterviewRoom() {
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                background: '#10B981',
-                boxShadow: '0 0 10px rgba(16, 185, 129, 0.7)',
+                background: 'var(--success)',
+                boxShadow: 'none',
                 animation: 'pulse 2s infinite',
               }}
             />
 
             <span
               style={{
-                fontSize: 13,
-                color: '#34D399',
+                fontSize: 'var(--fs-sm)',
+                color: 'var(--success)',
                 fontWeight: 600,
               }}
             >
@@ -1229,10 +1337,10 @@ export default function InterviewRoom() {
 
           <h1
             style={{
-              fontSize: 24,
+              fontSize: 'var(--fs-xl)',
               fontWeight: 800,
               letterSpacing: '-0.02em',
-              color: '#F8FAFC',
+              color: 'var(--text-primary)',
             }}
           >
             Question {qIndex + 1} of {MAX_QUESTIONS}
@@ -1242,10 +1350,15 @@ export default function InterviewRoom() {
         {/* TIMER */}
 
         <div
+          role="timer"
+          aria-label={`${Number(mins)} minutes ${Number(secs)} seconds left`}
           style={{
             textAlign: 'center',
           }}
         >
+          <p className="sr-only" aria-live="assertive">
+            {timerAnnouncement}
+          </p>
           <div
             style={{
               position: 'relative',
@@ -1265,7 +1378,7 @@ export default function InterviewRoom() {
                 cy="38"
                 r="32"
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.08)"
+                stroke="color-mix(in srgb, var(--fg) 8%, transparent)"
                 strokeWidth="4"
               />
 
@@ -1278,7 +1391,7 @@ export default function InterviewRoom() {
                 strokeWidth="4"
                 strokeLinecap="round"
                 style={{
-                  filter: `drop-shadow(0 0 4px ${timerColor}66)`,
+                  filter: 'none',
                   transition: 'stroke-dashoffset 0.5s ease',
                 }}
                 strokeDasharray={`${2 * Math.PI * 32}`}
@@ -1304,8 +1417,9 @@ export default function InterviewRoom() {
               />
 
               <span
+                aria-hidden="true"
                 style={{
-                  fontSize: 13,
+                  fontSize: 'var(--fs-sm)',
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
                   color: timerColor,
@@ -1326,7 +1440,7 @@ export default function InterviewRoom() {
       <div
         style={{
           height: 5,
-          background: 'rgba(255, 255, 255, 0.08)',
+          background: 'color-mix(in srgb, var(--fg) 8%, transparent)',
           borderRadius: 3,
           marginBottom: 28,
           overflow: 'hidden',
@@ -1336,10 +1450,10 @@ export default function InterviewRoom() {
           style={{
             height: '100%',
             borderRadius: 3,
-            background: 'linear-gradient(90deg, #6366F1, #06B6D4)',
+            background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
             width: `${((qIndex + 1) / MAX_QUESTIONS) * 100}%`,
             transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 0 10px rgba(6, 182, 212, 0.4)',
+            boxShadow: 'none',
           }}
         />
       </div>
@@ -1354,10 +1468,8 @@ export default function InterviewRoom() {
           marginBottom: 24,
           position: 'relative',
           overflow: 'hidden',
-          background: 'rgba(15, 23, 42, 0.75)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
         }}
       >
         <div
@@ -1367,7 +1479,7 @@ export default function InterviewRoom() {
             left: 0,
             right: 0,
             height: 3,
-            background: 'linear-gradient(90deg, #6366F1 0%, #06B6D4 100%)',
+            background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
           }}
         />
 
@@ -1398,15 +1510,15 @@ export default function InterviewRoom() {
                 gap: 6,
                 padding: '4px 10px',
                 borderRadius: 8,
-                background: 'rgba(99, 102, 241, 0.14)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
+                background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
               }}>
-                <Sparkles size={13} color="#22D3EE" />
+                <Sparkles size={13} color="var(--accent)" />
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 'var(--fs-xs)',
                     fontWeight: 700,
-                    color: '#A5B4FC',
+                    color: 'var(--accent)',
                     letterSpacing: '0.02em',
                   }}
                 >
@@ -1417,7 +1529,9 @@ export default function InterviewRoom() {
               {/* LISTEN BUTTON */}
               {speechSupported && (
                 <button
+                  type="button"
                   onClick={toggleListenQuestion}
+                  aria-pressed={speaking}
                   disabled={aiTyping || !question}
                   title={
                     speaking
@@ -1428,19 +1542,19 @@ export default function InterviewRoom() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 5,
-                    fontSize: 12,
+                    fontSize: 'var(--fs-xs)',
                     fontWeight: 600,
                     padding: '4px 12px',
                     borderRadius: 12,
                     cursor: aiTyping || !question ? 'default' : 'pointer',
                     background: speaking
-                      ? 'rgba(239, 68, 68, 0.15)'
-                      : 'rgba(6, 182, 212, 0.12)',
-                    color: speaking ? '#F87171' : '#22D3EE',
+                      ? 'color-mix(in srgb, var(--danger) 15%, transparent)'
+                      : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                    color: speaking ? 'var(--danger)' : 'var(--accent)',
                     border: `1px solid ${
                       speaking
-                        ? 'rgba(239, 68, 68, 0.35)'
-                        : 'rgba(6, 182, 212, 0.3)'
+                        ? 'color-mix(in srgb, var(--danger) 35%, transparent)'
+                        : 'color-mix(in srgb, var(--accent) 30%, transparent)'
                     }`,
                     opacity: aiTyping || !question ? 0.45 : 1,
                     transition: 'all 0.2s ease',
@@ -1475,7 +1589,7 @@ export default function InterviewRoom() {
                         width: 5,
                         height: 5,
                         borderRadius: '50%',
-                        background: '#06B6D4',
+                        background: 'var(--accent)',
                         animation: `bounce 1s ease-in-out ${i * 0.15}s infinite`,
                       }}
                     />
@@ -1484,16 +1598,24 @@ export default function InterviewRoom() {
               )}
             </div>
 
+            {/* The typewriter effect is for the eyes only: read out
+                letter by letter it would be noise. Screen readers get
+                the whole question once, when it has finished typing. */}
             <p
+              aria-hidden="true"
               style={{
-                fontSize: 17,
+                fontSize: 'var(--fs-base)',
                 lineHeight: 1.7,
                 fontWeight: 600,
-                color: '#F8FAFC',
+                color: 'var(--text-primary)',
               }}
             >
-              {displayedQ}
+              <CodeText text={displayedQ} />
             </p>
+
+            <h2 className="sr-only" aria-live="polite">
+              {aiTyping ? '' : `Question ${qIndex + 1}: ${stripBackticks(question)}`}
+            </h2>
           </div>
         </div>
       </div>
@@ -1503,13 +1625,13 @@ export default function InterviewRoom() {
       ==================================================== */}
 
       {error && (
-        <div
+        <div role="alert"
           style={{
             display: 'flex',
             gap: 10,
             alignItems: 'center',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.25)',
+            background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
             borderRadius: 12,
             padding: '12px 16px',
             marginBottom: 18,
@@ -1517,13 +1639,13 @@ export default function InterviewRoom() {
         >
           <AlertCircle
             size={16}
-            color="#F87171"
+            color="var(--danger)"
           />
 
           <p
             style={{
-              fontSize: 13.5,
-              color: '#FCA5A5',
+              fontSize: 'var(--fs-sm)',
+              color: 'var(--danger)',
               margin: 0,
             }}
           >
@@ -1541,8 +1663,8 @@ export default function InterviewRoom() {
           className="card"
           style={{
             marginBottom: 20,
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
           }}
         >
           <div
@@ -1553,15 +1675,19 @@ export default function InterviewRoom() {
               marginBottom: 12,
             }}
           >
-            <span
+            {/* A real label, tied to the textarea. The placeholder alone
+                vanished as soon as typing began and was never announced
+                as the field's name. */}
+            <label
+              htmlFor="interview-answer"
               style={{
-                fontSize: 13.5,
+                fontSize: 'var(--fs-sm)',
                 fontWeight: 600,
-                color: '#F8FAFC',
+                color: 'var(--text-primary)',
               }}
             >
-              Your Verbal / Written Answer
-            </span>
+              Your answer
+            </label>
 
             <div
               style={{
@@ -1574,7 +1700,7 @@ export default function InterviewRoom() {
                 <span
                   className="badge badge-red pulse-glow"
                   style={{
-                    fontSize: 11,
+                    fontSize: 'var(--fs-xs)',
                   }}
                 >
                   ● Recording Active
@@ -1583,28 +1709,69 @@ export default function InterviewRoom() {
 
               <span
                 style={{
-                  fontSize: 12,
-                  color: '#94A3B8',
+                  fontSize: 'var(--fs-xs)',
+                  color: 'var(--text-muted)',
                 }}
               >
-                {answer.length} chars
+                {answer.length} characters
               </span>
             </div>
           </div>
 
+          {/* Shown when the clock runs out. Nothing else happens then -
+              the answer is not cut off - so say that in words instead of
+              leaving a red 00:00 to be guessed at. */}
+          {timeUp && (
+            <p
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                fontSize: 'var(--fs-sm)',
+                color: 'var(--warning-light)',
+                marginBottom: 'var(--space-3)',
+              }}
+            >
+              <Clock size={14} aria-hidden="true" />
+              Time's up. Finish your thought and submit. In a real interview,
+              aim for about two minutes per answer.
+            </p>
+          )}
+
           <textarea
+            id="interview-answer"
+            ref={answerRef}
             className="input"
             rows={5}
-            placeholder="Type your answer clearly, or tap 'Use Microphone' to speak naturally..."
+            placeholder="Type your answer, or use the microphone to speak it."
+            aria-describedby="interview-answer-hint"
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              // Ctrl+Enter (Cmd+Enter on a Mac) submits. Plain Enter
+              // still starts a new line, which long answers need.
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)
+                  && answer.trim() && !loading) {
+                e.preventDefault();
+                revealModelAnswer();
+              }
+            }}
             disabled={loading}
             style={{
               resize: 'vertical',
-              lineHeight: 1.6,
-              fontSize: 14.5,
             }}
           />
+
+          <p
+            id="interview-answer-hint"
+            style={{
+              fontSize: 'var(--fs-xs)',
+              color: 'var(--text-muted)',
+              marginTop: 'var(--space-2)',
+            }}
+          >
+            Press Ctrl + Enter to submit.
+          </p>
 
           <div
             style={{
@@ -1616,24 +1783,26 @@ export default function InterviewRoom() {
             {/* MICROPHONE */}
 
             <button
+              type="button"
               className="btn"
               onClick={toggleMic}
+              aria-pressed={listening}
               disabled={loading}
               style={{
                 background: listening
-                  ? 'rgba(239, 68, 68, 0.15)'
-                  : 'rgba(255, 255, 255, 0.05)',
+                  ? 'color-mix(in srgb, var(--danger) 15%, transparent)'
+                  : 'color-mix(in srgb, var(--fg) 5%, transparent)',
                 color: listening
-                  ? '#F87171'
-                  : '#F8FAFC',
+                  ? 'var(--danger)'
+                  : 'var(--text-primary)',
                 border: `1px solid ${
                   listening
-                    ? 'rgba(239, 68, 68, 0.4)'
-                    : 'rgba(255, 255, 255, 0.12)'
+                    ? 'color-mix(in srgb, var(--danger) 40%, transparent)'
+                    : 'color-mix(in srgb, var(--fg) 12%, transparent)'
                 }`,
                 flex: 1,
                 justifyContent: 'center',
-                fontSize: 13.5,
+                fontSize: 'var(--fs-sm)',
               }}
             >
               {listening ? (
@@ -1652,14 +1821,13 @@ export default function InterviewRoom() {
             {/* SUBMIT */}
 
             <button
+              type="button"
               className="btn btn-primary"
               onClick={revealModelAnswer}
               disabled={!answer.trim() || loading}
               style={{
                 flex: 2,
                 justifyContent: 'center',
-                opacity: !answer.trim() || loading ? 0.5 : 1,
-                fontSize: 14,
               }}
             >
               <Send size={15} />
@@ -1675,8 +1843,8 @@ export default function InterviewRoom() {
 
           <div
             style={{
-              background: 'rgba(16, 185, 129, 0.08)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
+              background: 'color-mix(in srgb, var(--success) 8%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)',
               borderRadius: 14,
               padding: '18px 22px',
               display: 'flex',
@@ -1687,7 +1855,7 @@ export default function InterviewRoom() {
           >
             <CheckCircle
               size={22}
-              color="#34D399"
+              color="var(--success)"
               style={{
                 flexShrink: 0,
                 marginTop: 2,
@@ -1698,8 +1866,8 @@ export default function InterviewRoom() {
               <p
                 style={{
                   fontWeight: 700,
-                  fontSize: 14.5,
-                  color: '#F8FAFC',
+                  fontSize: 'var(--fs-sm)',
+                  color: 'var(--text-primary)',
                   marginBottom: 4,
                 }}
               >
@@ -1708,8 +1876,8 @@ export default function InterviewRoom() {
 
               <p
                 style={{
-                  color: '#CBD5E1',
-                  fontSize: 13.5,
+                  color: 'var(--text-secondary)',
+                  fontSize: 'var(--fs-sm)',
                   lineHeight: 1.6,
                   margin: 0,
                 }}
@@ -1728,6 +1896,8 @@ export default function InterviewRoom() {
 
           {/* NEXT */}
           <button
+            type="button"
+            ref={nextButtonRef}
             className="btn btn-primary"
             onClick={handleNext}
             disabled={loading || isFinishing}
@@ -1735,13 +1905,13 @@ export default function InterviewRoom() {
               width: '100%',
               justifyContent: 'center',
               padding: '14px',
-              fontSize: 15,
+              fontSize: 'var(--fs-base)',
               fontWeight: 700,
               gap: 8,
               background: qIndex + 1 >= MAX_QUESTIONS
-                ? 'linear-gradient(135deg, #10B981 0%, #06B6D4 100%)'
+                ? 'linear-gradient(var(--accent-solid), var(--accent-solid))'
                 : undefined,
-              boxShadow: '0 4px 20px rgba(99, 102, 241, 0.4)',
+              boxShadow: 'none',
             }}
           >
             {loading || isFinishing ? (
@@ -1774,14 +1944,14 @@ export default function InterviewRoom() {
           alignItems: 'flex-start',
           marginTop: 20,
           padding: '14px 18px',
-          background: 'rgba(99, 102, 241, 0.08)',
-          border: '1px solid rgba(99, 102, 241, 0.2)',
+          background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)',
           borderRadius: 12,
         }}
       >
         <Sparkles
           size={16}
-          color="#818CF8"
+          color="var(--accent)"
           style={{
             flexShrink: 0,
             marginTop: 2,
@@ -1790,13 +1960,13 @@ export default function InterviewRoom() {
 
         <p
           style={{
-            fontSize: 12.5,
-            color: '#CBD5E1',
+            fontSize: 'var(--fs-xs)',
+            color: 'var(--text-secondary)',
             lineHeight: 1.6,
             margin: 0,
           }}
         >
-          Pro Tip: Frame your answers using the <strong style={{ color: '#F8FAFC' }}>STAR Method</strong> — Situation, Task, Action, and Result to score higher on reasoning and clarity.
+          Pro Tip: Frame your answers using the <strong style={{ color: 'var(--text-primary)' }}>STAR Method</strong> — Situation, Task, Action, and Result to score higher on reasoning and clarity.
         </p>
       </div>
 
@@ -1804,60 +1974,65 @@ export default function InterviewRoom() {
           AI EVALUATION PROGRESS OVERLAY
       ==================================================== */}
       {isFinishing && (
-        <div style={{
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="finishing-title"
+          style={{
           position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'rgba(11, 15, 25, 0.92)',
-          backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+          background: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 24,
         }}>
           <div style={{
             maxWidth: 540, width: '100%',
-            background: '#0B0F19', border: '1px solid #1E293B',
-            borderTop: '3px solid #22D3EE',
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderTop: '3px solid var(--accent)',
             borderRadius: 16, padding: '36px 32px', textAlign: 'center',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
+            boxShadow: '0 25px 60px color-mix(in srgb, var(--shadow-ink) 85%, transparent)',
           }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: 'rgba(34, 211, 238, 0.12)', border: '2px solid rgba(34, 211, 238, 0.4)',
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '2px solid color-mix(in srgb, var(--accent) 40%, transparent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 20px',
               animation: 'pulse 2s infinite ease-in-out',
             }}>
-              <Brain size={32} color="#22D3EE" />
+              <Brain size={32} color="var(--accent)" />
             </div>
 
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+            <h2 id="finishing-title" style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
               Analyzing Your Interview Performance
             </h2>
-            <p style={{ color: '#94A3B8', fontSize: 14, lineHeight: 1.5, marginBottom: 28 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', lineHeight: 1.5, marginBottom: 28 }}>
               Gemini AI is evaluating your technical depth, question answers, and generating your personalized scorecard…
+            </p>
+
+            {/* The current stage, in words, for screen readers. The
+                icons below only show it visually. */}
+            <p className="sr-only" role="status">
+              {`Step ${Math.min(finishStep, FINISH_STAGES.length)} of ${FINISH_STAGES.length}: `
+                + (FINISH_STAGES[finishStep - 1]?.label || 'Finishing')}
             </p>
 
             {/* Stages */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'left', marginBottom: 24 }}>
-              {[
-                { step: 1, label: 'Recording final transcripts and verbal answers' },
-                { step: 2, label: 'Benchmarking answers against domain knowledge base' },
-                { step: 3, label: 'Grading 4 core competencies (Knowledge, Depth, Reasoning, Clarity)' },
-                { step: 4, label: 'Preparing personalized 14-Day Upskilling Roadmap' },
-              ].map(s => {
+              {FINISH_STAGES.map(s => {
                 const done = finishStep > s.step;
                 const active = finishStep === s.step;
                 return (
                   <div key={s.step} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {done ? (
-                      <CheckCircle2 size={18} color="#4ADE80" style={{ flexShrink: 0 }} />
+                      <CheckCircle2 size={18} color="var(--success)" style={{ flexShrink: 0 }} />
                     ) : active ? (
-                      <Loader2 size={18} color="#22D3EE" style={{ flexShrink: 0, animation: 'spin 1s linear infinite' }} />
+                      <Loader2 size={18} color="var(--accent)" style={{ flexShrink: 0, animation: 'spin 1s linear infinite' }} />
                     ) : (
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1px solid #334155', flexShrink: 0 }} />
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1px solid var(--border-strong)', flexShrink: 0 }} />
                     )}
                     <span style={{
-                      fontSize: 13,
+                      fontSize: 'var(--fs-sm)',
                       fontWeight: active ? 600 : 400,
-                      color: done ? '#4ADE80' : active ? '#22D3EE' : '#64748B',
+                      color: done ? 'var(--success)' : active ? 'var(--accent)' : 'var(--text-sub)',
                     }}>
                       {s.label}
                     </span>
@@ -1866,10 +2041,10 @@ export default function InterviewRoom() {
               })}
             </div>
 
-            <div style={{ height: 6, background: '#1E293B', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
-                background: 'linear-gradient(90deg, #22D3EE, #4ADE80)',
+                background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
                 width: `${finishStep * 25}%`,
                 transition: 'width 0.4s ease',
               }} />

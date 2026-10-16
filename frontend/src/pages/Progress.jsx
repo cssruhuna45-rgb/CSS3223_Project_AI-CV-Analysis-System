@@ -16,26 +16,26 @@ export default function Progress() {
       <div style={{ marginBottom: 32, position: 'relative' }}>
         <div style={{
           position: 'absolute', top: -30, right: 0, width: 260, height: 180,
-          background: 'radial-gradient(ellipse, rgba(99, 102, 241, 0.1) 0%, transparent 70%)',
+          background: 'transparent',
           pointerEvents: 'none',
         }} />
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px',
-          borderRadius: 20, background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)',
+          borderRadius: 20, background: 'color-mix(in srgb, var(--accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
           animation: 'pillGlow 3s ease-in-out infinite',
         }}>
-          <Sparkles size={13} color="#22D3EE" />
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#A5B4FC' }}>Performance Analytics</span>
+          <Sparkles size={13} color="var(--accent)" />
+          <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--accent)' }}>Performance Analytics</span>
         </div>
         <h1 style={{
-          fontSize: 28, fontWeight: 700, marginBottom: 6,
-          background: 'linear-gradient(135deg, #F8FAFC 0%, #A5B4FC 80%)',
+          fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 6,
+          background: 'linear-gradient(var(--text-primary), var(--text-primary))',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
         }}>
           My Interview Progress
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-base)' }}>
           How your scores have moved across the interviews you have completed.
         </p>
       </div>

@@ -28,22 +28,23 @@ import {
 import InterviewProgress from '../components/InterviewProgress';
 import LearningRoadmap from '../components/LearningRoadmap';
 import { interviewAPI } from '../services/api';
+import { CodeText } from '../components/ui';
 
-const ACCENT = '#6366F1';
-const ACCENT_LIGHT = '#818CF8';
-const TEXT = '#F8FAFC';
-const MUTED = '#94A3B8';
-const TRACK = 'rgba(255, 255, 255, 0.08)';
-const CARD = 'rgba(15, 23, 42, 0.75)';
-const CARD_BG = 'rgba(15, 23, 42, 0.75)';
-const BORDER_COLOR = 'rgba(255, 255, 255, 0.08)';
+const ACCENT = 'var(--accent)';
+const ACCENT_LIGHT = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const MUTED = 'var(--text-muted)';
+const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
+const CARD = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
+const CARD_BG = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
+const BORDER_COLOR = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 
-const GREEN = '#10B981';
-const BLUE = '#38BDF8';
-const AMBER = '#F59E0B';
-const PURPLE = '#A855F7';
-const CYAN = '#06B6D4';
-const ROSE = '#F43F5E';
+const GREEN = 'var(--success)';
+const BLUE = 'var(--accent)';
+const AMBER = 'var(--warning)';
+const PURPLE = 'var(--accent)';
+const CYAN = 'var(--accent)';
+const ROSE = 'var(--danger)';
 
 const CATEGORY_ICONS = {
   technical_knowledge: <Code size={18} />,
@@ -52,12 +53,17 @@ const CATEGORY_ICONS = {
   communication: <MessageSquare size={18} />,
 };
 
-const CATEGORY_COLORS = {
-  technical_knowledge: BLUE,
-  depth: PURPLE,
-  problem_solving: CYAN,
-  communication: ROSE,
-};
+// One rule colours every score on this page, the overall number and
+// each category alike. Categories used to have a colour each (blue,
+// purple, cyan, rose), so a decent 65 in Communication showed in red
+// and read as a failure. Now colour means only how good the score is,
+// and which category it is comes from the icon and the label.
+function scoreTone(score) {
+  return score >= 85 ? GREEN
+    : score >= 70 ? CYAN
+      : score >= 55 ? AMBER
+        : ROSE;
+}
 
 const VERDICT_STYLE = {
   strong: { color: GREEN, label: 'Strong' },
@@ -89,8 +95,8 @@ function EmptyState({ navigate, title, message }) {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
       <AlertTriangle size={40} color={AMBER} style={{ marginBottom: 16 }} />
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>{title}</h1>
-      <p style={{ color: TEXT, fontSize: 15, lineHeight: 1.6, marginBottom: 28 }}>{message}</p>
+      <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 10 }}>{title}</h1>
+      <p style={{ color: TEXT, fontSize: 'var(--fs-base)', lineHeight: 1.6, marginBottom: 28 }}>{message}</p>
       <button
         className="btn btn-primary"
         style={{ justifyContent: 'center', padding: '12px 24px' }}
@@ -134,6 +140,8 @@ export default function Scorecard() {
 
   // Model answer accordion expanded states
   const [expandedAnswers, setExpandedAnswers] = useState(new Set());
+  // "Why this score?" panels, by question number
+  const [expandedSources, setExpandedSources] = useState(new Set());
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
@@ -198,6 +206,15 @@ export default function Scorecard() {
     });
   };
 
+  const toggleSources = (qNum) => {
+    setExpandedSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(qNum)) next.delete(qNum);
+      else next.add(qNum);
+      return next;
+    });
+  };
+
   const handleCopyLink = () => {
     const curSession = sessionId || result?.session_id;
     const url = curSession
@@ -240,15 +257,15 @@ export default function Scorecard() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                 <Award size={22} color={CYAN} />
-                <h1 style={{ fontSize: 24, fontWeight: 700 }}>Interview Reports Archive</h1>
+                <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 700 }}>Interview Reports Archive</h1>
               </div>
-              <p style={{ color: MUTED, fontSize: 14 }}>
+              <p style={{ color: MUTED, fontSize: 'var(--fs-sm)' }}>
                 Select any completed interview to view its detailed scorecard, transcripts, and 14-day learning roadmap.
               </p>
             </div>
             <button
               className="btn btn-primary"
-              style={{ fontSize: 13, padding: '10px 18px' }}
+              style={{ fontSize: 'var(--fs-sm)', padding: '10px 18px' }}
               onClick={() => navigate('/upload')}
             >
               <RotateCcw size={14} /> New Interview
@@ -289,13 +306,13 @@ export default function Scorecard() {
                         width: 48,
                         height: 48,
                         borderRadius: '50%',
-                        background: `${tone}1F`,
-                        border: `1px solid ${tone}59`,
+                        background: `color-mix(in srgb, ${tone} 12%, transparent)`,
+                        border: `1px solid color-mix(in srgb, ${tone} 35%, transparent)`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 700,
-                        fontSize: 16,
+                        fontSize: 'var(--fs-base)',
                         color: tone,
                       }}
                     >
@@ -304,25 +321,25 @@ export default function Scorecard() {
 
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>
+                        <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>
                           Interview #{historyList.length - idx}
                         </span>
-                        <span style={{ fontSize: 12, color: MUTED }}>
+                        <span style={{ fontSize: 'var(--fs-xs)', color: MUTED }}>
                           • {formatDate(it.completedAt || it.startedAt)}
                         </span>
                         {it.status !== 'completed' && (
-                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, background: `${AMBER}22`, color: AMBER }}>
+                          <span style={{ fontSize: 'var(--fs-xs)', padding: '2px 8px', borderRadius: 8, background: `color-mix(in srgb, ${AMBER} 13%, transparent)`, color: AMBER }}>
                             Unfinished
                           </span>
                         )}
                       </div>
-                      <p style={{ fontSize: 13, color: MUTED, margin: 0, maxWidth: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, margin: 0, maxWidth: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {it.feedbackSummary || 'Evaluation report available with category breakdown and study roadmap.'}
                       </p>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: CYAN, fontSize: 13, fontWeight: 600 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: CYAN, fontSize: 'var(--fs-sm)', fontWeight: 600 }}>
                     Open Report <ChevronRight size={16} />
                   </div>
                 </div>
@@ -363,20 +380,15 @@ export default function Scorecard() {
   const turns = result.turns || [];
 
   const overall = result.overall_score ?? 0;
-  const grade =
-    overall >= 85 ? 'Excellent' :
-    overall >= 70 ? 'Good' :
-    overall >= 55 ? 'Average' : 'Needs Work';
 
+  // One label for the score. There used to be two side by side
+  // ("Average" and "Developing Competency") saying the same thing.
   const readiness =
     overall >= 85 ? 'Senior / Production Ready' :
     overall >= 70 ? 'Interview Ready' :
     overall >= 55 ? 'Developing Competency' : 'Foundational Practice Required';
 
-  const gradeColor =
-    overall >= 85 ? GREEN :
-    overall >= 70 ? CYAN :
-    overall >= 55 ? AMBER : ROSE;
+  const gradeColor = scoreTone(overall);
 
   const glow =
     overall >= 85 ? '74,222,128' :
@@ -398,7 +410,7 @@ export default function Scorecard() {
         <button
           className="btn btn-ghost"
           onClick={() => navigate('/progress')}
-          style={{ fontSize: 13, gap: 6, padding: '6px 12px' }}
+          style={{ fontSize: 'var(--fs-sm)', gap: 6, padding: '6px 12px' }}
         >
           <ArrowLeft size={15} /> All Past Interviews
         </button>
@@ -407,7 +419,7 @@ export default function Scorecard() {
           <button
             className="btn btn-outline"
             onClick={handleCopyLink}
-            style={{ fontSize: 12.5, gap: 6, padding: '7px 14px' }}
+            style={{ fontSize: 'var(--fs-xs)', gap: 6, padding: '7px 14px' }}
           >
             {copiedLink ? <Check size={14} color={GREEN} /> : <Share2 size={14} />}
             {copiedLink ? 'Link Copied!' : 'Share Scorecard'}
@@ -415,7 +427,7 @@ export default function Scorecard() {
           <button
             className="btn btn-outline"
             onClick={() => window.print()}
-            style={{ fontSize: 12.5, gap: 6, padding: '7px 14px' }}
+            style={{ fontSize: 'var(--fs-xs)', gap: 6, padding: '7px 14px' }}
           >
             <Download size={14} /> Print / Save PDF
           </button>
@@ -433,8 +445,8 @@ export default function Scorecard() {
         }}>
           <Trophy size={32} color={gradeColor} />
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 6 }}>Interview Complete!</h1>
-        <p style={{ color: TEXT, fontSize: 15 }}>
+        <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 6 }}>Interview Complete!</h1>
+        <p style={{ color: TEXT, fontSize: 'var(--fs-base)' }}>
           {perQuestion.length} of {result.total_questions || perQuestion.length} question
           {(result.total_questions || perQuestion.length) === 1 ? '' : 's'} answered
         </p>
@@ -447,53 +459,50 @@ export default function Scorecard() {
       }}>
         <div style={{
           position: 'absolute', inset: 0,
-          background: `radial-gradient(ellipse at center, rgba(${glow},0.12) 0%, transparent 70%)`,
+          background: `transparent`,
           pointerEvents: 'none',
         }} />
-        <p style={{ fontSize: 13, color: gradeColor, marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <p style={{ fontSize: 'var(--fs-sm)', color: gradeColor, marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Overall Score
         </p>
         <div style={{ fontSize: 72, fontWeight: 800, color: gradeColor, lineHeight: 1, marginBottom: 8 }}>{overall}</div>
-        <div style={{ fontSize: 13, color: TEXT, marginBottom: 16 }}>out of 100</div>
+        <div style={{ fontSize: 'var(--fs-sm)', color: TEXT, marginBottom: 16 }}>out of 100</div>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span className="badge" style={{
             background: `rgba(${glow},0.15)`,
-            color: gradeColor, border: `1px solid ${gradeColor}40`, fontSize: 13, padding: '6px 14px',
+            color: gradeColor, border: `1px solid color-mix(in srgb, ${gradeColor} 25%, transparent)`, fontSize: 'var(--fs-sm)', padding: '6px 14px',
           }}>
-            <TrendingUp size={14} /> {grade}
-          </span>
-          <span className="badge" style={{
-            background: 'rgba(34, 211, 238, 0.12)',
-            color: CYAN, border: '1px solid rgba(34, 211, 238, 0.3)', fontSize: 13, padding: '6px 14px',
-          }}>
-            <Sparkles size={14} /> {readiness}
+            <TrendingUp size={14} /> {readiness}
           </span>
         </div>
       </div>
 
       {/* Category scores */}
       {categories.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 24 }}>
+        // Two columns, so the four categories make a 2x2 block instead of
+        // three in a row and one left alone underneath; one column on
+        // a phone.
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16, marginBottom: 24 }}>
           {categories.map(c => {
-            const tone = CATEGORY_COLORS[c.key] || ACCENT;
+            const tone = scoreTone(c.score);
             return (
               <div key={c.key} className="card" style={{
-                padding: 20, background: CARD, borderTop: `3px solid ${tone}`,
+                padding: 20, background: CARD,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
-                    background: `${tone}1F`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: tone, border: `1px solid ${tone}59`,
+                    background: `color-mix(in srgb, ${ACCENT} 12%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: ACCENT_LIGHT, border: `1px solid color-mix(in srgb, ${ACCENT} 35%, transparent)`,
                   }}>
                     {CATEGORY_ICONS[c.key] || <Brain size={18} />}
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: tone }}>{c.label}</span>
+                  <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>{c.label}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 10 }}>
-                  <span style={{ fontSize: 32, fontWeight: 700, color: tone, lineHeight: 1 }}>{c.score}</span>
-                  <span style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>/100</span>
+                  <span style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, color: tone, lineHeight: 1 }}>{c.score}</span>
+                  <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, marginBottom: 4 }}>/100</span>
                 </div>
                 <div style={{ height: 6, background: TRACK, borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{
@@ -514,15 +523,15 @@ export default function Scorecard() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
             <Brain size={18} color={ACCENT} />
-            <span style={{ fontWeight: 700, fontSize: 15, color: ACCENT }}>AI Feedback & Assessment</span>
+            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: 'var(--accent-text)' }}>AI Feedback & Assessment</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {strengths.map((text, i) => (
               <div key={`s${i}`} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <CheckCircle size={16} color={GREEN} style={{ flexShrink: 0, marginTop: 3 }} />
                 <div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, textTransform: 'uppercase', marginRight: 6 }}>Strength:</span>
-                  <span style={{ fontSize: 14, color: TEXT, lineHeight: 1.6 }}>{text}</span>
+                  <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: GREEN, textTransform: 'uppercase', marginRight: 6 }}>Strength:</span>
+                  <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>{text}</span>
                 </div>
               </div>
             ))}
@@ -530,8 +539,8 @@ export default function Scorecard() {
               <div key={`i${i}`} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <XCircle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 3 }} />
                 <div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: AMBER, textTransform: 'uppercase', marginRight: 6 }}>Area to Improve:</span>
-                  <span style={{ fontSize: 14, color: TEXT, lineHeight: 1.6 }}>{text}</span>
+                  <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: AMBER, textTransform: 'uppercase', marginRight: 6 }}>Area to Improve:</span>
+                  <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>{text}</span>
                 </div>
               </div>
             ))}
@@ -546,7 +555,7 @@ export default function Scorecard() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
             <Layers size={18} color={BLUE} />
-            <span style={{ fontWeight: 700, fontSize: 15, color: BLUE }}>
+            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: BLUE }}>
               Question-by-Question Transcript & Evaluation
             </span>
           </div>
@@ -563,16 +572,16 @@ export default function Scorecard() {
                   style={{ borderTop: `1px solid ${TRACK}`, paddingTop: 18 }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: BLUE }}>
+                    <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: BLUE }}>
                       Question #{q.question_number}
                     </span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: style.color, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: style.color, whiteSpace: 'nowrap' }}>
                       {q.score}/100 · {style.label}
                     </span>
                   </div>
 
-                  <p style={{ fontSize: 14, fontWeight: 600, color: TEXT, lineHeight: 1.6, marginBottom: 12 }}>
-                    {q.question}
+                  <p style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT, lineHeight: 1.6, marginBottom: 12 }}>
+                    <CodeText text={q.question} />
                   </p>
 
                   {/* Candidate's submitted answer */}
@@ -581,13 +590,13 @@ export default function Scorecard() {
                       margin: '12px 0',
                       padding: '12px 16px',
                       borderRadius: 8,
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'color-mix(in srgb, var(--fg) 3%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                     }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', marginBottom: 4 }}>
+                      <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', marginBottom: 4 }}>
                         Your Submitted Answer
                       </div>
-                      <p style={{ fontSize: 13.5, color: TEXT, lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
+                      <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
                         {turn.answer}
                       </p>
                     </div>
@@ -597,8 +606,8 @@ export default function Scorecard() {
                   {q.what_was_good && (
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
                       <CheckCircle size={14} color={GREEN} style={{ flexShrink: 0, marginTop: 3 }} />
-                      <p style={{ fontSize: 13, color: TEXT, lineHeight: 1.6, margin: 0 }}>
-                        <strong style={{ color: GREEN }}>What worked:</strong> {q.what_was_good}
+                      <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, margin: 0 }}>
+                        <strong style={{ color: GREEN }}>What worked:</strong> <CodeText text={q.what_was_good} />
                       </p>
                     </div>
                   )}
@@ -607,9 +616,82 @@ export default function Scorecard() {
                   {q.what_was_missing && (
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
                       <XCircle size={14} color={AMBER} style={{ flexShrink: 0, marginTop: 3 }} />
-                      <p style={{ fontSize: 13, color: TEXT, lineHeight: 1.6, margin: 0 }}>
-                        <strong style={{ color: AMBER }}>What was missing:</strong> {q.what_was_missing}
+                      <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, margin: 0 }}>
+                        <strong style={{ color: AMBER }}>What was missing:</strong> <CodeText text={q.what_was_missing} />
                       </p>
+                    </div>
+                  )}
+
+                  {/* Why this score - the knowledge-base passages this
+                      answer was graded against. Interviews graded before
+                      this existed have no references and show nothing. */}
+                  {q.references?.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleSources(q.question_number)}
+                        aria-expanded={expandedSources.has(q.question_number)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          background: 'none', border: 'none', padding: 0,
+                          color: ACCENT_LIGHT, fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+                        }}
+                      >
+                        <BookOpen size={14} />
+                        Why this score?
+                        {expandedSources.has(q.question_number)
+                          ? <ChevronUp size={14} />
+                          : <ChevronDown size={14} />}
+                      </button>
+
+                      {expandedSources.has(q.question_number) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                          <p style={{ fontSize: 'var(--fs-xs)', color: MUTED, margin: 0, lineHeight: 1.5 }}>
+                            Your answer was graded against these passages from the
+                            interview guides, not the AI's own memory.
+                          </p>
+                          {/* Passages the grader relied on come first. The
+                              rest were retrieved but not used, and are
+                              dimmed so a loosely related match is not
+                              mistaken for the reason behind the score. */}
+                          {[...q.references]
+                            .sort((a, b) => Number(b.used) - Number(a.used))
+                            .map((ref, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                padding: '10px 14px',
+                                borderRadius: 8,
+                                background: 'color-mix(in srgb, var(--fg) 3%, transparent)',
+                                border: `1px solid ${ref.used ? ACCENT : BORDER_COLOR}`,
+                                opacity: ref.used ? 1 : 0.55,
+                              }}
+                            >
+                              <div style={{
+                                display: 'flex', justifyContent: 'space-between',
+                                gap: 8, flexWrap: 'wrap', marginBottom: 6,
+                              }}>
+                                <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: ACCENT_LIGHT }}>
+                                  <FileText size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                                  {ref.source}{ref.section ? ` › ${ref.section}` : ''}
+                                </span>
+                                <span style={{
+                                  fontSize: 'var(--fs-xs)', fontWeight: 700,
+                                  color: ref.used ? ACCENT : MUTED,
+                                }}>
+                                  {ref.used ? 'Used for this score' : 'Retrieved, not used'}
+                                </span>
+                              </div>
+                              <p style={{
+                                fontSize: 'var(--fs-xs)', color: MUTED, lineHeight: 1.6,
+                                margin: 0, whiteSpace: 'pre-wrap',
+                              }}>
+                                {ref.excerpt}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -629,7 +711,7 @@ export default function Scorecard() {
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <TrendingUp size={18} color={GREEN} />
-          <span style={{ fontWeight: 700, fontSize: 15, color: GREEN }}>Your Overall Progress</span>
+          <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: GREEN }}>Your Overall Progress</span>
         </div>
         <InterviewProgress compact />
       </div>
@@ -641,7 +723,9 @@ export default function Scorecard() {
           style={{ flex: 1, minWidth: 160, justifyContent: 'center', padding: '12px' }}
           onClick={() => navigate('/home')}
         >
-          <RotateCcw size={15} /> Back to Dashboard
+          {/* Named as the navbar names it, with a back arrow rather than
+              the "retry" arrow it had. */}
+          <ArrowLeft size={15} /> Back to Workspace
         </button>
         <button
           className="btn btn-primary"

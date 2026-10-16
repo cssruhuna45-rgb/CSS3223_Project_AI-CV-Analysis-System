@@ -121,9 +121,9 @@ export default function SkillGap() {
 
   // Status badge description based on backend match percentage
   const getMatchTier = (pct) => {
-    if (pct >= 70) return { label: 'Strong Alignment', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
-    if (pct >= 45) return { label: 'Moderate Match', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' };
-    return { label: 'Growth Opportunity', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.12)' };
+    if (pct >= 70) return { label: 'Strong Alignment', color: 'var(--success)', bg: 'color-mix(in srgb, var(--success) 12%, transparent)' };
+    if (pct >= 45) return { label: 'Moderate Match', color: 'var(--warning)', bg: 'color-mix(in srgb, var(--warning) 12%, transparent)' };
+    return { label: 'Growth Opportunity', color: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 12%, transparent)' };
   };
 
   const matchTier = getMatchTier(matchPct);
@@ -138,23 +138,23 @@ export default function SkillGap() {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          background: 'rgba(99, 102, 241, 0.12)',
-          border: '1px solid rgba(99, 102, 241, 0.28)',
+          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--accent) 28%, transparent)',
           borderRadius: 20,
           padding: '5px 16px',
           marginBottom: 12,
-          fontSize: 12,
-          color: '#A5B4FC',
+          fontSize: 'var(--fs-xs)',
+          color: 'var(--accent)',
           fontWeight: 600,
         }}>
-          <Compass size={14} color="#22D3EE" /> Selected Target Career Path
+          <Compass size={14} color="var(--accent)" /> Selected Target Career Path
         </div>
-        <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, color: '#F8FAFC', letterSpacing: '-0.02em' }}>
+        <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, marginBottom: 8, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
           Skill Gap Analysis
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 15, maxWidth: 620, margin: '0 auto', lineHeight: 1.6 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-base)', maxWidth: 620, margin: '0 auto', lineHeight: 1.6 }}>
           Evaluating your profile against canonical requirements for{' '}
-          <span style={{ color: '#22D3EE', fontWeight: 700 }}>{currentFieldName}</span>.
+          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{currentFieldName}</span>.
         </p>
       </div>
 
@@ -162,8 +162,8 @@ export default function SkillGap() {
       <div
         className="card"
         style={{
-          background: 'rgba(15, 23, 42, 0.75)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
           borderRadius: 16,
           padding: '16px 22px',
           marginBottom: 24,
@@ -179,17 +179,17 @@ export default function SkillGap() {
             width: 38,
             height: 38,
             borderRadius: 10,
-            background: 'rgba(99, 102, 241, 0.15)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
+            background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            <Briefcase size={18} color="#818CF8" />
+            <Briefcase size={18} color="var(--accent)" />
           </div>
           <div>
-            <span style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'block', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Target Career Track</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#F8FAFC' }}>{currentFieldName}</span>
+            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', display: 'block', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Target Career Track</span>
+            <span style={{ fontSize: 'var(--fs-base)', fontWeight: 800, color: 'var(--text-primary)' }}>{currentFieldName}</span>
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export default function SkillGap() {
           <button
             className="btn btn-outline"
             onClick={() => setShowFieldSelector(!showFieldSelector)}
-            style={{ fontSize: 13, padding: '8px 16px' }}
+            style={{ fontSize: 'var(--fs-sm)', padding: '8px 16px' }}
           >
             <Compass size={14} /> {showFieldSelector ? 'Close Selector' : 'Change Career Field'}
           </button>
@@ -205,7 +205,7 @@ export default function SkillGap() {
             className="btn btn-ghost"
             onClick={() => runSkillGapAnalysis(currentField)}
             disabled={loading}
-            style={{ fontSize: 13, padding: '8px 14px' }}
+            style={{ fontSize: 'var(--fs-sm)', padding: '8px 14px' }}
             title="Refresh Analysis"
           >
             <RotateCcw size={14} className={loading ? 'animate-spin' : ''} />
@@ -218,15 +218,15 @@ export default function SkillGap() {
         <div
           className="card animate-fade-in"
           style={{
-            background: 'rgba(15, 23, 42, 0.95)',
-            border: '1px solid rgba(99, 102, 241, 0.35)',
+            background: 'color-mix(in srgb, var(--bg-surface) 95%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
             borderRadius: 16,
             padding: 22,
             marginBottom: 24,
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6)',
+            boxShadow: '0 12px 32px color-mix(in srgb, var(--shadow-ink) 60%, transparent)',
           }}
         >
-          <h4 style={{ fontSize: 14, fontWeight: 700, color: '#A5B4FC', marginBottom: 14 }}>
+          <h4 style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--accent)', marginBottom: 14 }}>
             Select a Predefined Career Field to Analyze:
           </h4>
           <div style={{
@@ -244,15 +244,15 @@ export default function SkillGap() {
                   style={{
                     padding: '11px 16px',
                     borderRadius: 10,
-                    border: isSelected ? '1px solid rgba(99, 102, 241, 0.6)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    background: isSelected ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(6, 182, 212, 0.2))' : 'rgba(255, 255, 255, 0.03)',
-                    color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
+                    border: isSelected ? '1px solid color-mix(in srgb, var(--accent) 60%, transparent)' : '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
+                    background: isSelected ? 'linear-gradient(color-mix(in srgb, var(--accent) 25%, transparent), color-mix(in srgb, var(--accent) 25%, transparent))' : 'color-mix(in srgb, var(--fg) 3%, transparent)',
+                    color: isSelected ? 'var(--accent)' : 'var(--text-secondary)',
                     textAlign: 'left',
                     cursor: 'pointer',
-                    fontSize: 13,
+                    fontSize: 'var(--fs-sm)',
                     fontWeight: isSelected ? 700 : 500,
                     transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    boxShadow: isSelected ? '0 0 15px rgba(99, 102, 241, 0.2)' : 'none',
+                    boxShadow: isSelected ? '0 0 15px color-mix(in srgb, var(--accent) 20%, transparent)' : 'none',
                   }}
                 >
                   {f.name}
@@ -266,19 +266,18 @@ export default function SkillGap() {
       {/* No Resume Uploaded Warning */}
       {(!resumeText || resumeText.trim().length < 20) && (
         <div style={{
-          background: 'rgba(245, 158, 11, 0.06)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
+          background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
           borderRadius: 16,
           padding: 28,
           textAlign: 'center',
           marginBottom: 24,
-          backdropFilter: 'blur(12px)',
         }}>
           <FileText size={36} color="var(--warning)" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: 17, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+          <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
             No Resume Found
           </h3>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 20 }}>
             Please upload your resume first so our AI can perform the skill gap comparison.
           </p>
           <button
@@ -297,18 +296,18 @@ export default function SkillGap() {
           display: 'flex',
           gap: 12,
           alignItems: 'center',
-          background: 'rgba(239, 68, 68, 0.08)',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
+          background: 'color-mix(in srgb, var(--danger) 8%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
           borderRadius: 12,
           padding: '14px 18px',
           marginBottom: 24,
         }}>
           <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} />
-          <p style={{ fontSize: 13, color: '#FCA5A5', margin: 0, flex: 1 }}>{error}</p>
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>{error}</p>
           <button
             className="btn btn-outline"
             onClick={() => runSkillGapAnalysis(currentField)}
-            style={{ fontSize: 12, padding: '6px 14px' }}
+            style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}
           >
             Retry
           </button>
@@ -320,17 +319,16 @@ export default function SkillGap() {
         <div style={{
           textAlign: 'center',
           padding: '64px 20px',
-          background: 'rgba(15, 23, 42, 0.75)',
+          background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
           borderRadius: 20,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          backdropFilter: 'blur(16px)',
+          border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
           marginBottom: 24,
         }}>
           <Loader size={42} color="var(--accent-cyan)" className="animate-spin" style={{ margin: '0 auto 16px' }} />
-          <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+          <h3 style={{ fontSize: 'var(--fs-lg)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
             Calculating your skill gap...
           </h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
             Evaluating exact matches, related skills, and areas for development.
           </p>
         </div>
@@ -344,20 +342,20 @@ export default function SkillGap() {
           <div
             className="card"
             style={{
-              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.7) 100%)',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
+              background: 'linear-gradient(color-mix(in srgb, var(--bg-surface) 85%, transparent), color-mix(in srgb, var(--bg-surface) 85%, transparent))',
+              border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
               borderRadius: 22,
               padding: '36px 24px',
               textAlign: 'center',
               position: 'relative',
               overflow: 'hidden',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(99, 102, 241, 0.1)',
+              boxShadow: 'none',
             }}
           >
             <div style={{
               position: 'absolute',
               inset: 0,
-              background: 'radial-gradient(circle at 50% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+              background: 'transparent',
               pointerEvents: 'none',
             }} />
 
@@ -365,7 +363,7 @@ export default function SkillGap() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              fontSize: 12,
+              fontSize: 'var(--fs-xs)',
               fontWeight: 700,
               color: 'var(--accent-cyan)',
               textTransform: 'uppercase',
@@ -383,7 +381,7 @@ export default function SkillGap() {
                   cy="85"
                   r="70"
                   fill="none"
-                  stroke="rgba(255, 255, 255, 0.08)"
+                  stroke="color-mix(in srgb, var(--fg) 8%, transparent)"
                   strokeWidth="12"
                 />
                 <circle
@@ -391,14 +389,14 @@ export default function SkillGap() {
                   cy="85"
                   r="70"
                   fill="none"
-                  stroke={matchPct >= 75 ? '#10B981' : matchPct >= 50 ? '#06B6D4' : '#F59E0B'}
+                  stroke={matchPct >= 75 ? 'var(--success)' : matchPct >= 50 ? 'var(--accent)' : 'var(--warning)'}
                   strokeWidth="12"
                   strokeDasharray={`${2 * Math.PI * 70}`}
                   strokeDashoffset={`${2 * Math.PI * 70 * (1 - matchPct / 100)}`}
                   strokeLinecap="round"
                   style={{
                     transition: 'stroke-dashoffset 1.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                    filter: matchPct >= 75 ? 'drop-shadow(0 0 10px rgba(16, 185, 129, 0.5))' : 'drop-shadow(0 0 10px rgba(6, 182, 212, 0.5))'
+                    filter: matchPct >= 75 ? 'drop-shadow(0 0 10px color-mix(in srgb, var(--success) 50%, transparent))' : 'drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 50%, transparent))'
                   }}
                 />
               </svg>
@@ -411,9 +409,9 @@ export default function SkillGap() {
                 justifyContent: 'center',
               }}>
                 <span style={{ fontSize: 44, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>
-                  {matchPct}<small style={{ fontSize: 22, color: 'var(--accent-cyan)' }}>%</small>
+                  {matchPct}<small style={{ fontSize: 'var(--fs-xl)', color: 'var(--accent-cyan)' }}>%</small>
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, letterSpacing: '0.5px' }}>
+                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginTop: 4, letterSpacing: '0.5px' }}>
                   Skill Match
                 </span>
               </div>
@@ -422,24 +420,24 @@ export default function SkillGap() {
             {/* Match & Gap Stat Pills */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 20 }}>
               <div style={{
-                background: 'rgba(16, 185, 129, 0.12)',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
+                background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)',
                 padding: '7px 18px',
                 borderRadius: 24,
-                fontSize: 13,
+                fontSize: 'var(--fs-sm)',
                 fontWeight: 600,
-                color: '#34D399',
+                color: 'var(--success)',
               }}>
                 Match: {matchPct}%
               </div>
               <div style={{
-                background: 'rgba(245, 158, 11, 0.12)',
-                border: '1px solid rgba(245, 158, 11, 0.35)',
+                background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warning) 35%, transparent)',
                 padding: '7px 18px',
                 borderRadius: 24,
-                fontSize: 13,
+                fontSize: 'var(--fs-sm)',
                 fontWeight: 600,
-                color: '#FBBF24',
+                color: 'var(--warning)',
               }}>
                 Gap: {gapPct}%
               </div>
@@ -450,12 +448,12 @@ export default function SkillGap() {
               <div style={{
                 maxWidth: 660,
                 margin: '0 auto',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'color-mix(in srgb, var(--fg) 3%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderRadius: 14,
                 padding: '16px 20px',
               }}>
-                <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>
                   {result.summary}
                 </p>
               </div>
@@ -473,24 +471,23 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderTop: '3px solid #10B981',
+                background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
+                borderTop: '3px solid var(--success)',
                 borderRadius: 16,
                 padding: 22,
-                backdropFilter: 'blur(16px)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle size={18} color="#10B981" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#34D399', margin: 0 }}>Matched Skills</h3>
+                  <CheckCircle size={18} color="var(--success)" />
+                  <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--success)', margin: 0 }}>Matched Skills</h3>
                 </div>
-                <span className="badge badge-green" style={{ fontSize: 12, padding: '3px 10px' }}>
+                <span className="badge badge-green" style={{ fontSize: 'var(--fs-xs)', padding: '3px 10px' }}>
                   {result.matched_skills?.length || 0} Matched
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginBottom: 14 }}>
                 Skills demonstrated on your resume that directly fulfill required competencies.
               </p>
               {result.matched_skills && result.matched_skills.length > 0 ? (
@@ -501,21 +498,21 @@ export default function SkillGap() {
                       className="badge badge-green"
                       style={{
                         padding: '6px 12px',
-                        fontSize: 13,
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        color: '#34D399',
-                        borderColor: 'rgba(16, 185, 129, 0.35)',
+                        fontSize: 'var(--fs-sm)',
+                        background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                        color: 'var(--success)',
+                        borderColor: 'color-mix(in srgb, var(--success) 35%, transparent)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,
                       }}
                     >
-                      <CheckCircle size={13} color="#34D399" /> {s}
+                      <CheckCircle size={13} color="var(--success)" /> {s}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
                   No exact skill matches identified for this field.
                 </p>
               )}
@@ -525,25 +522,24 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderTop: '3px solid #06B6D4',
+                background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
+                borderTop: '3px solid var(--accent)',
                 borderRadius: 16,
                 padding: 22,
-                backdropFilter: 'blur(16px)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Layers size={18} color="#06B6D4" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#22D3EE', margin: 0 }}>Related Skills</h3>
+                  <Layers size={18} color="var(--accent)" />
+                  <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Related Skills</h3>
                 </div>
-                <span className="badge badge-blue" style={{ fontSize: 12, padding: '3px 10px' }}>
+                <span className="badge badge-blue" style={{ fontSize: 'var(--fs-xs)', padding: '3px 10px' }}>
                   {result.related_skills?.length || 0} Adjacent
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
-                Adjacent skills that relate to requirements. <span style={{ color: '#22D3EE', fontWeight: 600 }}>Note:</span> Not counted as exact matches.
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginBottom: 14 }}>
+                Adjacent skills that relate to requirements. <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Note:</span> Not counted as exact matches.
               </p>
               {result.related_skills && result.related_skills.length > 0 ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -556,20 +552,20 @@ export default function SkillGap() {
                         style={{
                           padding: '6px 12px',
                           borderRadius: 20,
-                          fontSize: 13,
-                          background: 'rgba(6, 182, 212, 0.12)',
-                          border: '1px solid rgba(6, 182, 212, 0.35)',
-                          color: '#CFFAFE',
+                          fontSize: 'var(--fs-sm)',
+                          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+                          color: 'var(--accent)',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 6,
                         }}
                       >
-                        <span style={{ fontWeight: 600, color: '#67E8F9' }}>{s}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{s}</span>
                         {targetConcept && (
                           <>
                             <span style={{ opacity: 0.5 }}>→</span>
-                            <span style={{ opacity: 0.85, fontSize: 12 }}>{targetConcept}</span>
+                            <span style={{ opacity: 0.85, fontSize: 'var(--fs-xs)' }}>{targetConcept}</span>
                           </>
                         )}
                       </div>
@@ -577,7 +573,7 @@ export default function SkillGap() {
                   })}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
                   No adjacent or related skills found.
                 </p>
               )}
@@ -587,24 +583,23 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderTop: '3px solid #F59E0B',
+                background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
+                borderTop: '3px solid var(--warning)',
                 borderRadius: 16,
                 padding: 22,
-                backdropFilter: 'blur(16px)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Target size={18} color="#F59E0B" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#FBBF24', margin: 0 }}>Skills to Develop</h3>
+                  <Target size={18} color="var(--warning)" />
+                  <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--warning)', margin: 0 }}>Skills to Develop</h3>
                 </div>
-                <span className="badge badge-yellow" style={{ fontSize: 12, padding: '3px 10px' }}>
+                <span className="badge badge-yellow" style={{ fontSize: 'var(--fs-xs)', padding: '3px 10px' }}>
                   {result.missing_skills?.length || 0} Missing
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginBottom: 14 }}>
                 Required competencies not directly demonstrated on your resume.
               </p>
               {result.missing_skills && result.missing_skills.length > 0 ? (
@@ -615,21 +610,21 @@ export default function SkillGap() {
                       className="badge badge-yellow"
                       style={{
                         padding: '6px 12px',
-                        fontSize: 13,
-                        background: 'rgba(245, 158, 11, 0.12)',
-                        color: '#FBBF24',
-                        borderColor: 'rgba(245, 158, 11, 0.35)',
+                        fontSize: 'var(--fs-sm)',
+                        background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                        color: 'var(--warning)',
+                        borderColor: 'color-mix(in srgb, var(--warning) 35%, transparent)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,
                       }}
                     >
-                      <XCircle size={13} color="#FBBF24" style={{ opacity: 0.9 }} /> {s}
+                      <XCircle size={13} color="var(--warning)" style={{ opacity: 0.9 }} /> {s}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: '#34D399', fontStyle: 'italic', margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--success)', fontStyle: 'italic', margin: 0 }}>
                   ✓ All core skills are covered for this job field!
                 </p>
               )}
@@ -639,24 +634,23 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderTop: '3px solid #8B5CF6',
+                background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
+                borderTop: '3px solid var(--accent)',
                 borderRadius: 16,
                 padding: 22,
-                backdropFilter: 'blur(16px)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sparkles size={18} color="#8B5CF6" />
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#A78BFA', margin: 0 }}>Additional Skills</h3>
+                  <Sparkles size={18} color="var(--accent)" />
+                  <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Additional Skills</h3>
                 </div>
-                <span className="badge badge-blue" style={{ fontSize: 12, padding: '3px 10px' }}>
+                <span className="badge badge-blue" style={{ fontSize: 'var(--fs-xs)', padding: '3px 10px' }}>
                   {result.additional_skills?.length || 0} Other
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginBottom: 14 }}>
                 Candidate strengths that exceed or extend beyond the required baseline.
               </p>
               {result.additional_skills && result.additional_skills.length > 0 ? (
@@ -667,10 +661,10 @@ export default function SkillGap() {
                       className="badge badge-blue"
                       style={{
                         padding: '6px 12px',
-                        fontSize: 13,
-                        background: 'rgba(139, 92, 246, 0.12)',
-                        color: '#DDD6FE',
-                        borderColor: 'rgba(139, 92, 246, 0.35)',
+                        fontSize: 'var(--fs-sm)',
+                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                        color: 'var(--accent)',
+                        borderColor: 'color-mix(in srgb, var(--accent) 35%, transparent)',
                       }}
                     >
                       {s}
@@ -678,7 +672,7 @@ export default function SkillGap() {
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
                   No extra skills outside standard requirements.
                 </p>
               )}
@@ -691,16 +685,15 @@ export default function SkillGap() {
             <div
               className="card"
               style={{
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderRadius: 18,
                 padding: 26,
-                backdropFilter: 'blur(16px)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                 <BookOpen size={20} color="var(--accent-cyan)" />
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                   Recommended Next Steps
                 </h3>
               </div>
@@ -714,27 +707,27 @@ export default function SkillGap() {
                       alignItems: 'flex-start',
                       padding: '14px 18px',
                       borderRadius: 12,
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      background: 'color-mix(in srgb, var(--fg) 3%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--fg) 6%, transparent)',
                     }}
                   >
                     <div style={{
                       minWidth: 26,
                       height: 26,
                       borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--accent), var(--accent-cyan))',
-                      color: '#FFFFFF',
+                      background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
+                      color: 'var(--on-accent)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 12,
+                      fontSize: 'var(--fs-xs)',
                       fontWeight: 700,
                       flexShrink: 0,
                       marginTop: 1,
                     }}>
                       {idx + 1}
                     </div>
-                    <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                    <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
                       {rec}
                     </p>
                   </div>
@@ -758,7 +751,7 @@ export default function SkillGap() {
                 minWidth: 200,
                 justifyContent: 'center',
                 padding: '14px 20px',
-                fontSize: 14,
+                fontSize: 'var(--fs-sm)',
                 fontWeight: 600,
               }}
             >
@@ -772,9 +765,9 @@ export default function SkillGap() {
                 minWidth: 260,
                 justifyContent: 'center',
                 padding: '14px 24px',
-                fontSize: 15,
+                fontSize: 'var(--fs-base)',
                 fontWeight: 700,
-                boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3)',
+                boxShadow: 'none',
               }}
             >
               <span>Start Mock Interview</span>

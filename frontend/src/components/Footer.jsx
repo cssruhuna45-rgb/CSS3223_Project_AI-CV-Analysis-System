@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Brain, CheckCircle2 } from 'lucide-react';
 
 const PRODUCT_LINKS = [
   { label: 'CV Analysis', to: '/upload' },
@@ -8,36 +7,61 @@ const PRODUCT_LINKS = [
   { label: 'Skill Gap Report', to: '/skill-gap' },
 ];
 
-const PLATFORM_LINKS = [
-  { label: 'Home', to: '/' },
-  { label: 'For Recruiters', to: '/login' },
-  { label: 'Create Account', to: '/register' },
-  { label: 'Sign In', to: '/login' },
-];
+// The links depend on who is looking. A signed-in candidate was being
+// offered "Sign In" and "Create Account", which they no longer need,
+// instead of the pages they actually use.
+function platformLinks(user) {
+  if (!user) {
+    return [
+      { label: 'Home', to: '/' },
+      { label: 'For Recruiters', to: '/login' },
+      { label: 'Create Account', to: '/register' },
+      { label: 'Sign In', to: '/login' },
+    ];
+  }
 
-export default function Footer() {
+  if (user.role === 'recruiter') {
+    return [{ label: 'Dashboard', to: '/dashboard' }];
+  }
+
+  return [
+    { label: 'Workspace', to: '/home' },
+    { label: 'My Progress', to: '/progress' },
+    { label: 'Scorecards', to: '/scorecard' },
+  ];
+}
+
+// Removed on purpose:
+// - "Platform operational": a fixed badge that said the system was up
+//   even when it was down. A status nobody measures misleads.
+// - Privacy and Terms: both linked to the home page; there are no such
+//   pages yet.
+// - The arrow-out icon on every link: it means "opens another site",
+//   and every link here stays inside the app.
+export default function Footer({ user }) {
   return (
     <footer className="site-footer">
       <div className="footer-inner">
         <div className="footer-main">
           <div className="footer-brand">
             <Link className="footer-logo" to="/" aria-label="AIInterview home">
-              
               <span>AI<span>Interview</span></span>
             </Link>
             <p>Build confidence. Sharpen your story. Land the opportunity.</p>
-            <div className="footer-status"><CheckCircle2 size={14} /> Platform operational</div>
           </div>
 
-          <div className="footer-links-group">
-            <h2>Product</h2>
-            {PRODUCT_LINKS.map(link => <Link key={link.label} to={link.to}>{link.label}<ArrowUpRight size={13} /></Link>)}
-          </div>
+          {/* Candidate tools; a recruiter account cannot open them. */}
+          {user?.role !== 'recruiter' && (
+            <nav className="footer-links-group" aria-label="Product">
+              <h2>Product</h2>
+              {PRODUCT_LINKS.map(link => <Link key={link.label} to={link.to}>{link.label}</Link>)}
+            </nav>
+          )}
 
-          <div className="footer-links-group">
+          <nav className="footer-links-group" aria-label="Platform">
             <h2>Platform</h2>
-            {PLATFORM_LINKS.map(link => <Link key={link.label} to={link.to}>{link.label}<ArrowUpRight size={13} /></Link>)}
-          </div>
+            {platformLinks(user).map(link => <Link key={link.label} to={link.to}>{link.label}</Link>)}
+          </nav>
 
           <div className="footer-note">
             <span className="footer-kicker">AI-powered preparation</span>
@@ -47,7 +71,6 @@ export default function Footer() {
 
         <div className="footer-bottom">
           <span>© 2026 AIInterview. Built for better interviews.</span>
-          <div><Link to="/">Privacy</Link><Link to="/">Terms</Link></div>
         </div>
       </div>
     </footer>
