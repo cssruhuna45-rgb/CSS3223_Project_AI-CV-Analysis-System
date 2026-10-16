@@ -21,7 +21,7 @@ model cannot return 85 and label it "weak".
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -137,7 +137,8 @@ Return ONLY valid JSON in exactly this shape, with no markdown fences:
       "question_number": 1,
       "score": 0,
       "what_was_good": "One sentence. Empty string if nothing was good.",
-      "what_was_missing": "One sentence naming what a complete answer needed."
+      "what_was_missing": "One sentence naming what a complete answer needed.",
+      "references_used": [1]
     }}
   ]
 }}
@@ -147,6 +148,11 @@ Rules for the lists:
   strengths, return an empty list rather than inventing one.
 - "improvements": 2 to 4 items, most important first.
 - "per_question": one entry for EVERY question in the transcript.
+- "references_used": the numbers of the reference passages ([R1], [R2],
+  [R3]) shown with THAT question which your score for it relied on.
+  Use an empty list if you judged it without the reference material.
+- Never write "R1", "R2" or "as per R2" inside the feedback sentences.
+  The candidate does not see those labels; name the concept instead.
 - Refer to what the candidate actually said. Do not write generic
   feedback that would fit any candidate.
 """
@@ -157,15 +163,16 @@ Rules for the lists:
 # Retrieval
 # ============================================================
 
-def retrieve_reference(question: str) -> str:
+def retrieve_reference(question: str) -> List[Dict[str, str]]:
     """
     Pulls what the knowledge base holds about this question.
 
     Grading is judged against these passages, so that "you did not
     mention X" traces back to documents/ rather than to the model's
-    memory.
+    memory. They are also returned on the scorecard, so the candidate
+    can read the material their score was judged against.
 
-    Returns an empty string on failure. A missing reference degrades
+    Returns an empty list on failure. A missing reference degrades
     grading to the model's own judgement, which still beats losing the
     scorecard.
     """
@@ -178,9 +185,9 @@ def retrieve_reference(question: str) -> str:
         )
     except Exception as exc:
         print(f"[Evaluator] Reference retrieval failed: {exc}")
-        return ""
+        return []
 
-    passages: List[str] = []
+    passages: List[Dict[str, str]] = []
 
     for doc in documents:
 
@@ -192,16 +199,43 @@ def retrieve_reference(question: str) -> str:
         if len(text) > MAX_REFERENCE_CHARS:
             text = text[:MAX_REFERENCE_CHARS] + " ..."
 
-        source = doc.metadata.get(
+        metadata = doc.metadata or {}
+
+        source = metadata.get(
             "source_file",
-            doc.metadata.get("source", "knowledge base"),
+            metadata.get("source", "knowledge base"),
         )
 
-        passages.append(
-            f"[{os.path.basename(str(source))}] {text}"
+        # The deepest markdown heading the chunk sits under, so the
+        # scorecard can say which part of the guide was used.
+        section = next(
+            (
+                str(metadata[key]).strip()
+                for key in ("header_3", "header_2", "header_1")
+                if str(metadata.get(key) or "").strip()
+            ),
+            "",
         )
 
-    return "\n".join(passages)
+        passages.append({
+            "source": os.path.basename(str(source)),
+            "section": section,
+            "excerpt": text,
+        })
+
+    return passages
+
+
+def format_reference(passages: List[Dict[str, str]]) -> str:
+    """
+    Numbers the passages [R1], [R2]... so the model can name the ones it
+    relied on in references_used.
+    """
+
+    return "\n".join(
+        f"[R{n}] ({p['source']}) {p['excerpt']}"
+        for n, p in enumerate(passages, start=1)
+    )
 
 
 # ============================================================
@@ -211,15 +245,20 @@ def retrieve_reference(question: str) -> str:
 def build_transcript(
     questions: List[str],
     answers: List[str],
-) -> str:
+) -> Tuple[str, List[List[Dict[str, str]]]]:
     """
     Lays out question, reference material and answer for the prompt.
 
     Answers are truncated so one rambling response cannot crowd out the
     rest of the interview.
+
+    Also returns the passages retrieved for each question, in order, so
+    the scorecard shows exactly what the grading saw instead of running
+    a second retrieval that could come back different.
     """
 
     lines: List[str] = []
+    references: List[List[Dict[str, str]]] = []
 
     total = min(len(questions), len(answers), MAX_QUESTIONS_EVALUATED)
 
@@ -233,13 +272,14 @@ def build_transcript(
         if not answer:
             answer = "[no answer given]"
 
-        reference = retrieve_reference(questions[i])
+        passages = retrieve_reference(questions[i])
+        references.append(passages)
 
         lines.append(f"Question {i + 1}: {questions[i]}")
 
-        if reference:
+        if passages:
             lines.append(f"Reference material for question {i + 1}:")
-            lines.append(reference)
+            lines.append(format_reference(passages))
         else:
             lines.append(
                 f"Reference material for question {i + 1}: "
@@ -249,7 +289,7 @@ def build_transcript(
         lines.append(f"Answer {i + 1}: {answer}")
         lines.append("")
 
-    return "\n".join(lines).strip()
+    return "\n".join(lines).strip(), references
 
 
 def build_category_block() -> str:
@@ -308,10 +348,39 @@ def clean_list(value: Any, limit: int = 4) -> List[str]:
     return items[:limit]
 
 
+def cited_references(
+    passages: List[Dict[str, str]],
+    used: Any,
+) -> List[Dict[str, Any]]:
+    """
+    Marks which of a question's passages the model said it relied on.
+
+    The passages themselves come from retrieval, never from the model,
+    so the scorecard cannot show a source that does not exist. Only the
+    "used" flag is the model's, and a number outside R1..Rn is dropped
+    rather than trusted.
+    """
+
+    numbers = set()
+
+    if isinstance(used, list):
+        for value in used:
+            try:
+                numbers.add(int(str(value).strip().lstrip("Rr")))
+            except (TypeError, ValueError):
+                continue
+
+    return [
+        {**passage, "used": n in numbers}
+        for n, passage in enumerate(passages, start=1)
+    ]
+
+
 def normalize_evaluation(
     raw: Dict[str, Any],
     questions: List[str],
     answers: List[str],
+    references: Optional[List[List[Dict[str, str]]]] = None,
 ) -> Dict[str, Any]:
     """
     Turns whatever the model returned into the exact shape the API
@@ -362,6 +431,12 @@ def normalize_evaluation(
         score = clamp_score(entry.get("score"))
         answered = bool((answers[i] or "").strip())
 
+        passages = (
+            references[i]
+            if references and i < len(references)
+            else []
+        )
+
         per_question.append({
             "question_number": i + 1,
             "question": questions[i],
@@ -370,6 +445,10 @@ def normalize_evaluation(
             "verdict": verdict_for_score(score, answered),
             "what_was_good": str(entry.get("what_was_good") or "").strip(),
             "what_was_missing": str(entry.get("what_was_missing") or "").strip(),
+            "references": cited_references(
+                passages,
+                entry.get("references_used"),
+            ),
         })
 
     return {
@@ -410,6 +489,8 @@ def empty_evaluation(
                 "verdict": "none",
                 "what_was_good": "",
                 "what_was_missing": "",
+                # No grading ran, so no passage informed a score.
+                "references": [],
             }
             for i in range(min(len(questions), len(answers)))
         ],
@@ -442,7 +523,7 @@ def evaluate_interview(
             "No questions were answered.",
         )
 
-    transcript = build_transcript(questions, answers)
+    transcript, references = build_transcript(questions, answers)
 
     if not transcript:
         return empty_evaluation(
@@ -465,7 +546,12 @@ def evaluate_interview(
         if not isinstance(parsed, dict):
             raise ValueError("Model did not return a JSON object.")
 
-        result = normalize_evaluation(parsed, questions, answers)
+        result = normalize_evaluation(
+            parsed,
+            questions,
+            answers,
+            references,
+        )
         result["evaluated"] = True
         result["evaluation_error"] = ""
 
