@@ -170,6 +170,16 @@ export const aiResumeAPI = {
 
     }).then(handleResponse),
 
+  // Rewrites one bullet in Google's XYZ form. Facts the bullet does not
+  // give come back as [bracketed] gaps for the candidate to fill; the
+  // AI never supplies the numbers.
+  tuneBullet: (bullet, jobField = '') =>
+    fetch(`${AI}/resume/bullet/tune`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ bullet, job_field: jobField }),
+    }).then(handleResponse),
+
   analyze: (resumeId, resumeText) =>
     fetch(`${AI}/resume/analyze`, {
       method: 'POST',

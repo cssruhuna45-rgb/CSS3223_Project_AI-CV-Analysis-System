@@ -57,6 +57,20 @@ WEAK_OPENERS = [
     "duties included",
 ]
 
+# A number that is not a year - years are dates, not achievements. A
+# four-digit number followed by +, %, k or m is a quantity, not a year:
+# "2000+ clients" was being skipped as the year 2000.
+METRIC_PATTERN = re.compile(
+    r"(?<!\d)(?!(?:19|20)\d{2}(?![\d+%kKmM]))\d+(?:[.,]\d+)?\s*[%kKmM+]?"
+)
+
+# A line ending on one of these was cut off where the PDF wrapped it,
+# so it is half a bullet and not worth offering for a rewrite.
+DANGLING_ENDINGS = {
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "of",
+    "on", "or", "the", "to", "which", "with", "that", "using", "including",
+}
+
 # Section 5 action verbs.
 ACTION_VERBS = {
     "built", "developed", "implemented", "designed", "architected",
@@ -248,8 +262,7 @@ def check_quantified(text: str) -> List[Dict[str, Any]]:
 
     bullets = _bullet_lines(text)
 
-    # A number that is not a year - years are dates, not achievements.
-    metric = re.compile(r"(?<!\d)(?!(?:19|20)\d{2}(?!\d))\d+(?:[.,]\d+)?\s*[%kKmM+]?")
+    metric = METRIC_PATTERN
 
     with_numbers = [b for b in bullets if metric.search(b)]
 
@@ -366,6 +379,79 @@ def check_red_flags(text: str) -> List[Dict[str, Any]]:
         ),
         "weight": 3,
     }]
+
+
+def _whole_bullets(text: str) -> List[str]:
+    """
+    Bullets with their wrapped lines joined back together.
+
+    PDF extraction breaks a long bullet at the page's line width:
+
+        * Initiated new support techniques that ... reduced call
+        volume, saving $110K in overhead costs.
+
+    Read line by line, the first half looks like a bullet with no number
+    and the figure that makes it strong is lost. A line that starts in
+    lower case, or with a digit or currency sign, continues the bullet
+    above it. "\x7f" is a bullet glyph some PDF exporters emit.
+    """
+
+    glyphs = BULLET_MARKERS + "\x7f"
+    items: List[str] = []
+
+    for raw in text.splitlines():
+
+        stripped = raw.strip()
+
+        if not stripped:
+            continue
+
+        continues = (
+            items
+            and stripped[0] not in glyphs
+            and (stripped[0].islower() or stripped[0] in "$€£0123456789(")
+        )
+
+        if continues:
+            items[-1] = f"{items[-1]} {stripped}"
+        else:
+            items.append(stripped.lstrip(glyphs + " ").strip())
+
+    return [" ".join(i.split()) for i in items]
+
+
+def find_weak_bullets(text: str, limit: int = 5) -> List[str]:
+    """
+    The bullets most worth rewriting, for the bullet tuner to offer.
+
+    Weak means it opens with a phrase that describes presence rather than
+    contribution ("Responsible for"), or carries no number at all - the
+    same rules check_action_verbs and check_quantified score, applied
+    per bullet. Lines under six words are skipped: "AWS Certified
+    Solutions Architect" is a label, not an achievement to rewrite.
+    """
+
+    weak: List[str] = []
+
+    for line in _whole_bullets(text):
+
+        if len(line.split()) < 6 or _looks_like_heading_or_label(line):
+            continue
+
+        last_word = line.rstrip(" ,;:-").split()[-1].lower()
+        if line.endswith((",", ";", ":", "-")) or last_word in DANGLING_ENDINGS:
+            continue
+
+        lowered = line.lower()
+        weak_opener = any(lowered.startswith(w) for w in WEAK_OPENERS)
+
+        if weak_opener or not METRIC_PATTERN.search(line):
+            weak.append(line)
+
+        if len(weak) >= limit:
+            break
+
+    return weak
 
 
 def run_objective_checks(resume_text: str) -> List[Dict[str, Any]]:
@@ -548,6 +634,7 @@ def review_cv(resume_text: str) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "score": score,
         "checks": checks,
+        "weak_bullets": find_weak_bullets(text),
         "summary": "",
         "strengths": [],
         "improvements": [],

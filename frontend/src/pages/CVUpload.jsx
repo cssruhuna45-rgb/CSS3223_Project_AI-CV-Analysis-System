@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { resumeAPI, aiResumeAPI } from '../services/api';
 import CVFeedback from '../components/CVFeedback';
+import BulletTuner from '../components/BulletTuner';
 import StepBar from '../components/StepBar';
 import { PREDEFINED_JOB_FIELDS, getJobFieldName } from '../constants/jobFields';
 
@@ -839,6 +840,8 @@ export default function CVUpload() {
                 loading={reviewLoading}
                 error={reviewError}
               />
+              {/* Fixes what the review found, one bullet at a time. */}
+              <BulletTuner suggestions={review?.weak_bullets || []} />
             </div>
           )}
 
