@@ -1,15 +1,15 @@
 import React from 'react';
 import { CheckCircle2, XCircle, FileWarning, Sparkles, Check } from 'lucide-react';
 
-const ACCENT = '#6366F1';
-const CYAN = '#06B6D4';
-const TEXT = '#F8FAFC';
-const MUTED = '#94A3B8';
-const GREEN = '#10B981';
-const AMBER = '#F59E0B';
-const ROSE = '#EF4444';
-const TRACK = 'rgba(255, 255, 255, 0.08)';
-const CARD_BG = 'rgba(15, 23, 42, 0.75)';
+const ACCENT = 'var(--accent)';
+const CYAN = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const MUTED = 'var(--text-muted)';
+const GREEN = 'var(--success)';
+const AMBER = 'var(--warning)';
+const ROSE = 'var(--danger)';
+const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
+const CARD_BG = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
 
 export default function CVFeedback({ review, loading, error }) {
   if (loading) {
@@ -17,7 +17,7 @@ export default function CVFeedback({ review, loading, error }) {
       <div className="card" style={{ marginBottom: 24, padding: 22, background: CARD_BG }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Sparkles size={16} color={CYAN} className="animate-spin" />
-          <span style={{ color: TEXT, fontSize: 14 }}>
+          <span style={{ color: TEXT, fontSize: 'var(--fs-sm)' }}>
             Evaluating your CV structure, metrics, and technical keywords…
           </span>
         </div>
@@ -27,10 +27,10 @@ export default function CVFeedback({ review, loading, error }) {
 
   if (error) {
     return (
-      <div className="card" style={{ marginBottom: 24, padding: 20, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+      <div className="card" style={{ marginBottom: 24, padding: 20, background: 'color-mix(in srgb, var(--danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <FileWarning size={16} color={ROSE} style={{ flexShrink: 0, marginTop: 2 }} />
-          <span style={{ color: '#FCA5A5', fontSize: 13.5 }}>
+          <span style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>
             CV review unavailable: {error}
           </span>
         </div>
@@ -59,8 +59,8 @@ export default function CVFeedback({ review, loading, error }) {
       style={{
         marginBottom: 28,
         background: CARD_BG,
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderTop: '3px solid #6366F1',
+        border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
+        borderTop: '3px solid var(--accent)',
       }}
     >
       {/* Header + score */}
@@ -71,33 +71,33 @@ export default function CVFeedback({ review, loading, error }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818CF8',
+            background: 'color-mix(in srgb, var(--accent) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)',
           }}>
             <Sparkles size={16} />
           </div>
           <div>
-            <span style={{ fontWeight: 700, fontSize: 16, color: TEXT }}>CV Quality Score</span>
-            <span style={{ fontSize: 12, color: MUTED, display: 'block' }}>Grounded in industry resume standards</span>
+            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: TEXT }}>CV Quality Score</span>
+            <span style={{ fontSize: 'var(--fs-xs)', color: MUTED, display: 'block' }}>Grounded in industry resume standards</span>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <span style={{ fontSize: 28, fontWeight: 800, color: bandColor, lineHeight: 1 }}>
+          <span style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, color: bandColor, lineHeight: 1 }}>
             {score}
           </span>
-          <span style={{ fontSize: 13, color: MUTED, marginLeft: 4 }}>/100 · {band}</span>
+          <span style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginLeft: 4 }}>/100 · {band}</span>
         </div>
       </div>
 
       <div style={{ height: 6, background: TRACK, borderRadius: 3, overflow: 'hidden', marginBottom: 20 }}>
         <div style={{
-          height: '100%', borderRadius: 3, background: `linear-gradient(90deg, #6366F1, ${bandColor})`,
+          height: '100%', borderRadius: 3, background: `linear-gradient(var(--accent-solid), var(--accent-solid))`,
           width: `${score}%`, transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
         }} />
       </div>
 
       {review.summary && (
-        <p style={{ fontSize: 14, color: '#E2E8F0', lineHeight: 1.65, marginBottom: 20 }}>
+        <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', lineHeight: 1.65, marginBottom: 20 }}>
           {review.summary}
         </p>
       )}
@@ -106,7 +106,7 @@ export default function CVFeedback({ review, loading, error }) {
       {checks.length > 0 && (
         <div style={{ marginBottom: improvements.length ? 22 : 0 }}>
           <p style={{
-            fontSize: 12, color: MUTED, textTransform: 'uppercase',
+            fontSize: 'var(--fs-xs)', color: MUTED, textTransform: 'uppercase',
             letterSpacing: '0.06em', marginBottom: 12, fontWeight: 700,
           }}>
             Standard Checks · {passed} of {checks.length} Passed
@@ -118,9 +118,9 @@ export default function CVFeedback({ review, loading, error }) {
                   ? <CheckCircle2 size={16} color={GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
                   : <XCircle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} />}
                 <div>
-                  <span style={{ fontSize: 13.5, fontWeight: 600, color: c.passed ? TEXT : '#FEF3C7' }}>{c.label}</span>
+                  <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: c.passed ? TEXT : 'var(--warning)' }}>{c.label}</span>
                   {c.detail && (
-                    <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginTop: 2 }}>
+                    <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, lineHeight: 1.5, marginTop: 2 }}>
                       {c.detail}
                     </p>
                   )}
@@ -135,7 +135,7 @@ export default function CVFeedback({ review, loading, error }) {
       {improvements.length > 0 && (
         <div style={{ borderTop: `1px solid ${TRACK}`, paddingTop: 18, marginTop: 18 }}>
           <p style={{
-            fontSize: 12, color: AMBER, textTransform: 'uppercase',
+            fontSize: 'var(--fs-xs)', color: AMBER, textTransform: 'uppercase',
             letterSpacing: '0.06em', marginBottom: 12, fontWeight: 700,
           }}>
             Recommended Enhancements
@@ -143,22 +143,22 @@ export default function CVFeedback({ review, loading, error }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {improvements.map((imp, i) => (
               <div key={i} style={{
-                background: 'rgba(245, 158, 11, 0.05)',
-                border: '1px solid rgba(245, 158, 11, 0.15)',
+                background: 'color-mix(in srgb, var(--warning) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warning) 15%, transparent)',
                 borderRadius: 10,
                 padding: '12px 14px',
               }}>
-                <p style={{ fontSize: 13.5, fontWeight: 700, color: '#FEF3C7', marginBottom: 4 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--warning)', marginBottom: 4 }}>
                   {imp.issue}
                 </p>
                 {imp.fix && (
-                  <p style={{ fontSize: 13, color: '#E2E8F0', lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', lineHeight: 1.5 }}>
                     {imp.fix}
                   </p>
                 )}
                 {imp.example && (
                   <p style={{
-                    fontSize: 12.5, color: CYAN, lineHeight: 1.5,
+                    fontSize: 'var(--fs-xs)', color: CYAN, lineHeight: 1.5,
                     marginTop: 6, paddingLeft: 10,
                     borderLeft: `2px solid ${CYAN}`,
                   }}>
@@ -175,7 +175,7 @@ export default function CVFeedback({ review, loading, error }) {
       {strengths.length > 0 && (
         <div style={{ borderTop: `1px solid ${TRACK}`, paddingTop: 18, marginTop: 18 }}>
           <p style={{
-            fontSize: 12, color: GREEN, textTransform: 'uppercase',
+            fontSize: 'var(--fs-xs)', color: GREEN, textTransform: 'uppercase',
             letterSpacing: '0.06em', marginBottom: 10, fontWeight: 700,
           }}>
             Strong Aspects of Your CV
@@ -184,7 +184,7 @@ export default function CVFeedback({ review, loading, error }) {
             {strengths.map((s, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <CheckCircle2 size={16} color={GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
-                <p style={{ fontSize: 13.5, color: '#E2E8F0', lineHeight: 1.5, margin: 0 }}>{s}</p>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', lineHeight: 1.5, margin: 0 }}>{s}</p>
               </div>
             ))}
           </div>
@@ -193,7 +193,7 @@ export default function CVFeedback({ review, loading, error }) {
 
       {/* Fallback notice */}
       {review.reviewed === false && review.review_error && (
-        <p style={{ fontSize: 12, color: MUTED, marginTop: 14 }}>
+        <p style={{ fontSize: 'var(--fs-xs)', color: MUTED, marginTop: 14 }}>
           Written advice unavailable this time; the objective checklist above remains fully valid.
         </p>
       )}

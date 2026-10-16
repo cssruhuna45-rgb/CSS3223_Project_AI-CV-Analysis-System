@@ -20,20 +20,20 @@ import {
 } from 'lucide-react';
 import { roadmapAPI } from '../services/api';
 
-const ACCENT = '#6366F1';
-const ACCENT_LIGHT = '#818CF8';
-const TEXT = '#F8FAFC';
-const MUTED = '#94A3B8';
-const TRACK = 'rgba(255, 255, 255, 0.08)';
-const CARD_BG = 'rgba(15, 23, 42, 0.75)';
-const BORDER_COLOR = 'rgba(255, 255, 255, 0.08)';
+const ACCENT = 'var(--accent)';
+const ACCENT_LIGHT = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const MUTED = 'var(--text-muted)';
+const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
+const CARD_BG = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
+const BORDER_COLOR = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 
-const GREEN = '#10B981';
-const BLUE = '#38BDF8';
-const AMBER = '#F59E0B';
-const PURPLE = '#A855F7';
-const CYAN = '#06B6D4';
-const ROSE = '#F43F5E';
+const GREEN = 'var(--success)';
+const BLUE = 'var(--accent)';
+const AMBER = 'var(--warning)';
+const PURPLE = 'var(--accent)';
+const CYAN = 'var(--accent)';
+const ROSE = 'var(--danger)';
 
 const PHASE_COLORS = {
   1: BLUE,
@@ -232,7 +232,7 @@ export default function LearningRoadmap({
           color={ACCENT}
           style={{ animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}
         />
-        <p style={{ color: TEXT, fontSize: 15, fontWeight: 500 }}>
+        <p style={{ color: TEXT, fontSize: 'var(--fs-base)', fontWeight: 500 }}>
           Loading your personalized 14-day roadmap…
         </p>
       </div>
@@ -263,7 +263,7 @@ export default function LearningRoadmap({
             width: 180,
             height: 180,
             borderRadius: '50%',
-            background: `radial-gradient(circle, rgba(34, 211, 238, 0.15) 0%, transparent 70%)`,
+            background: `transparent`,
             pointerEvents: 'none',
           }}
         />
@@ -274,8 +274,8 @@ export default function LearningRoadmap({
               width: 48,
               height: 48,
               borderRadius: 12,
-              background: 'rgba(34, 211, 238, 0.12)',
-              border: `1px solid rgba(34, 211, 238, 0.3)`,
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+              border: `1px solid color-mix(in srgb, var(--accent) 30%, transparent)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -288,32 +288,23 @@ export default function LearningRoadmap({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 'var(--fs-xs)',
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
                   color: CYAN,
                 }}
               >
-                Sprint 1 Milestone
-              </span>
-              <span
-                style={{
-                  fontSize: 11,
-                  padding: '2px 8px',
-                  borderRadius: 10,
-                  background: 'rgba(74, 222, 128, 0.15)',
-                  color: GREEN,
-                  fontWeight: 600,
-                }}
-              >
-                14-Day Roadmap Live
+                {/* Was "Sprint 1 Milestone" with a "14-Day Roadmap Live"
+                    badge: the team's own planning words, which mean
+                    nothing to a candidate. */}
+                Your next step
               </span>
             </div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, color: TEXT, marginBottom: 6 }}>
+            <h3 style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, color: TEXT, marginBottom: 6 }}>
               Personalized 14-Day Upskilling Roadmap
             </h3>
-            <p style={{ color: MUTED, fontSize: 14, lineHeight: 1.6, maxWidth: 600 }}>
+            <p style={{ color: MUTED, fontSize: 'var(--fs-sm)', lineHeight: 1.6, maxWidth: 600 }}>
               Turn your interview weaknesses into concrete strengths. Generate a targeted,
               day-by-day learning schedule tailored specifically to the concepts you missed during
               this session.
@@ -326,10 +317,10 @@ export default function LearningRoadmap({
             style={{
               padding: '12px 16px',
               borderRadius: 8,
-              background: 'rgba(244, 114, 182, 0.1)',
+              background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
               border: `1px solid ${ROSE}`,
               color: ROSE,
-              fontSize: 13,
+              fontSize: 'var(--fs-sm)',
               marginBottom: 20,
             }}
           >
@@ -346,14 +337,14 @@ export default function LearningRoadmap({
             alignItems: 'center',
             gap: 10,
             padding: '12px 24px',
-            fontSize: 14,
+            fontSize: 'var(--fs-sm)',
             fontWeight: 600,
-            background: `linear-gradient(135deg, ${CYAN} 0%, #0284C7 100%)`,
-            color: '#000000',
+            background: `linear-gradient(var(--accent-solid), var(--accent-solid))`,
+            color: 'var(--shadow-ink)',
             border: 'none',
             borderRadius: 8,
             cursor: generating ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 14px rgba(34, 211, 238, 0.25)',
+            boxShadow: '0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent)',
           }}
         >
           {generating ? (
@@ -396,7 +387,7 @@ export default function LearningRoadmap({
           width: 240,
           height: 240,
           borderRadius: '50%',
-          background: `radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 70%)`,
+          background: `transparent`,
           pointerEvents: 'none',
         }}
       />
@@ -419,8 +410,8 @@ export default function LearningRoadmap({
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                background: 'rgba(34, 211, 238, 0.12)',
-                border: `1px solid rgba(34, 211, 238, 0.3)`,
+                background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                border: `1px solid color-mix(in srgb, var(--accent) 30%, transparent)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -431,7 +422,7 @@ export default function LearningRoadmap({
             <div>
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 'var(--fs-xs)',
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
@@ -440,12 +431,12 @@ export default function LearningRoadmap({
               >
                 Personalized Upskilling Plan
               </span>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: TEXT, margin: 0 }}>
+              <h2 style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, color: TEXT, margin: 0 }}>
                 {roadmap.title || '14-Day Accelerated Upskilling Roadmap'}
               </h2>
             </div>
           </div>
-          <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.5, maxWidth: 620, marginTop: 4 }}>
+          <p style={{ color: MUTED, fontSize: 'var(--fs-sm)', lineHeight: 1.5, maxWidth: 620, marginTop: 4 }}>
             {roadmap.summary}
           </p>
         </div>
@@ -461,7 +452,7 @@ export default function LearningRoadmap({
             alignItems: 'center',
             gap: 6,
             padding: '8px 14px',
-            fontSize: 12,
+            fontSize: 'var(--fs-xs)',
             borderColor: TRACK,
             color: TEXT,
             borderRadius: 8,
@@ -478,7 +469,7 @@ export default function LearningRoadmap({
       {/* Progress & Milestone Overview */}
       <div
         style={{
-          background: 'rgba(15, 23, 42, 0.6)',
+          background: 'color-mix(in srgb, var(--bg-surface) 60%, transparent)',
           border: `1px solid ${TRACK}`,
           borderRadius: 12,
           padding: 16,
@@ -495,11 +486,11 @@ export default function LearningRoadmap({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Award size={16} color={GREEN} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>
+            <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>
               Overall Roadmap Progress
             </span>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: progressPercent === 100 ? GREEN : CYAN }}>
+          <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: progressPercent === 100 ? GREEN : CYAN }}>
             {totalCompleted} of {durationDays} Days Completed ({progressPercent}%)
           </span>
         </div>
@@ -508,7 +499,7 @@ export default function LearningRoadmap({
         <div
           style={{
             height: 8,
-            background: '#1E293B',
+            background: 'var(--border)',
             borderRadius: 4,
             overflow: 'hidden',
             position: 'relative',
@@ -518,7 +509,7 @@ export default function LearningRoadmap({
             style={{
               height: '100%',
               borderRadius: 4,
-              background: `linear-gradient(90deg, ${CYAN} 0%, ${GREEN} 100%)`,
+              background: `linear-gradient(${CYAN}, ${CYAN})`,
               width: `${progressPercent}%`,
               transition: 'width 0.4s ease',
             }}
@@ -545,8 +536,8 @@ export default function LearningRoadmap({
                   style={{
                     padding: '10px 12px',
                     borderRadius: 8,
-                    background: isPhaseActive ? `${pColor}1A` : 'rgba(30, 41, 59, 0.4)',
-                    border: `1px solid ${isPhaseActive ? pColor : '#334155'}`,
+                    background: isPhaseActive ? `color-mix(in srgb, ${pColor} 10%, transparent)` : 'color-mix(in srgb, var(--bg-surface) 40%, transparent)',
+                    border: `1px solid ${isPhaseActive ? pColor : 'var(--border-strong)'}`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                   }}
@@ -561,7 +552,7 @@ export default function LearningRoadmap({
                   >
                     <span
                       style={{
-                        fontSize: 10,
+                        fontSize: 'var(--fs-xs)',
                         fontWeight: 700,
                         color: pColor,
                         textTransform: 'uppercase',
@@ -569,11 +560,11 @@ export default function LearningRoadmap({
                     >
                       Phase {m.phase}
                     </span>
-                    <span style={{ fontSize: 10, color: MUTED }}>{m.day_range}</span>
+                    <span style={{ fontSize: 'var(--fs-xs)', color: MUTED }}>{m.day_range}</span>
                   </div>
                   <div
                     style={{
-                      fontSize: 12,
+                      fontSize: 'var(--fs-xs)',
                       fontWeight: 600,
                       color: TEXT,
                       whiteSpace: 'nowrap',
@@ -594,17 +585,17 @@ export default function LearningRoadmap({
       {/* Focus Area Tags */}
       {focusAreas.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          <span style={{ fontSize: 11, color: MUTED, fontWeight: 600 }}>KEY FOCUS AREAS:</span>
+          <span style={{ fontSize: 'var(--fs-xs)', color: MUTED, fontWeight: 600 }}>KEY FOCUS AREAS:</span>
           {focusAreas.map((fa, i) => (
             <span
               key={i}
               style={{
-                fontSize: 11,
+                fontSize: 'var(--fs-xs)',
                 padding: '3px 10px',
                 borderRadius: 12,
-                background: 'rgba(216, 196, 182, 0.1)',
-                border: `1px solid rgba(216, 196, 182, 0.25)`,
-                color: ACCENT,
+                background: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                border: `1px solid color-mix(in srgb, var(--warning) 25%, transparent)`,
+                color: 'var(--accent-text)',
                 fontWeight: 500,
               }}
             >
@@ -634,10 +625,10 @@ export default function LearningRoadmap({
             style={{
               padding: '6px 12px',
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 'var(--fs-xs)',
               fontWeight: 600,
-              border: `1px solid ${activePhase === 'all' ? CYAN : '#334155'}`,
-              background: activePhase === 'all' ? `${CYAN}22` : 'transparent',
+              border: `1px solid ${activePhase === 'all' ? CYAN : 'var(--border-strong)'}`,
+              background: activePhase === 'all' ? `color-mix(in srgb, ${CYAN} 13%, transparent)` : 'transparent',
               color: activePhase === 'all' ? CYAN : MUTED,
               cursor: 'pointer',
             }}
@@ -651,9 +642,9 @@ export default function LearningRoadmap({
               style={{
                 padding: '6px 12px',
                 borderRadius: 6,
-                fontSize: 12,
+                fontSize: 'var(--fs-xs)',
                 fontWeight: 600,
-                border: `1px solid ${activePhase === String(pNum) ? PHASE_COLORS[pNum] : '#334155'}`,
+                border: `1px solid ${activePhase === String(pNum) ? PHASE_COLORS[pNum] : 'var(--border-strong)'}`,
                 background: activePhase === String(pNum) ? `${PHASE_COLORS[pNum]}22` : 'transparent',
                 color: activePhase === String(pNum) ? PHASE_COLORS[pNum] : MUTED,
                 cursor: 'pointer',
@@ -671,12 +662,12 @@ export default function LearningRoadmap({
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={{
-              background: '#0F172A',
+              background: 'var(--bg-surface)',
               color: TEXT,
               border: `1px solid ${TRACK}`,
               borderRadius: 6,
               padding: '5px 10px',
-              fontSize: 12,
+              fontSize: 'var(--fs-xs)',
               cursor: 'pointer',
             }}
           >
@@ -692,7 +683,7 @@ export default function LearningRoadmap({
               background: 'transparent',
               border: 'none',
               color: MUTED,
-              fontSize: 12,
+              fontSize: 'var(--fs-xs)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -718,8 +709,8 @@ export default function LearningRoadmap({
               key={day.day}
               style={{
                 borderRadius: 12,
-                border: `1px solid ${isDone ? 'rgba(74, 222, 128, 0.3)' : BORDER_COLOR}`,
-                background: isDone ? 'rgba(74, 222, 128, 0.04)' : '#0F172A',
+                border: `1px solid ${isDone ? 'color-mix(in srgb, var(--success) 30%, transparent)' : BORDER_COLOR}`,
+                background: isDone ? 'color-mix(in srgb, var(--success) 4%, transparent)' : 'var(--bg-surface)',
                 overflow: 'hidden',
                 transition: 'all 0.2s ease',
               }}
@@ -765,13 +756,13 @@ export default function LearningRoadmap({
                   {/* Day label badge */}
                   <span
                     style={{
-                      fontSize: 11,
+                      fontSize: 'var(--fs-xs)',
                       fontWeight: 700,
                       padding: '3px 8px',
                       borderRadius: 6,
-                      background: `${phaseColor}1F`,
+                      background: `color-mix(in srgb, ${phaseColor} 12%, transparent)`,
                       color: phaseColor,
-                      border: `1px solid ${phaseColor}40`,
+                      border: `1px solid color-mix(in srgb, ${phaseColor} 25%, transparent)`,
                       whiteSpace: 'nowrap',
                     }}
                   >
@@ -782,7 +773,7 @@ export default function LearningRoadmap({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: 14,
+                        fontSize: 'var(--fs-sm)',
                         fontWeight: 600,
                         color: isDone ? MUTED : TEXT,
                         textDecoration: isDone ? 'line-through' : 'none',
@@ -798,9 +789,9 @@ export default function LearningRoadmap({
                         marginTop: 2,
                       }}
                     >
-                      <span style={{ fontSize: 11, color: MUTED }}>{day.focus_area}</span>
-                      <span style={{ fontSize: 11, color: '#475569' }}>•</span>
-                      <span style={{ fontSize: 11, color: phaseColor }}>{day.phase}</span>
+                      <span style={{ fontSize: 'var(--fs-xs)', color: MUTED }}>{day.focus_area}</span>
+                      <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-sub)' }}>•</span>
+                      <span style={{ fontSize: 'var(--fs-xs)', color: phaseColor }}>{day.phase}</span>
                     </div>
                   </div>
                 </div>
@@ -812,7 +803,7 @@ export default function LearningRoadmap({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
-                      fontSize: 12,
+                      fontSize: 'var(--fs-xs)',
                       color: MUTED,
                     }}
                   >
@@ -832,7 +823,7 @@ export default function LearningRoadmap({
                   style={{
                     padding: '14px 18px 18px 54px',
                     borderTop: `1px solid ${BORDER_COLOR}`,
-                    background: 'rgba(11, 15, 25, 0.4)',
+                    background: 'color-mix(in srgb, var(--bg-surface) 40%, transparent)',
                   }}
                 >
                   {/* Objective */}
@@ -845,16 +836,16 @@ export default function LearningRoadmap({
                         marginBottom: 14,
                         padding: '10px 14px',
                         borderRadius: 8,
-                        background: 'rgba(30, 41, 59, 0.5)',
+                        background: 'color-mix(in srgb, var(--bg-surface) 50%, transparent)',
                         borderLeft: `3px solid ${phaseColor}`,
                       }}
                     >
                       <Target size={15} color={phaseColor} style={{ marginTop: 2, flexShrink: 0 }} />
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: phaseColor, textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, color: phaseColor, textTransform: 'uppercase' }}>
                           Day Objective
                         </div>
-                        <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.5 }}>
                           {day.objective}
                         </div>
                       </div>
@@ -869,7 +860,7 @@ export default function LearningRoadmap({
                           display: 'flex',
                           alignItems: 'center',
                           gap: 6,
-                          fontSize: 12,
+                          fontSize: 'var(--fs-xs)',
                           fontWeight: 700,
                           color: CYAN,
                           marginBottom: 8,
@@ -887,7 +878,7 @@ export default function LearningRoadmap({
                               display: 'flex',
                               alignItems: 'flex-start',
                               gap: 10,
-                              fontSize: 13,
+                              fontSize: 'var(--fs-sm)',
                               color: TEXT,
                               lineHeight: 1.5,
                             }}
@@ -897,9 +888,9 @@ export default function LearningRoadmap({
                                 width: 16,
                                 height: 16,
                                 borderRadius: '50%',
-                                background: 'rgba(34, 211, 238, 0.15)',
+                                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
                                 color: CYAN,
-                                fontSize: 10,
+                                fontSize: 'var(--fs-xs)',
                                 fontWeight: 700,
                                 display: 'flex',
                                 alignItems: 'center',
@@ -925,7 +916,7 @@ export default function LearningRoadmap({
                           display: 'flex',
                           alignItems: 'center',
                           gap: 6,
-                          fontSize: 12,
+                          fontSize: 'var(--fs-xs)',
                           fontWeight: 700,
                           color: PURPLE,
                           marginBottom: 8,
@@ -943,7 +934,7 @@ export default function LearningRoadmap({
                               display: 'flex',
                               alignItems: 'center',
                               gap: 8,
-                              fontSize: 12,
+                              fontSize: 'var(--fs-xs)',
                               color: MUTED,
                             }}
                           >

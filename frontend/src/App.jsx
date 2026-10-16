@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './index.css';
 
-import ParticleField from './components/ParticleField';
-import AuroraBlobs from './components/AuroraBlobs';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Landing from './pages/Landing';
@@ -16,6 +14,21 @@ import Scorecard from './pages/Scorecard';
 import Progress from './pages/Progress';
 import SkillGap from './pages/SkillGap';
 import RecruiterDashboard from './pages/RecruiterDashboard';
+import DesignSystem from './pages/DesignSystem';
+
+// Focus mode. The interview is the most demanding screen in the app,
+// so the footer links are left out there: nothing on screen competes
+// with the question for attention.
+const FOCUS_ROUTES = ['/interview'];
+
+function useFocusMode() {
+  const { pathname } = useLocation();
+  return FOCUS_ROUTES.includes(pathname);
+}
+
+function FooterOutsideFocus({ user }) {
+  return useFocusMode() ? null : <Footer user={user} />;
+}
 
 function ProtectedRoute({ user, children, recruiterOnly }) {
   if (!user) return <Navigate to="/login" replace />;
@@ -50,10 +63,6 @@ export default function App() {
           Skip to main content
         </a>
 
-        {/* Immersive background layers */}
-        <AuroraBlobs />
-        <ParticleField particleCount={50} connectionDistance={130} style={{ opacity: 0.6 }} />
-
         <Navbar user={user} onLogout={handleLogout} />
         <main id="main-content" className="app-content" role="main">
           <Routes>
@@ -67,10 +76,11 @@ export default function App() {
             <Route path="/progress" element={<ProtectedRoute user={user}><Progress /></ProtectedRoute>} />
             <Route path="/skill-gap" element={<ProtectedRoute user={user}><SkillGap /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute user={user} recruiterOnly><RecruiterDashboard /></ProtectedRoute>} />
+            <Route path="/design-system" element={<DesignSystem />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-        <Footer />
+        <FooterOutsideFocus user={user} />
       </div>
     </BrowserRouter>
   );

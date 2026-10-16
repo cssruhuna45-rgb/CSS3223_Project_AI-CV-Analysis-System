@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp, Home, Award, Sparkles, Menu, X } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 export default function Navbar({ user, onLogout }) {
   const navigate = useNavigate();
@@ -68,8 +69,8 @@ export default function Navbar({ user, onLogout }) {
       role="navigation"
       aria-label="Main navigation"
       style={{
-        boxShadow: scrolled ? '0 8px 32px rgba(0, 0, 0, 0.4)' : 'none',
-        background: scrolled ? 'rgba(8, 12, 20, 0.92)' : 'rgba(8, 12, 20, 0.72)',
+        boxShadow: scrolled ? '0 8px 32px color-mix(in srgb, var(--shadow-ink) 40%, transparent)' : 'none',
+        background: scrolled ? 'color-mix(in srgb, var(--bg-surface) 92%, transparent)' : 'color-mix(in srgb, var(--bg-surface) 72%, transparent)',
       }}
     >
       {/* Brand Logo */}
@@ -87,26 +88,26 @@ export default function Navbar({ user, onLogout }) {
         }}
       >
         <div className="nav-brand-icon">
-          <Brain size={20} color="#FFFFFF" />
+          <Brain size={20} color="var(--on-accent)" />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.02em', color: '#F8FAFC' }}>
+          <span style={{ fontWeight: 800, fontSize: 'var(--fs-lg)', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
             AI<span style={{
-              background: 'linear-gradient(135deg, #818CF8 0%, #22D3EE 100%)',
+              background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}>Interview</span>
           </span>
           <span style={{
-            fontSize: 10,
+            fontSize: 'var(--fs-xs)',
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             padding: '2px 7px',
             borderRadius: 6,
-            background: 'rgba(99, 102, 241, 0.15)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-            color: '#A5B4FC',
+            background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+            color: 'var(--accent)',
           }}>
             AI 2.0
           </span>
@@ -182,18 +183,20 @@ export default function Navbar({ user, onLogout }) {
         </div>
       )}
 
-      {/* User Actions */}
+      {/* Theme switch and user actions, kept together on the right */}
+      <div className="nav-actions">
+      <ThemeToggle />
       {user ? (
         <div style={{ position: 'relative' }} ref={dropdownRef} className="nav-user-desktop">
           <button
             className="btn btn-ghost"
             style={{
               gap: 10,
-              fontSize: 13.5,
+              fontSize: 'var(--fs-sm)',
               padding: '6px 12px',
               borderRadius: 12,
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'color-mix(in srgb, var(--fg) 3%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
               transition: 'all 0.25s ease',
             }}
             onClick={() => setMenuOpen((o) => !o)}
@@ -205,14 +208,14 @@ export default function Navbar({ user, onLogout }) {
               width: 30,
               height: 30,
               borderRadius: 8,
-              background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+              background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 13,
+              fontSize: 'var(--fs-sm)',
               fontWeight: 700,
-              color: '#FFFFFF',
-              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
+              color: 'var(--on-accent)',
+              boxShadow: '0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent)',
             }}>
               {user.name?.[0]?.toUpperCase() || 'U'}
             </div>
@@ -232,28 +235,26 @@ export default function Navbar({ user, onLogout }) {
                 position: 'absolute',
                 right: 0,
                 top: '120%',
-                background: 'rgba(15, 23, 42, 0.95)',
-                backdropFilter: 'blur(24px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'color-mix(in srgb, var(--bg-surface) 95%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--fg) 12%, transparent)',
                 borderRadius: 14,
                 padding: '8px',
                 minWidth: 210,
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06)',
+                boxShadow: 'none',
                 animationDuration: '0.25s',
               }}
             >
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', marginBottom: 6 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>{user.name}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>{user.email}</div>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', marginBottom: 6 }}>
+                <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>{user.name}</div>
+                <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: 2 }}>{user.email}</div>
                 <span style={{
                   display: 'inline-block',
-                  fontSize: 10,
+                  fontSize: 'var(--fs-xs)',
                   fontWeight: 600,
                   textTransform: 'uppercase',
-                  color: '#22D3EE',
-                  background: 'rgba(6, 182, 212, 0.12)',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
+                  color: 'var(--accent)',
+                  background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
                   borderRadius: 6,
                   padding: '2px 6px',
                   marginTop: 6,
@@ -267,7 +268,7 @@ export default function Navbar({ user, onLogout }) {
                 style={{
                   width: '100%',
                   justifyContent: 'flex-start',
-                  fontSize: 13,
+                  fontSize: 'var(--fs-sm)',
                   gap: 8,
                   padding: '8px 12px',
                   color: 'var(--danger-light)',
@@ -287,7 +288,7 @@ export default function Navbar({ user, onLogout }) {
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             className="btn btn-ghost"
-            style={{ fontSize: 13.5 }}
+            style={{ fontSize: 'var(--fs-sm)' }}
             onClick={() => navigate('/login')}
             aria-label="Sign in to your account"
           >
@@ -295,7 +296,7 @@ export default function Navbar({ user, onLogout }) {
           </button>
           <button
             className="btn btn-primary"
-            style={{ fontSize: 13.5, padding: '8px 18px' }}
+            style={{ fontSize: 'var(--fs-sm)', padding: '8px 18px' }}
             onClick={() => navigate('/register')}
             aria-label="Create a new account"
           >
@@ -303,6 +304,7 @@ export default function Navbar({ user, onLogout }) {
           </button>
         </div>
       )}
+      </div>
     </nav>
   );
 }

@@ -1,14 +1,14 @@
 import React from 'react';
 import { BookOpen, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 
-const ACCENT = '#6366F1';
-const CYAN = '#06B6D4';
-const TEXT = '#F8FAFC';
-const MUTED = '#94A3B8';
-const GOOD = '#10B981';
-const GAP = '#F59E0B';
-const CARD_BG = 'rgba(15, 23, 42, 0.75)';
-const BORDER = 'rgba(255, 255, 255, 0.08)';
+const ACCENT = 'var(--accent)';
+const CYAN = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const MUTED = 'var(--text-muted)';
+const GOOD = 'var(--success)';
+const GAP = 'var(--warning)';
+const CARD_BG = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
+const BORDER = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 
 export default function ModelAnswer({ data, loading, error }) {
   if (loading) {
@@ -24,7 +24,7 @@ export default function ModelAnswer({ data, loading, error }) {
       >
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <Sparkles size={18} color={CYAN} className="animate-spin" />
-          <span style={{ color: TEXT, fontSize: 14, fontWeight: 500 }}>
+          <span style={{ color: TEXT, fontSize: 'var(--fs-sm)', fontWeight: 500 }}>
             Consulting domain knowledge base for ideal model answer…
           </span>
         </div>
@@ -39,8 +39,8 @@ export default function ModelAnswer({ data, loading, error }) {
         style={{
           marginBottom: 20,
           padding: 18,
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
+          background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
         }}
       >
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -49,7 +49,7 @@ export default function ModelAnswer({ data, loading, error }) {
             color={GAP}
             style={{ flexShrink: 0, marginTop: 2 }}
           />
-          <span style={{ color: '#FEF3C7', fontSize: 13, lineHeight: 1.6 }}>
+          <span style={{ color: 'var(--warning)', fontSize: 'var(--fs-sm)', lineHeight: 1.6 }}>
             Expected answer unavailable: {error}. Your answer was still securely recorded.
           </span>
         </div>
@@ -70,7 +70,7 @@ export default function ModelAnswer({ data, loading, error }) {
         marginBottom: 24,
         background: CARD_BG,
         border: `1px solid ${BORDER}`,
-        borderTop: '3px solid #06B6D4',
+        borderTop: '3px solid var(--accent)',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -88,18 +88,18 @@ export default function ModelAnswer({ data, loading, error }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: 'rgba(6, 182, 212, 0.15)',
-            border: '1px solid rgba(6, 182, 212, 0.3)',
+            background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: CYAN,
           }}>
             <BookOpen size={16} />
           </div>
           <div>
-            <span style={{ fontWeight: 700, fontSize: 15, color: TEXT }}>
+            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: TEXT }}>
               Ideal Model Answer
             </span>
-            <span style={{ fontSize: 12, color: MUTED, display: 'block' }}>
+            <span style={{ fontSize: 'var(--fs-xs)', color: MUTED, display: 'block' }}>
               Standard industry benchmark
             </span>
           </div>
@@ -108,16 +108,16 @@ export default function ModelAnswer({ data, loading, error }) {
         <span
           className="badge"
           style={{
-            fontSize: 11.5,
+            fontSize: 'var(--fs-xs)',
             padding: '4px 10px',
             background: data.grounded
-              ? 'rgba(16, 185, 129, 0.12)'
-              : 'rgba(245, 158, 11, 0.12)',
+              ? 'color-mix(in srgb, var(--success) 12%, transparent)'
+              : 'color-mix(in srgb, var(--warning) 12%, transparent)',
             color: data.grounded ? GOOD : GAP,
             border: `1px solid ${
               data.grounded
-                ? 'rgba(16, 185, 129, 0.3)'
-                : 'rgba(245, 158, 11, 0.3)'
+                ? 'color-mix(in srgb, var(--success) 30%, transparent)'
+                : 'color-mix(in srgb, var(--warning) 30%, transparent)'
             }`,
           }}
         >
@@ -127,15 +127,15 @@ export default function ModelAnswer({ data, loading, error }) {
 
       {/* The model answer text */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
+        background: 'color-mix(in srgb, var(--fg) 2%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--fg) 5%, transparent)',
         borderRadius: 12,
         padding: '16px 18px',
         marginBottom: 16,
       }}>
         <p
           style={{
-            fontSize: 14,
+            fontSize: 'var(--fs-sm)',
             color: TEXT,
             lineHeight: 1.7,
             margin: 0,
@@ -151,7 +151,7 @@ export default function ModelAnswer({ data, loading, error }) {
         <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginTop: 16 }}>
           <p
             style={{
-              fontSize: 12,
+              fontSize: 'var(--fs-xs)',
               color: GOOD,
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
@@ -173,7 +173,7 @@ export default function ModelAnswer({ data, loading, error }) {
                   color={GOOD}
                   style={{ flexShrink: 0, marginTop: 2 }}
                 />
-                <p style={{ fontSize: 13.5, color: TEXT, lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.5, margin: 0 }}>
                   {point}
                 </p>
               </div>
@@ -187,7 +187,7 @@ export default function ModelAnswer({ data, loading, error }) {
         <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginTop: 16 }}>
           <p
             style={{
-              fontSize: 12,
+              fontSize: 'var(--fs-xs)',
               color: GAP,
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
@@ -209,7 +209,7 @@ export default function ModelAnswer({ data, loading, error }) {
                   color={GAP}
                   style={{ flexShrink: 0, marginTop: 2 }}
                 />
-                <p style={{ fontSize: 13.5, color: '#FEF3C7', lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--warning)', lineHeight: 1.5, margin: 0 }}>
                   {item}
                 </p>
               </div>
@@ -222,7 +222,7 @@ export default function ModelAnswer({ data, loading, error }) {
       {sources.length > 0 && (
         <p
           style={{
-            fontSize: 12,
+            fontSize: 'var(--fs-xs)',
             color: MUTED,
             marginTop: 16,
             marginBottom: 0,

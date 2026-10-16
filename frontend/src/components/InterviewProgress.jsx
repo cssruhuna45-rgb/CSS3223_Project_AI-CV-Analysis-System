@@ -7,21 +7,21 @@ import { interviewAPI } from '../services/api';
 
 // Same palette the scorecard uses, so this reads as part of the app
 // rather than a bolted-on page.
-const ACCENT = '#6366F1';
-const ACCENT_LIGHT = '#818CF8';
-const TEXT = '#F8FAFC';
-const MUTED = '#94A3B8';
-const TRACK = 'rgba(255, 255, 255, 0.08)';
-const CARD = 'rgba(15, 23, 42, 0.75)';
+const ACCENT = 'var(--accent)';
+const ACCENT_LIGHT = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const MUTED = 'var(--text-muted)';
+const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
+const CARD = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
 
 // The scorecard's hues, kept in step so a colour means the same thing
 // on both panels: green is progress, rose is a drop back.
-const GREEN = '#10B981';
-const BLUE = '#38BDF8';
-const AMBER = '#F59E0B';
-const PURPLE = '#A855F7';
-const CYAN = '#06B6D4';
-const ROSE = '#F43F5E';
+const GREEN = 'var(--success)';
+const BLUE = 'var(--accent)';
+const AMBER = 'var(--warning)';
+const PURPLE = 'var(--accent)';
+const CYAN = 'var(--accent)';
+const ROSE = 'var(--danger)';
 
 // Each trend gets its own colour, so the badge reads before the words do.
 const TREND_COLORS = {
@@ -93,21 +93,21 @@ function StatCard({ label, value, suffix, hint, hintColor, tone = ACCENT }) {
       padding: 20, background: CARD, borderTop: `3px solid ${tone}`,
     }}>
       <p style={{
-        fontSize: 12, color: tone, marginBottom: 10, fontWeight: 600,
+        fontSize: 'var(--fs-xs)', color: tone, marginBottom: 10, fontWeight: 600,
         textTransform: 'uppercase', letterSpacing: '0.5px',
       }}>
         {label}
       </p>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
-        <span style={{ fontSize: 32, fontWeight: 700, color: tone, lineHeight: 1 }}>
+        <span style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, color: tone, lineHeight: 1 }}>
           {value}
         </span>
         {suffix && (
-          <span style={{ fontSize: 13, color: TEXT, marginBottom: 4 }}>{suffix}</span>
+          <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, marginBottom: 4 }}>{suffix}</span>
         )}
       </div>
       {hint && (
-        <p style={{ fontSize: 12, color: hintColor || TEXT, marginTop: 8 }}>{hint}</p>
+        <p style={{ fontSize: 'var(--fs-xs)', color: hintColor || TEXT, marginTop: 8 }}>{hint}</p>
       )}
     </div>
   );
@@ -217,7 +217,7 @@ export default function InterviewProgress({ compact = false }) {
 
   if (loading) {
     return (
-      <div className="card" style={{ textAlign: 'center', color: TEXT, fontSize: 14, background: CARD }}>
+      <div className="card" style={{ textAlign: 'center', color: TEXT, fontSize: 'var(--fs-sm)', background: CARD }}>
         Loading your progress...
       </div>
     );
@@ -230,7 +230,7 @@ export default function InterviewProgress({ compact = false }) {
         background: CARD, borderTop: `3px solid ${AMBER}`,
       }}>
         <AlertTriangle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} />
-        <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>
           Your progress could not be loaded. {error}
         </p>
       </div>
@@ -245,7 +245,7 @@ export default function InterviewProgress({ compact = false }) {
         textAlign: 'center', background: CARD, borderTop: `3px solid ${PURPLE}`,
       }}>
         <History size={28} color={PURPLE} style={{ marginBottom: 12 }} />
-        <p style={{ fontSize: 14, color: TEXT, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>
           No completed interviews yet. Finish one and your score history
           will build up here.
         </p>
@@ -268,7 +268,7 @@ export default function InterviewProgress({ compact = false }) {
       {!compact && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <TrendingUp size={18} color={ACCENT} />
-          <h2 style={{ fontWeight: 600, fontSize: 18 }}>My Interview Progress</h2>
+          <h2 style={{ fontWeight: 600, fontSize: 'var(--fs-lg)' }}>My Interview Progress</h2>
         </div>
       )}
 
@@ -323,10 +323,10 @@ export default function InterviewProgress({ compact = false }) {
       {/* Trend badge */}
       <div style={{ marginBottom: 24 }}>
         <span className="badge" style={{
-          background: `${trendColor}1F`,
+          background: `color-mix(in srgb, ${trendColor} 12%, transparent)`,
           color: trendColor,
-          border: `1px solid ${trendColor}59`,
-          fontSize: 13,
+          border: `1px solid color-mix(in srgb, ${trendColor} 35%, transparent)`,
+          fontSize: 'var(--fs-sm)',
           fontWeight: 600,
           padding: '6px 14px',
         }}>
@@ -341,7 +341,7 @@ export default function InterviewProgress({ compact = false }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Award size={18} color={GREEN} />
-            <span style={{ fontWeight: 700, fontSize: 15, color: GREEN }}>Score progression</span>
+            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: GREEN }}>Score progression</span>
           </div>
           <ScoreChart points={chartPoints} />
         </div>
@@ -353,7 +353,7 @@ export default function InterviewProgress({ compact = false }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <History size={18} color={PURPLE} />
-          <span style={{ fontWeight: 700, fontSize: 15, color: PURPLE }}>Interview history</span>
+          <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: PURPLE }}>Interview history</span>
         </div>
 
         {/* Narrow screens scroll the table rather than the page. */}
@@ -361,11 +361,11 @@ export default function InterviewProgress({ compact = false }) {
           <table style={{
             width: '100%',
             borderCollapse: 'collapse',
-            fontSize: 14,
+            fontSize: 'var(--fs-sm)',
             minWidth: 420,
           }}>
             <thead>
-              <tr style={{ borderBottom: `1px solid ${PURPLE}59` }}>
+              <tr style={{ borderBottom: `1px solid color-mix(in srgb, ${PURPLE} 35%, transparent)` }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px 12px 0', color: PURPLE, fontWeight: 600 }}>
                   Date
                 </th>
@@ -390,7 +390,7 @@ export default function InterviewProgress({ compact = false }) {
                     cursor: item.sessionId ? 'pointer' : 'default',
                     transition: 'background 0.2s',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(216,196,182,0.06)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--warning) 6%, transparent)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 >
                   <td style={{ padding: '12px 12px 12px 0', color: TEXT }}>
@@ -414,8 +414,8 @@ export default function InterviewProgress({ compact = false }) {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 4,
-                          fontSize: 12,
-                          color: ACCENT,
+                          fontSize: 'var(--fs-xs)',
+                          color: 'var(--accent-text)',
                           fontWeight: 600,
                         }}
                       >

@@ -6,19 +6,19 @@ import {
 } from 'lucide-react';
 import { resumeAPI, interviewAPI } from '../services/api';
 
-const ACCENT = '#6366F1';
-const ACCENT_LIGHT = '#818CF8';
-const CYAN = '#06B6D4';
-const TEXT = '#F8FAFC';
-const MUTED = '#94A3B8';
-const SUB = '#64748B';
-const TRACK = 'rgba(255, 255, 255, 0.08)';
-const CARD = 'rgba(15, 23, 42, 0.72)';
+const ACCENT = 'var(--accent)';
+const ACCENT_LIGHT = 'var(--accent)';
+const CYAN = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const MUTED = 'var(--text-muted)';
+const SUB = 'var(--text-sub)';
+const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
+const CARD = 'color-mix(in srgb, var(--bg-surface) 72%, transparent)';
 
-const GREEN = '#10B981';
-const BLUE = '#38BDF8';
-const AMBER = '#F59E0B';
-const ROSE = '#F43F5E';
+const GREEN = 'var(--success)';
+const BLUE = 'var(--accent)';
+const AMBER = 'var(--warning)';
+const ROSE = 'var(--danger)';
 
 const TREND = {
   IMPROVING: { color: GREEN, icon: <TrendingUp size={14} />, label: 'Improving' },
@@ -53,14 +53,14 @@ function Stat({ label, value, hint, color, delay = 0 }) {
         animationDelay: `${delay}s`,
       }}
     >
-      <p style={{ fontSize: 12, color: MUTED, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+      <p style={{ fontSize: 'var(--fs-xs)', color: MUTED, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
         {label}
       </p>
-      <div style={{ fontSize: 32, fontWeight: 800, color: color || '#FFFFFF', lineHeight: 1 }}>
+      <div style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1 }}>
         {value}
       </div>
       {hint && (
-        <p style={{ fontSize: 12, color: SUB, marginTop: 8 }}>{hint}</p>
+        <p style={{ fontSize: 'var(--fs-xs)', color: SUB, marginTop: 8 }}>{hint}</p>
       )}
     </div>
   );
@@ -73,7 +73,7 @@ function Section({ title, action, children }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         marginBottom: 14, gap: 16,
       }}>
-        <h2 style={{ fontSize: 17, fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</h2>
+        <h2 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</h2>
         {action}
       </div>
       {children}
@@ -137,14 +137,14 @@ export default function Home({ user }) {
       <div style={{ maxWidth: 940, margin: '0 auto', padding: '100px 24px', textAlign: 'center' }}>
         <div style={{
           width: 60, height: 60, borderRadius: '50%',
-          background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.3)',
+          background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px',
           animation: 'breathe 2s ease-in-out infinite',
         }}>
           <Clock size={28} color={ACCENT_LIGHT} className="animate-spin" />
         </div>
-        <p style={{ color: TEXT, fontSize: 16, fontWeight: 600 }}>Loading your workspace…</p>
-        <p style={{ color: MUTED, fontSize: 13, marginTop: 4 }}>Syncing your interviews, CV profile, and performance metrics.</p>
+        <p style={{ color: TEXT, fontSize: 'var(--fs-base)', fontWeight: 600 }}>Loading your workspace…</p>
+        <p style={{ color: MUTED, fontSize: 'var(--fs-sm)', marginTop: 4 }}>Syncing your interviews, CV profile, and performance metrics.</p>
       </div>
     );
   }
@@ -158,26 +158,26 @@ export default function Home({ user }) {
       <div style={{ marginBottom: 32, position: 'relative' }}>
         <div style={{
           position: 'absolute', top: -30, right: 0, width: 300, height: 200,
-          background: 'radial-gradient(ellipse, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
+          background: 'transparent',
           pointerEvents: 'none',
         }} />
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px',
-          borderRadius: 20, background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)',
+          borderRadius: 20, background: 'color-mix(in srgb, var(--accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
           animation: 'pillGlow 3s ease-in-out infinite',
         }}>
           <Sparkles size={13} color={CYAN} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#A5B4FC' }}>Candidate Cockpit</span>
+          <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--accent)' }}>Candidate Cockpit</span>
         </div>
         <h1 style={{
-          fontSize: 30, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em',
-          background: 'linear-gradient(135deg, #F8FAFC 0%, #A5B4FC 80%)',
+          fontSize: 'var(--fs-2xl)', fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em',
+          background: 'linear-gradient(var(--text-primary), var(--text-primary))',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
         }}>
           Welcome back, {firstName}
         </h1>
-        <p style={{ color: MUTED, fontSize: 14.5 }}>
+        <p style={{ color: MUTED, fontSize: 'var(--fs-sm)' }}>
           {interviews.length === 0
             ? 'Upload your CV to identify skill gaps and sit your first practice interview.'
             : `You have completed ${progress.totalInterviews} interview${progress.totalInterviews === 1 ? '' : 's'}. Review your progress or prepare for your next challenge.`}
@@ -186,19 +186,19 @@ export default function Home({ user }) {
 
       {error && (
         <div className="card" style={{
-          background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.25)',
+          background: 'color-mix(in srgb, var(--danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--danger) 25%, transparent)',
           padding: 16, marginBottom: 28, display: 'flex', gap: 12, alignItems: 'center',
           animation: 'fadeIn 0.4s ease',
         }}>
           <AlertTriangle size={18} color={ROSE} style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: 14, color: '#FECDD3' }}>{error}</span>
+          <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)' }}>{error}</span>
         </div>
       )}
 
       {/* Stats Cards */}
       {progress && progress.totalInterviews > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 36 }}>
-          <Stat label="Total Interviews" value={progress.totalInterviews} color="#F8FAFC" delay={0.05} />
+          <Stat label="Total Interviews" value={progress.totalInterviews} color="var(--text-primary)" delay={0.05} />
           <Stat
             label="Latest Score"
             value={progress.latestScore != null ? `${progress.latestScore}/100` : '—'}
@@ -214,7 +214,7 @@ export default function Home({ user }) {
           <Stat
             label="Trend"
             value={
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-lg)' }}>
                 {trend.icon}
                 {progress.scoreDifference != null && progress.scoreDifference !== 0
                   ? `${progress.scoreDifference > 0 ? '+' : ''}${progress.scoreDifference}`
@@ -234,7 +234,7 @@ export default function Home({ user }) {
           latestResume && (
             <button
               className="btn btn-ghost"
-              style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
+              style={{ fontSize: 'var(--fs-sm)', padding: '6px 12px', gap: 6 }}
               onClick={() => navigate('/upload')}
             >
               <Upload size={14} /> Upload another CV
@@ -247,8 +247,8 @@ export default function Home({ user }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{
                 width: 52, height: 52, borderRadius: 14,
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.2))',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
+                background: 'linear-gradient(color-mix(in srgb, var(--accent) 20%, transparent), color-mix(in srgb, var(--accent) 20%, transparent))',
+                border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: ACCENT_LIGHT, flexShrink: 0,
                 transition: 'transform 0.3s var(--ease-spring)',
@@ -259,15 +259,15 @@ export default function Home({ user }) {
                 <FileText size={24} />
               </div>
               <div style={{ flex: 1, minWidth: 200 }}>
-                <p style={{ fontSize: 16, fontWeight: 700, color: TEXT }}>{latestResume.originalFileName}</p>
-                <p style={{ fontSize: 13, color: MUTED, marginTop: 3 }}>
+                <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT }}>{latestResume.originalFileName}</p>
+                <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginTop: 3 }}>
                   Uploaded {formatDate(latestResume.uploadedAt)}
                   {resumes.length > 1 && ` · ${resumes.length} CVs on file`}
                 </p>
               </div>
               <button
                 className="btn btn-cta"
-                style={{ fontSize: 14, padding: '12px 24px' }}
+                style={{ fontSize: 'var(--fs-sm)', padding: '12px 24px' }}
                 onClick={startFromSaved}
               >
                 <Play size={15} /> Start an interview
@@ -278,18 +278,18 @@ export default function Home({ user }) {
           <div className="card card-glow" style={{ background: CARD, padding: '40px 24px', textAlign: 'center' }}>
             <div style={{
               width: 56, height: 56, borderRadius: 16,
-              background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.25)',
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
             }} className="animate-float">
               <Upload size={24} color={CYAN} />
             </div>
-            <p style={{ fontSize: 17, fontWeight: 700, color: TEXT, marginBottom: 6 }}>No CV uploaded yet</p>
-            <p style={{ fontSize: 14, color: MUTED, marginBottom: 22, maxWidth: 460, margin: '0 auto 22px', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, marginBottom: 6 }}>No CV uploaded yet</p>
+            <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginBottom: 22, maxWidth: 460, margin: '0 auto 22px', lineHeight: 1.6 }}>
               Upload your resume and our AI will extract your skills, highlight experience gaps, and generate questions tailored to your target job role.
             </p>
             <button
               className="btn btn-cta"
-              style={{ fontSize: 14, padding: '13px 26px' }}
+              style={{ fontSize: 'var(--fs-sm)', padding: '13px 26px' }}
               onClick={() => navigate('/upload')}
             >
               <Upload size={15} /> Upload your CV
@@ -305,7 +305,7 @@ export default function Home({ user }) {
           action={
             <button
               className="btn btn-ghost"
-              style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
+              style={{ fontSize: 'var(--fs-sm)', padding: '6px 12px', gap: 6 }}
               onClick={() => navigate('/progress')}
             >
               <BarChart2 size={14} /> Full Analytics
@@ -337,7 +337,7 @@ export default function Home({ user }) {
                   background: `${scoreColor(it.score)}1A`,
                   border: `1.5px solid ${scoreColor(it.score)}4D`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: scoreColor(it.score), fontWeight: 800, fontSize: 15, flexShrink: 0,
+                  color: scoreColor(it.score), fontWeight: 800, fontSize: 'var(--fs-base)', flexShrink: 0,
                   boxShadow: `0 0 12px ${scoreColor(it.score)}22`,
                   transition: 'transform 0.25s var(--ease-spring), box-shadow 0.25s ease',
                 }}>
@@ -345,13 +345,13 @@ export default function Home({ user }) {
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14.5, fontWeight: 600, color: TEXT }}>
+                  <p style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>
                     {formatDate(it.completedAt || it.startedAt)}
                     {it.status !== 'completed' && (
                       <span style={{
-                        color: AMBER, fontSize: 11.5, marginLeft: 10,
-                        padding: '2px 8px', borderRadius: 8, background: 'rgba(245, 158, 11, 0.12)',
-                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                        color: AMBER, fontSize: 'var(--fs-xs)', marginLeft: 10,
+                        padding: '2px 8px', borderRadius: 8, background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
                       }}>
                         Incomplete
                       </span>
@@ -359,7 +359,7 @@ export default function Home({ user }) {
                   </p>
                   {it.feedbackSummary && (
                     <p style={{
-                      fontSize: 13, color: MUTED, marginTop: 3,
+                      fontSize: 'var(--fs-sm)', color: MUTED, marginTop: 3,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       {it.feedbackSummary}
@@ -369,7 +369,7 @@ export default function Home({ user }) {
 
                 {typeof it.scoreChange === 'number' && it.scoreChange !== 0 && (
                   <span style={{
-                    fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                    fontSize: 'var(--fs-sm)', fontWeight: 700, whiteSpace: 'nowrap',
                     color: it.scoreChange > 0 ? GREEN : ROSE,
                   }}>
                     {it.scoreChange > 0 ? '+' : ''}{it.scoreChange}
@@ -378,7 +378,7 @@ export default function Home({ user }) {
 
                 {it.sessionId && (
                   <span style={{
-                    fontSize: 12.5,
+                    fontSize: 'var(--fs-xs)',
                     color: CYAN,
                     display: 'flex',
                     alignItems: 'center',
@@ -387,8 +387,8 @@ export default function Home({ user }) {
                     fontWeight: 600,
                     padding: '6px 12px',
                     borderRadius: 8,
-                    background: 'rgba(6, 182, 212, 0.1)',
-                    border: '1px solid rgba(6, 182, 212, 0.25)',
+                    background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
                     transition: 'all 0.2s ease',
                   }}>
                     View Scorecard <ChevronRight size={14} />
@@ -403,11 +403,11 @@ export default function Home({ user }) {
                 style={{
                   width: '100%', padding: '14px 20px', border: 'none', cursor: 'pointer',
                   borderTop: `1px solid ${TRACK}`, background: 'transparent',
-                  color: ACCENT_LIGHT, fontFamily: 'var(--font-sans)', fontSize: 13,
+                  color: ACCENT_LIGHT, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-sm)',
                   fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   transition: 'background 0.2s ease',
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.06)'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 6%, transparent)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
                 See all {interviews.length} interviews <ChevronRight size={14} />
@@ -420,22 +420,22 @@ export default function Home({ user }) {
       {/* First-Run Nudge Card */}
       {latestResume && interviews.length === 0 && (
         <div className="card card-glow" style={{
-          background: 'rgba(99, 102, 241, 0.08)',
-          border: '1px solid rgba(99, 102, 241, 0.25)',
+          background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
           padding: '24px 28px', display: 'flex', gap: 16, alignItems: 'flex-start',
         }}>
           <div style={{
             width: 44, height: 44, borderRadius: 12,
-            background: 'rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'color-mix(in srgb, var(--accent) 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: ACCENT_LIGHT, flexShrink: 0,
           }} className="animate-float">
             <Trophy size={22} />
           </div>
           <div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 4 }}>
+            <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, marginBottom: 4 }}>
               You have not sat your first interview yet
             </p>
-            <p style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, lineHeight: 1.6 }}>
               Questions will be dynamically synthesized from your CV and tailored to your target job track.
               Once finished, you will receive an in-depth scorecard with audio transcripts, feedback, and a 14-day study plan.
             </p>

@@ -43,23 +43,23 @@ export default function Register({ onLogin }) {
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }} className="animate-fade-in-up">
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div className="auth-icon">
-            <Brain size={30} color="#FFFFFF" />
+            <Brain size={30} color="var(--on-accent)" />
           </div>
           <h1 style={{
-            fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
-            background: 'linear-gradient(135deg, #F8FAFC 0%, #A5B4FC 100%)',
+            fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
+            background: 'linear-gradient(var(--text-primary), var(--text-primary))',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}>Create account</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Join the AI Interview Platform</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>Join the AI Interview Platform</p>
         </div>
 
         <div className="card auth-card">
           {/* Role Toggle */}
           <div style={{
             display: 'flex',
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'color-mix(in srgb, var(--fg) 4%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
             borderRadius: 12,
             padding: 4,
             marginBottom: 24,
@@ -71,12 +71,12 @@ export default function Register({ onLogin }) {
               <button key={r.key} onClick={() => setForm(f => ({ ...f, role: r.key }))}
                 style={{
                   flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
+                  fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-sm)', fontWeight: 600,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   transition: 'all 0.3s var(--ease-smooth)',
-                  background: form.role === r.key ? 'linear-gradient(135deg, #6366F1, #4F46E5)' : 'transparent',
-                  color: form.role === r.key ? '#FFFFFF' : 'var(--text-secondary)',
-                  boxShadow: form.role === r.key ? '0 4px 16px rgba(99, 102, 241, 0.4)' : 'none',
+                  background: form.role === r.key ? 'linear-gradient(var(--accent-solid), var(--accent-solid))' : 'transparent',
+                  color: form.role === r.key ? 'var(--on-accent)' : 'var(--text-secondary)',
+                  boxShadow: form.role === r.key ? '0 4px 16px color-mix(in srgb, var(--accent) 40%, transparent)' : 'none',
                   transform: form.role === r.key ? 'scale(1.02)' : 'scale(1)',
                 }}>
                 {r.icon} {r.label}
@@ -109,7 +109,8 @@ export default function Register({ onLogin }) {
                   style={{ paddingLeft: 42, paddingRight: 42 }}
                   value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
-                  style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+                  aria-label="Show password" aria-pressed={showPass}
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -117,12 +118,12 @@ export default function Register({ onLogin }) {
 
             {error && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
                 borderRadius: 10,
                 padding: '12px 14px',
-                fontSize: 13,
-                color: '#FCA5A5',
+                fontSize: 'var(--fs-sm)',
+                color: 'var(--danger)',
                 animation: 'fadeIn 0.3s ease',
               }}>
                 {error}
@@ -145,7 +146,7 @@ export default function Register({ onLogin }) {
           </form>
 
           <div className="glow-line" />
-          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ textAlign: 'center', fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
             Already have an account?{' '}
             <button
               type="button"
@@ -158,7 +159,7 @@ export default function Register({ onLogin }) {
                 textDecoration: 'underline', textUnderlineOffset: '3px',
               }}
               onClick={() => navigate('/login')}
-              onMouseEnter={(e) => { e.target.style.textShadow = '0 0 12px rgba(6, 182, 212, 0.5)'; }}
+              onMouseEnter={(e) => { e.target.style.textShadow = '0 0 12px color-mix(in srgb, var(--accent) 50%, transparent)'; }}
               onMouseLeave={(e) => { e.target.style.textShadow = 'none'; }}
             >Sign in</button>
           </p>

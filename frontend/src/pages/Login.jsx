@@ -44,15 +44,15 @@ export default function Login({ onLogin }) {
       <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }} className="animate-fade-in-up">
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div className="auth-icon">
-            <Brain size={30} color="#FFFFFF" />
+            <Brain size={30} color="var(--on-accent)" />
           </div>
           <h1 style={{
-            fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
-            background: 'linear-gradient(135deg, #F8FAFC 0%, #A5B4FC 100%)',
+            fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
+            background: 'linear-gradient(var(--text-primary), var(--text-primary))',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}>Welcome back</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Sign in to your AI Interview account</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>Sign in to your AI Interview account</p>
         </div>
 
         <div className="card auth-card">
@@ -75,7 +75,8 @@ export default function Login({ onLogin }) {
                   style={{ paddingLeft: 42, paddingRight: 42 }}
                   value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
-                  style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+                  aria-label="Show password" aria-pressed={showPass}
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -83,12 +84,12 @@ export default function Login({ onLogin }) {
 
             {error && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
                 borderRadius: 10,
                 padding: '12px 14px',
-                fontSize: 13,
-                color: '#FCA5A5',
+                fontSize: 'var(--fs-sm)',
+                color: 'var(--danger)',
                 animation: 'fadeIn 0.3s ease',
               }}>
                 {error}
@@ -111,7 +112,7 @@ export default function Login({ onLogin }) {
           </form>
 
           <div className="glow-line" />
-          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>
+          <p style={{ textAlign: 'center', fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
             Don't have an account?{' '}
             <button
               type="button"
@@ -124,7 +125,7 @@ export default function Login({ onLogin }) {
                 textDecoration: 'underline', textUnderlineOffset: '3px',
               }}
               onClick={() => navigate('/register')}
-              onMouseEnter={(e) => { e.target.style.textShadow = '0 0 12px rgba(6, 182, 212, 0.5)'; }}
+              onMouseEnter={(e) => { e.target.style.textShadow = '0 0 12px color-mix(in srgb, var(--accent) 50%, transparent)'; }}
               onMouseLeave={(e) => { e.target.style.textShadow = 'none'; }}
             >Create one</button>
           </p>
