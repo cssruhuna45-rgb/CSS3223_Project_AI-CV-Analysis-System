@@ -157,6 +157,14 @@ class CVReviewResponse(BaseModel):
 
     checks: List[CVCheck] = Field(default_factory=list)
 
+    weak_bullets: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Bullets with a weak opener or no number, chosen in Python, "
+            "offered to the bullet tuner."
+        ),
+    )
+
     summary: str = ""
     strengths: List[str] = Field(default_factory=list)
     improvements: List[CVImprovement] = Field(default_factory=list)
@@ -170,3 +178,57 @@ class CVReviewResponse(BaseModel):
     )
 
     review_error: str = ""
+
+
+# ============================================================
+# CV bullet tuner (Google XYZ form)
+# ============================================================
+
+class BulletTuneRequest(BaseModel):
+    bullet: str = Field(
+        ...,
+        min_length=1,
+        max_length=400,
+        description="One CV bullet point to rewrite.",
+    )
+
+    job_field: str = Field(
+        default="",
+        description="Target role, so the wording suits it.",
+    )
+
+
+class BulletGap(BaseModel):
+    placeholder: str = Field(
+        ...,
+        description='The bracketed gap as it appears in the draft, e.g. "[how many APIs?]".',
+    )
+    question: str
+    hint: str = ""
+
+
+class BulletTuneResponse(BaseModel):
+    original: str
+
+    draft: str = Field(
+        ...,
+        description=(
+            "The bullet in XYZ form. Every fact the original did not give "
+            "is a bracketed gap for the candidate to fill."
+        ),
+    )
+
+    gaps: List[BulletGap] = Field(default_factory=list)
+
+    why: List[str] = Field(
+        default_factory=list,
+        description="Why the original bullet was weak.",
+    )
+
+    invented_numbers_removed: int = Field(
+        default=0,
+        description=(
+            "Numbers the model wrote that the original did not contain, "
+            "replaced with gaps by the Python check."
+        ),
+    )

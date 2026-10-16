@@ -107,9 +107,12 @@ from app.resume.schemas import (
     ResumeAnalysisResponse,
     CVReviewRequest,
     CVReviewResponse,
+    BulletTuneRequest,
+    BulletTuneResponse,
 )
 
 from app.resume.cv_review import review_cv
+from app.resume.bullet_tuner import tune_bullet
 
 
 # ============================================================
@@ -2038,6 +2041,52 @@ def review_cv_endpoint(
                 status.HTTP_500_INTERNAL_SERVER_ERROR
             ),
             detail=f"CV review failed: {str(e)}",
+        )
+
+
+# ============================================================
+# CV BULLET TUNER
+# ============================================================
+
+
+@app.post(
+    "/api/v1/resume/bullet/tune",
+    response_model=BulletTuneResponse,
+    tags=["Resume"],
+)
+def tune_bullet_endpoint(
+    req: BulletTuneRequest,
+):
+    """
+    Rewrite one CV bullet in Google's XYZ form.
+
+    Facts the original does not give come back as bracketed gaps for
+    the candidate to fill, never as invented numbers. See
+    app/resume/bullet_tuner.py.
+    """
+
+    try:
+
+        return BulletTuneResponse(
+            **tune_bullet(req.bullet, req.job_field),
+        )
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except Exception as e:
+
+        print(f"[BulletTuner] Error: {e}")
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=f"Bullet rewrite failed: {str(e)}",
         )
 
 

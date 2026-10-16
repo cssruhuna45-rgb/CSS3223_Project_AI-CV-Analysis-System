@@ -2031,3 +2031,110 @@ body {
   font-size: var(--fs-sm);
   color: var(--text-secondary);
 }
+
+/* ============================================================
+   CV BULLET TUNER
+   ============================================================ */
+
+.bullet-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bullet-suggestions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.bullet-suggestions li > span {
+  min-width: 0;
+}
+
+.bullet-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.bullet-why {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.bullet-preview {
+  margin: 0;
+  font-size: var(--fs-base);
+  line-height: 2;
+  color: var(--text-primary);
+}
+
+/* A gap in the draft: dashed while open, solid once answered. */
+.gap-chip {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning-light);
+  font-weight: 600;
+}
+
+.gap-chip--filled {
+  border-style: solid;
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-light);
+}
+
+.bullet-gaps {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bullet-gap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.bullet-gap label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bullet-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.bullet-note,
+.bullet-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.bullet-note { color: var(--success-light); }
+.bullet-error { color: var(--danger); margin-top: var(--space-3); }
