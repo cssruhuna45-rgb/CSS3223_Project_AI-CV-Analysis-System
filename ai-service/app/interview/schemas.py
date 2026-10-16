@@ -197,6 +197,22 @@ class CategoryScore(BaseModel):
     score: int = Field(..., ge=0, le=100)
 
 
+class ReferencePassage(BaseModel):
+    """
+    A knowledge-base passage an answer was graded against, shown on the
+    scorecard so the candidate can see why they got their score.
+    """
+
+    source: str
+    section: str = ""
+    excerpt: str
+
+    used: bool = Field(
+        default=False,
+        description="True when the grader said its score relied on it.",
+    )
+
+
 class QuestionEvaluation(BaseModel):
     question_number: int
     question: str
@@ -210,6 +226,10 @@ class QuestionEvaluation(BaseModel):
 
     what_was_good: str = ""
     what_was_missing: str = ""
+
+    references: List[ReferencePassage] = Field(
+        default_factory=list
+    )
 
 
 class InterviewFinishResponse(BaseModel):
