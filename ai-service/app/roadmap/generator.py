@@ -12,14 +12,9 @@ import re
 from typing import Any, Dict, List, Optional, Set
 
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.ai_errors import is_rate_limit_error
-from app.llm_config import (
-    get_max_retries,
-    get_model_name,
-    get_timeout,
-)
+from app.llm_config import build_llm
 from app.roadmap.schemas import (
     DayPlan,
     Milestone,
@@ -126,12 +121,7 @@ RETURN ONLY VALID JSON matching this exact structure with NO markdown fences, NO
 
 
 def _get_llm():
-    return ChatGoogleGenerativeAI(
-        model=get_model_name(),
-        temperature=0.3,
-        timeout=get_timeout(),
-        max_retries=get_max_retries(),
-    )
+    return build_llm(temperature=0.3)
 
 
 def _clean_json_str(raw: str) -> str:
