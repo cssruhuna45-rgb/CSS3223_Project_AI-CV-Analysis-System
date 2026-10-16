@@ -91,6 +91,7 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
                 .user(user)
                 .resume(resolveResume(request, user))
                 .jobDescription(text(request, "job_description"))
+                .mode(modeOf(request))
                 .status(InterviewSession.STATUS_ACTIVE)
                 .startedAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -377,6 +378,26 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
             } catch (NumberFormatException ignored) {
                 // Not an id; treated as absent.
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * The mode the candidate chose, or null.
+     *
+     * <p>Only the two known values are stored. Anything else - a typo,
+     * an older frontend that sends nothing - is left null rather than
+     * passed to the database, whose check constraint would reject it
+     * and lose the whole interview row.
+     */
+    private static String modeOf(JsonNode request) {
+
+        String mode = text(request, "mode");
+
+        if (InterviewSession.MODE_PRACTICE.equals(mode)
+                || InterviewSession.MODE_EXAM.equals(mode)) {
+            return mode;
         }
 
         return null;

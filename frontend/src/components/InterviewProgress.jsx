@@ -395,6 +395,11 @@ export default function InterviewProgress({ compact = false }) {
                 >
                   <td style={{ padding: '12px 12px 12px 0', color: TEXT }}>
                     {formatDate(item.completedAt || item.startedAt)}
+                    {/* Listed, but never compared: the backend leaves
+                        practice scores out of every change and trend. */}
+                    {item.mode === 'practice' && (
+                      <span className="badge badge-neutral" style={{ marginLeft: 8 }}>Practice</span>
+                    )}
                   </td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: CYAN }}>
                     {item.score ?? 'Not graded'}

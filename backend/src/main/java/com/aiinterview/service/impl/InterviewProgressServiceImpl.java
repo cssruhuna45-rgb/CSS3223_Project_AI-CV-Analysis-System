@@ -70,7 +70,13 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
         // An interview that could not be graded is still an interview
         // the candidate sat, so it stays in the list and in the total.
         // It carries no score, so it takes no part in the comparison.
+        //
+        // Practice interviews stay in the list for the same reason, but
+        // their scores are left out: an answer revised after reading the
+        // model answer is not comparable with one given under the clock,
+        // and mixing them would show progress that is not real.
         List<Integer> scores = chronological.stream()
+                .filter(item -> !InterviewSession.MODE_PRACTICE.equals(item.getMode()))
                 .map(InterviewHistoryItemDto::getScore)
                 .filter(java.util.Objects::nonNull)
                 .toList();
@@ -167,7 +173,12 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
 
             Integer score = session.getScore();
 
-            Integer change = (score == null || previousScore == null)
+            // A practice score is shown but never compared, in either
+            // direction: it gets no change of its own and does not
+            // become the baseline for the next exam.
+            boolean comparable = score != null && !session.isPractice();
+
+            Integer change = (!comparable || previousScore == null)
                     ? null
                     : score - previousScore;
 
@@ -175,13 +186,14 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
                     .sessionId(session.getSessionId())
                     .score(score)
                     .status(session.getStatus())
+                    .mode(session.getMode())
                     .scoreChange(change)
                     .feedbackSummary(session.getFeedbackSummary())
                     .startedAt(session.getStartedAt())
                     .completedAt(session.getCompletedAt())
                     .build());
 
-            if (score != null) {
+            if (comparable) {
                 previousScore = score;
             }
         }
@@ -255,6 +267,9 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
             JsonNode root = objectMapper.readTree(stored);
             if (root instanceof com.fasterxml.jackson.databind.node.ObjectNode obj) {
                 obj.put("session_id", session.getSessionId());
+                if (session.getMode() != null) {
+                    obj.put("mode", session.getMode());
+                }
                 if (session.getJobDescription() != null) {
                     obj.put("job_description", session.getJobDescription());
                 }

@@ -239,6 +239,42 @@ class InterviewProgressServiceTest {
         assertEquals(6, progress.getInterviews().get(2).getScoreChange());
     }
 
+    // ========================================================
+    // Practice interviews
+    // ========================================================
+
+    @Test
+    @DisplayName("A practice interview is listed but its score is never compared")
+    void practiceInterviewIsExcludedFromComparison() {
+
+        // The practice score is the highest of the three. Counting it
+        // would turn an exam improvement of 6 into a drop of 19.
+        InterviewSession practice = completed(2, 95);
+        practice.setMode(InterviewSession.MODE_PRACTICE);
+
+        givenCompleted(
+                completed(1, 70),
+                practice,
+                completed(3, 76)
+        );
+
+        InterviewProgressResponse progress = progressService.getProgress(EMAIL);
+
+        assertEquals(3, progress.getTotalInterviews());
+        assertEquals("practice", progress.getInterviews().get(1).getMode());
+        assertEquals(95, progress.getInterviews().get(1).getScore());
+
+        assertEquals(2, progress.getScoredInterviews());
+        assertEquals(76, progress.getLatestScore());
+        assertEquals(70, progress.getPreviousScore());
+        assertEquals(6, progress.getScoreDifference());
+        assertEquals(76, progress.getBestScore());
+        assertEquals(ProgressTrend.IMPROVING, progress.getTrend());
+
+        assertNull(progress.getInterviews().get(1).getScoreChange());
+        assertEquals(6, progress.getInterviews().get(2).getScoreChange());
+    }
+
     @Test
     @DisplayName("No scored interviews reports no data rather than a flat trend")
     void noScoresAtAll() {

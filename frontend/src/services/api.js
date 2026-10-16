@@ -213,7 +213,8 @@ export const interviewAPI = {
     matchedSkills = [],
     relatedSkills = [],
     missingSkills = [],
-    additionalSkills = []
+    additionalSkills = [],
+    mode = null
   ) => {
 
     console.log(
@@ -294,6 +295,10 @@ export const interviewAPI = {
             Array.isArray(additionalSkills)
               ? additionalSkills
               : [],
+
+          // 'practice' or 'exam'. Spring stores it so progress can
+          // compare exam scores only; the AI service ignores it.
+          mode,
 
         }),
 

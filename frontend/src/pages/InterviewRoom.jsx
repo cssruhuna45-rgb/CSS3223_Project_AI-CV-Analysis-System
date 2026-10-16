@@ -16,6 +16,7 @@ import {
   Loader2,
   Award,
   CheckCircle2,
+  RotateCcw,
 } from 'lucide-react';
 import { interviewAPI } from '../services/api';
 import StepBar from '../components/StepBar';
@@ -24,6 +25,34 @@ import { CodeText, stripBackticks } from '../components/ui';
 
 const MAX_QUESTIONS = 5;
 const TOTAL_TIME = 120;
+
+// Sent in place of an answer when the exam clock runs out on an empty
+// box, so the interview moves on and the grader scores it as no answer.
+const NO_ANSWER_TEXT = 'No answer given (time ran out).';
+
+// The two ways to sit an interview, chosen before it starts.
+const MODES = {
+  practice: {
+    title: 'Practice',
+    summary: 'Learn as you go',
+    points: [
+      'No timer',
+      'See the expected answer after each question',
+      'Revise your answer before moving on',
+      'Not counted in your progress',
+    ],
+  },
+  exam: {
+    title: 'Exam',
+    summary: 'Like the real thing',
+    points: [
+      `${TOTAL_TIME / 60} minutes per question`,
+      'Expected answers only on the scorecard',
+      'When time runs out, your answer is submitted as it is',
+      'Counted in your progress',
+    ],
+  },
+};
 
 // What the scoring overlay shows while the interview is being graded.
 const FINISH_STAGES = [
@@ -68,6 +97,12 @@ export default function InterviewRoom() {
   // ==========================================================
   // STATE
   // ==========================================================
+
+  // 'practice' or 'exam'. Null until the candidate chooses; the
+  // interview does not start before that.
+  const [mode, setMode] = useState(null);
+  const [pendingMode, setPendingMode] = useState('practice');
+  const isExam = mode === 'exam';
 
   const [sessionId, setSessionId] = useState(null);
   const [question, setQuestion] = useState('');
@@ -128,6 +163,9 @@ export default function InterviewRoom() {
   // can be done from the keyboard without hunting for the next control.
   const answerRef = useRef(null);
   const nextButtonRef = useRef(null);
+
+  // The exam clock submits once per question when it runs out.
+  const autoSubmittedRef = useRef(false);
 
   // Prevent duplicate START request
   const interviewStartedRef = useRef(false);
@@ -281,6 +319,11 @@ export default function InterviewRoom() {
   // ==========================================================
 
   useEffect(() => {
+    // Nothing starts until a mode is chosen.
+    if (!mode) {
+      return;
+    }
+
     // Stop duplicate API call
     if (interviewStartedRef.current) {
       console.log(
@@ -348,7 +391,8 @@ export default function InterviewRoom() {
           matchedSkills,
           relatedSkills,
           missingSkills,
-          additionalSkills
+          additionalSkills,
+          mode
         );
 
         console.log(
@@ -413,7 +457,9 @@ export default function InterviewRoom() {
 
     startInterview();
 
-  }, []);
+  // Runs once a mode is chosen; the ref keeps a re-render from
+  // starting a second interview.
+  }, [mode]);
 
   // ==========================================================
   // TYPEWRITER
@@ -455,12 +501,22 @@ export default function InterviewRoom() {
   // TIMER
   // ==========================================================
 
+  // Exam mode only. It starts when the question is on screen, not when
+  // the page opens: it used to start at load, so the 10-20 seconds the
+  // first question took to generate came out of the candidate's time.
+  const questionReady = Boolean(question);
+
   useEffect(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
 
     setTimeLeft(TOTAL_TIME);
+    autoSubmittedRef.current = false;
+
+    if (!isExam || !questionReady) {
+      return undefined;
+    }
 
     timerRef.current = setInterval(() => {
       setTimeLeft((current) => {
@@ -479,13 +535,13 @@ export default function InterviewRoom() {
       }
     };
 
-  }, [qIndex]);
+  }, [qIndex, isExam, questionReady]);
 
   // ==========================================================
   // FIRST-QUESTION WAIT COUNTER
   // ==========================================================
 
-  const waitingForFirstQuestion = loading && !question;
+  const waitingForFirstQuestion = Boolean(mode) && loading && !question;
 
   useEffect(() => {
     if (!waitingForFirstQuestion) {
@@ -892,6 +948,12 @@ export default function InterviewRoom() {
       return;
     }
 
+    // A revised practice answer: the expected answer for this question
+    // is already on screen, so it is not fetched (and paid for) again.
+    if (modelAnswer) {
+      return;
+    }
+
     modelAnswerRef.current = true;
 
     setModelAnswer(null);
@@ -947,8 +1009,12 @@ export default function InterviewRoom() {
   // SUBMIT ANSWER
   // ==========================================================
 
-  const handleSubmit = async () => {
-    if (!answer.trim()) {
+  // override: the text to send instead of the answer box, used when the
+  // exam clock runs out. Callers pass nothing, never a click event.
+  const handleSubmit = async (override) => {
+    const text = (typeof override === 'string' ? override : answer).trim();
+
+    if (!text) {
       return;
     }
 
@@ -1001,7 +1067,7 @@ export default function InterviewRoom() {
 
       console.log(
         '[Frontend] Answer length:',
-        answer.trim().length
+        text.length
       );
 
       // ======================================================
@@ -1016,7 +1082,7 @@ export default function InterviewRoom() {
         // Submit final answer
         await interviewAPI.submitAnswer(
           sessionId,
-          answer.trim()
+          text
         );
 
         setFinishStep(2);
@@ -1055,7 +1121,7 @@ export default function InterviewRoom() {
       const data =
         await interviewAPI.submitAnswer(
           sessionId,
-          answer.trim()
+          text
         );
 
       console.log(
@@ -1123,6 +1189,30 @@ export default function InterviewRoom() {
   };
 
   // ==========================================================
+  // EXAM: TIME RUNS OUT
+  // ==========================================================
+
+  // The answer goes in as it stands, as in a real timed interview. An
+  // empty box sends NO_ANSWER_TEXT so the interview still moves on and
+  // the grader scores it as no answer. Once per question.
+  useEffect(() => {
+    if (!isExam || timeLeft !== 0 || autoSubmittedRef.current) return;
+    if (!sessionId || loading || isFinishing) return;
+
+    autoSubmittedRef.current = true;
+    handleSubmit(answer.trim() || NO_ANSWER_TEXT);
+  }, [timeLeft, isExam]);
+
+  // Submit: in practice, show the expected answer first; in an exam,
+  // send the answer and move straight on.
+  const submitAnswer = () => (isExam ? handleSubmit() : revealModelAnswer());
+
+  // Practice only: back to the answer box, keeping what was written.
+  const reviseAnswer = () => {
+    setSubmitted(false);
+  };
+
+  // ==========================================================
   // TIMER UI
   // ==========================================================
 
@@ -1150,7 +1240,7 @@ export default function InterviewRoom() {
       : timeLeft === 30
         ? '30 seconds left.'
         : timeUp
-          ? "Time's up. You can still finish and submit your answer."
+          ? "Time's up. Your answer has been submitted."
           : '';
 
   const mins = String(
@@ -1164,6 +1254,66 @@ export default function InterviewRoom() {
   // ==========================================================
   // INITIAL LOADING
   // ==========================================================
+
+  // ==========================================================
+  // MODE CHOICE (before anything starts)
+  // ==========================================================
+
+  // Practice is preselected: a first, timed attempt is where people
+  // freeze, and the choice is one click to change.
+  if (!mode) {
+    return (
+      <div
+        style={{ maxWidth: 820, margin: '0 auto', padding: '36px 24px 80px' }}
+        className="animate-fade-in"
+      >
+        <StepBar current={3} />
+
+        <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 800, lineHeight: 'var(--lh-tight)', marginBottom: 'var(--space-2)' }}>
+          How do you want to sit this interview?
+        </h1>
+        <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-5)' }}>
+          {selectedJobFieldName || 'Your interview'} · {MAX_QUESTIONS} questions
+        </p>
+
+        <fieldset style={{ border: 0, padding: 0, margin: '0 0 var(--space-5)' }}>
+          <legend className="sr-only">Interview mode</legend>
+          <div className="mode-grid">
+            {Object.entries(MODES).map(([key, m]) => (
+              <label
+                key={key}
+                className={`mode-option ${pendingMode === key ? 'mode-option--selected' : ''}`}
+              >
+                <span className="mode-option__head">
+                  <input
+                    type="radio"
+                    name="interview-mode"
+                    value={key}
+                    checked={pendingMode === key}
+                    onChange={() => setPendingMode(key)}
+                  />
+                  <span className="mode-option__title">{m.title}</span>
+                </span>
+                <span className="mode-option__summary">{m.summary}</span>
+                <ul className="mode-option__points">
+                  {m.points.map((p) => <li key={p}>{p}</li>)}
+                </ul>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <button
+          type="button"
+          className="btn btn-primary btn-lg"
+          onClick={() => setMode(pendingMode)}
+        >
+          Start {MODES[pendingMode].title.toLowerCase()} interview
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
 
   if (waitingForFirstQuestion) {
     return (
@@ -1331,7 +1481,7 @@ export default function InterviewRoom() {
                 fontWeight: 600,
               }}
             >
-              Live Interview · {selectedJobFieldName || 'Practice Session'}
+              {isExam ? 'Exam' : 'Practice'} · {selectedJobFieldName || 'Interview'}
             </span>
           </div>
 
@@ -1347,7 +1497,8 @@ export default function InterviewRoom() {
           </h1>
         </div>
 
-        {/* TIMER */}
+        {/* TIMER: exam mode only */}
+        {isExam ? (
 
         <div
           role="timer"
@@ -1431,6 +1582,11 @@ export default function InterviewRoom() {
             </div>
           </div>
         </div>
+        ) : (
+          <span className="badge badge-neutral">
+            <Clock size={12} aria-hidden="true" /> No timer
+          </span>
+        )}
       </div>
 
       {/* ====================================================
@@ -1658,6 +1814,16 @@ export default function InterviewRoom() {
           ANSWER
       ==================================================== */}
 
+      {/* Practice, while revising: the expected answer stays in view
+          above the answer box. */}
+      {!submitted && !isExam && modelAnswer && (
+        <ModelAnswer
+          data={modelAnswer}
+          loading={false}
+          error=""
+        />
+      )}
+
       {!submitted ? (
         <div
           className="card"
@@ -1718,10 +1884,10 @@ export default function InterviewRoom() {
             </div>
           </div>
 
-          {/* Shown when the clock runs out. Nothing else happens then -
-              the answer is not cut off - so say that in words instead of
-              leaving a red 00:00 to be guessed at. */}
-          {timeUp && (
+          {/* Exam only: shown for the moment between the clock reaching
+              zero and the answer being sent, so the submit is explained
+              in words instead of a red 00:00 to be guessed at. */}
+          {isExam && timeUp && (
             <p
               style={{
                 display: 'flex',
@@ -1733,8 +1899,7 @@ export default function InterviewRoom() {
               }}
             >
               <Clock size={14} aria-hidden="true" />
-              Time's up. Finish your thought and submit. In a real interview,
-              aim for about two minutes per answer.
+              Time's up. Submitting your answer as it stands.
             </p>
           )}
 
@@ -1753,7 +1918,7 @@ export default function InterviewRoom() {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)
                   && answer.trim() && !loading) {
                 e.preventDefault();
-                revealModelAnswer();
+                submitAnswer();
               }
             }}
             disabled={loading}
@@ -1823,7 +1988,7 @@ export default function InterviewRoom() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={revealModelAnswer}
+              onClick={submitAnswer}
               disabled={!answer.trim() || loading}
               style={{
                 flex: 2,
@@ -1893,6 +2058,22 @@ export default function InterviewRoom() {
             loading={modelAnswerLoading}
             error={modelAnswerError}
           />
+
+          {/* REVISE (practice): rewrite the answer with the expected one
+              in view. Practice scores are kept out of progress, so
+              learning from it here is the point, not a shortcut. */}
+          {!isExam && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={reviseAnswer}
+              disabled={loading || isFinishing}
+              style={{ width: '100%', justifyContent: 'center', marginBottom: 'var(--space-3)' }}
+            >
+              <RotateCcw size={16} aria-hidden="true" />
+              Revise my answer
+            </button>
+          )}
 
           {/* NEXT */}
           <button
