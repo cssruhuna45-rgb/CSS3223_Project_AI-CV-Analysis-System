@@ -165,8 +165,19 @@ export default function CVUpload() {
         throw new Error('Could not extract text from the uploaded PDF. Please verify the document is not an empty or scanned image PDF.');
       }
 
-      // 2. Call AI Resume Analysis (FastAPI)
-      const aiResult = await aiResumeAPI.analyze(resumeId, resumeText);
+      // 2. The analysis. Spring already ran it during the upload and
+      //    stored the result (ResumeController -> analyzeAndStore), so
+      //    it is read back rather than asked for again: calling the AI
+      //    service here as well spent a second Gemini call on the same
+      //    extraction for every upload. Only when that stored analysis
+      //    is missing - the upload's attempt failed - is it run now.
+      let aiResult;
+      try {
+        aiResult = await resumeAPI.getAnalysis(resumeId);
+      } catch (storedErr) {
+        console.warn('[CVUpload] No stored analysis, analysing now:', storedErr.message);
+        aiResult = await aiResumeAPI.analyze(resumeId, resumeText);
+      }
 
       // Save state to sessionStorage
       sessionStorage.setItem('resumeId', String(resumeId));

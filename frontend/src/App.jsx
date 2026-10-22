@@ -45,8 +45,13 @@ function ProtectedRoute({ user, children, only }) {
   // signed out lands back on the invite after signing in.
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
+  // Candidate pages are guarded too. Without it an administrator or a
+  // recruiter who reached one - by typing the address, or by signing in
+  // from a page a candidate's expired session had been on - saw the
+  // candidate workspace with someone else's navigation around it.
   const allowed =
-    only === 'recruiter' ? isApprovedRecruiter(user)
+    only === 'candidate' ? user.role === 'candidate'
+    : only === 'recruiter' ? isApprovedRecruiter(user)
     : only === 'admin' ? user.role === 'admin'
     : only === 'pending' ? user.role === 'recruiter' && !isApprovedRecruiter(user)
     : true;
@@ -89,12 +94,12 @@ export default function App() {
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
             <Route path="/register" element={<Register onLogin={setUser} />} />
-            <Route path="/home" element={<ProtectedRoute user={user}><Home user={user} /></ProtectedRoute>} />
-            <Route path="/upload" element={<ProtectedRoute user={user}><CVUpload /></ProtectedRoute>} />
-            <Route path="/interview" element={<ProtectedRoute user={user}><InterviewRoom /></ProtectedRoute>} />
-            <Route path="/scorecard" element={<ProtectedRoute user={user}><Scorecard /></ProtectedRoute>} />
-            <Route path="/progress" element={<ProtectedRoute user={user}><Progress /></ProtectedRoute>} />
-            <Route path="/skill-gap" element={<ProtectedRoute user={user}><SkillGap /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute user={user} only="candidate"><Home user={user} /></ProtectedRoute>} />
+            <Route path="/upload" element={<ProtectedRoute user={user} only="candidate"><CVUpload /></ProtectedRoute>} />
+            <Route path="/interview" element={<ProtectedRoute user={user} only="candidate"><InterviewRoom /></ProtectedRoute>} />
+            <Route path="/scorecard" element={<ProtectedRoute user={user} only="candidate"><Scorecard /></ProtectedRoute>} />
+            <Route path="/progress" element={<ProtectedRoute user={user} only="candidate"><Progress /></ProtectedRoute>} />
+            <Route path="/skill-gap" element={<ProtectedRoute user={user} only="candidate"><SkillGap /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute user={user} only="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute user={user} only="recruiter"><RecruiterJobs /></ProtectedRoute>} />
             <Route path="/join" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />

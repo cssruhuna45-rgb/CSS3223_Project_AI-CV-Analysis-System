@@ -28,6 +28,7 @@ from app.interview.question_generator import (
     get_llm,
     parse_json_response,
 )
+from app.interview.evaluator import ANSWER_GUARDRAIL, fence_answer
 from app.rag.retriever import retrieve_relevant_chunks
 from app.rag.vector_store import get_or_create_vector_store
 
@@ -58,6 +59,7 @@ MODEL_ANSWER_PROMPT = PromptTemplate(
         "job_field",
         "question",
         "candidate_answer",
+        "answer_guardrail",
         "reference",
     ],
     template="""You are a senior technical interviewer for a {job_field} role.
@@ -70,6 +72,8 @@ Question:
 
 Candidate's answer:
 {candidate_answer}
+
+{answer_guardrail}
 
 Reference material from the course knowledge base:
 {reference}
@@ -240,9 +244,13 @@ def generate_model_answer(
             {
                 "job_field": job_field or "software engineering",
                 "question": question,
-                "candidate_answer": (
+                # Fenced: the answer is the candidate's text and must not
+                # be able to rewrite the expected answer or the list of
+                # what they missed.
+                "candidate_answer": fence_answer(
                     candidate_answer or "[no answer given]"
                 ),
+                "answer_guardrail": ANSWER_GUARDRAIL,
                 "reference": (
                     reference["text"]
                     or "[none found - answer from standard knowledge]"

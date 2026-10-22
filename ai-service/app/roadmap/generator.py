@@ -11,6 +11,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Set
 
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
 from app.ai_errors import is_rate_limit_error
@@ -571,8 +572,12 @@ def generate_roadmap(request: RoadmapGenerateRequest) -> RoadmapResponse:
             rag_context=rag_context,
         )
 
-        response = llm.invoke(prompt_val)
-        raw_text = response.content if hasattr(response, "content") else str(response)
+        # Through StrOutputParser, like every other prompt in the service,
+        # rather than reading response.content. Newer Gemini models can
+        # answer with a list of content blocks instead of one string;
+        # .strip() on that list raised AttributeError, and the except
+        # below quietly served the generic fallback plan every time.
+        raw_text = (llm | StrOutputParser()).invoke(prompt_val)
         cleaned_json = _clean_json_str(raw_text)
 
         # Parse JSON

@@ -43,7 +43,7 @@ from app.interview.question_generator import get_llm, is_non_answer
 
 # Imported rather than redefined: the difficulty ladder and the final
 # scorecard must mean the same thing by "strong".
-from app.interview.evaluator import VERDICT_BANDS
+from app.interview.evaluator import ANSWER_GUARDRAIL, VERDICT_BANDS, fence_answer
 
 
 # Below this, an answer is too short to contain a technical point
@@ -70,7 +70,7 @@ MAX_QUESTION_CHARS = 600
 # no feedback text. The detailed feedback is written once at the end by
 # evaluator.py, where the wait is expected.
 QUALITY_PROMPT = PromptTemplate(
-    input_variables=["job_field", "question", "answer"],
+    input_variables=["job_field", "question", "answer", "answer_guardrail"],
     template="""You are scoring one answer in a {job_field} technical interview.
 
 QUESTION:
@@ -78,6 +78,8 @@ QUESTION:
 
 CANDIDATE ANSWER:
 {answer}
+
+{answer_guardrail}
 
 Score how well the answer addresses that specific question, from 0 to 100.
 
@@ -210,7 +212,11 @@ def assess_answer(
             {
                 "job_field": job_field or "software engineering",
                 "question": question[:MAX_QUESTION_CHARS],
-                "answer": text[:MAX_ANSWER_CHARS],
+                # Fenced like the scorecard's answers: this number moves
+                # the difficulty ladder, so an answer must not be able
+                # to talk its way to "strong".
+                "answer": fence_answer(text[:MAX_ANSWER_CHARS]),
+                "answer_guardrail": ANSWER_GUARDRAIL,
             }
         )
 
