@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp, Home, Award, Sparkles, Menu, X } from 'lucide-react';
+import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp, Home, Award, Sparkles, Menu, X, ShieldCheck, Briefcase } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import { homePathFor, isApprovedRecruiter } from '../constants/accounts';
 
 export default function Navbar({ user, onLogout }) {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export default function Navbar({ user, onLogout }) {
 
   const recruiterLinks = [
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+    { path: '/jobs', label: 'Jobs', icon: <Briefcase size={15} /> },
   ];
 
   const candidateLinks = [
@@ -61,7 +63,19 @@ export default function Navbar({ user, onLogout }) {
     { path: '/scorecard', label: 'Scorecards', icon: <Award size={15} /> },
   ];
 
-  const links = user?.role === 'recruiter' ? recruiterLinks : candidateLinks;
+  const adminLinks = [
+    { path: '/admin', label: 'Administration', icon: <ShieldCheck size={15} /> },
+  ];
+
+  // A recruiter still waiting for approval gets no links: the only page
+  // open to them is the waiting page itself.
+  const links =
+    user?.role === 'admin' ? adminLinks
+    : isApprovedRecruiter(user) ? recruiterLinks
+    : user?.role === 'recruiter' ? []
+    : candidateLinks;
+
+  const ROLE_LABELS = { admin: 'Administrator', recruiter: 'Recruiter', candidate: 'Candidate' };
 
   return (
     <nav
@@ -76,14 +90,14 @@ export default function Navbar({ user, onLogout }) {
       {/* Brand Logo */}
       <div
         className="nav-brand"
-        onClick={() => navigate(user ? (user.role === 'recruiter' ? '/dashboard' : '/home') : '/')}
+        onClick={() => navigate(homePathFor(user))}
         role="button"
         tabIndex={0}
         aria-label="Go to home page"
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            navigate(user ? (user.role === 'recruiter' ? '/dashboard' : '/home') : '/');
+            navigate(homePathFor(user));
           }
         }}
       >
@@ -259,7 +273,7 @@ export default function Navbar({ user, onLogout }) {
                   padding: '2px 6px',
                   marginTop: 6,
                 }}>
-                  {user.role === 'recruiter' ? 'Recruiter' : 'Candidate'}
+                  {ROLE_LABELS[user.role] || 'Candidate'}
                 </span>
               </div>
               <button

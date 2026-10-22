@@ -2,9 +2,11 @@ package com.aiinterview.service.impl;
 
 import com.aiinterview.entity.InterviewSession;
 import com.aiinterview.entity.InterviewTurn;
+import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.InterviewPersistenceService;
@@ -47,6 +49,7 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
     private final InterviewSessionRepository interviewSessionRepository;
     private final UserRepository userRepository;
     private final ResumeRepository resumeRepository;
+    private final JobPostingRepository jobPostingRepository;
     private final ObjectMapper objectMapper;
 
     // ========================================================
@@ -91,6 +94,7 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
                 .user(user)
                 .resume(resolveResume(request, user))
                 .jobDescription(text(request, "job_description"))
+                .jobPosting(resolveJob(request))
                 .mode(modeOf(request))
                 .status(InterviewSession.STATUS_ACTIVE)
                 .startedAt(LocalDateTime.now())
@@ -301,6 +305,27 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
         }
 
         return resume;
+    }
+
+    /**
+     * The job this interview was started for, if any.
+     *
+     * <p>By the time a request reaches here, AiProxyController has
+     * passed it through JobPostingService.applyInvite: an invite code in
+     * it has been checked, the job is open, and the job description and
+     * mode are the job's own. Only the code is trusted, never a job id -
+     * an id sent by the browser would let anyone file their interview
+     * under a job they were never invited to.
+     */
+    private JobPosting resolveJob(JsonNode request) {
+
+        String code = text(request, "invite_code");
+
+        if (code == null) {
+            return null;
+        }
+
+        return jobPostingRepository.findByInviteCode(code).orElse(null);
     }
 
     private InterviewTurn toTurn(JsonNode question) {

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
 import { authAPI } from '../services/api';
+import { homePathFor, toStoredUser } from '../constants/accounts';
 
 export default function Register({ onLogin }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'candidate' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,17 +19,19 @@ export default function Register({ onLogin }) {
     try {
       const data = await authAPI.register(form.name, form.email, form.password, form.role);
       // Trust the role the server stored, not the one the form asked
-      // for: the backend refuses to grant anything above recruiter.
-      const role = data.user?.role || 'candidate';
+      // for: the backend refuses to grant anything above recruiter, and
+      // a new recruiter starts out waiting for approval.
       localStorage.setItem('token', data.token);
-      const userData = {
-        name: data.user?.name || form.name,
-        email: data.user?.email || form.email,
-        role,
-      };
+      const userData = toStoredUser(data.user, form.name, form.email);
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
-      navigate(role === 'recruiter' ? '/dashboard' : '/upload');
+      // A candidate who arrived through an invite link goes back to it;
+      // otherwise a new candidate starts with their CV.
+      const from = location.state?.from;
+      navigate(
+        from || (userData.role === 'candidate' ? '/upload' : homePathFor(userData)),
+        { replace: true }
+      );
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -83,6 +87,13 @@ export default function Register({ onLogin }) {
               </button>
             ))}
           </div>
+
+          {form.role === 'recruiter' && (
+            <p role="note" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginTop: -12, marginBottom: 20, lineHeight: 'var(--lh-normal)' }}>
+              Recruiter accounts see candidates' results, so an administrator
+              approves each one before the dashboard opens.
+            </p>
+          )}
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
@@ -158,7 +169,7 @@ export default function Register({ onLogin }) {
                 fontFamily: 'var(--font-sans)', fontSize: 'inherit',
                 textDecoration: 'underline', textUnderlineOffset: '3px',
               }}
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/login', { state: location.state })}
               onMouseEnter={(e) => { e.target.style.textShadow = '0 0 12px color-mix(in srgb, var(--accent) 50%, transparent)'; }}
               onMouseLeave={(e) => { e.target.style.textShadow = 'none'; }}
             >Sign in</button>

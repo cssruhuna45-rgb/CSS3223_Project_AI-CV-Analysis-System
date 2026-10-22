@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { homePathFor } from '../constants/accounts';
 
 const PRODUCT_LINKS = [
   { label: 'CV Analysis', to: '/upload' },
@@ -20,8 +21,16 @@ function platformLinks(user) {
     ];
   }
 
+  if (user.role === 'admin') {
+    return [{ label: 'Administration', to: '/admin' }];
+  }
+
   if (user.role === 'recruiter') {
-    return [{ label: 'Dashboard', to: '/dashboard' }];
+    // homePathFor sends a recruiter still waiting for approval to the
+    // waiting page instead of a dashboard that would refuse them.
+    return homePathFor(user) === '/dashboard'
+      ? [{ label: 'Dashboard', to: '/dashboard' }, { label: 'Jobs', to: '/jobs' }]
+      : [{ label: 'Dashboard', to: homePathFor(user) }];
   }
 
   return [
@@ -50,8 +59,8 @@ export default function Footer({ user }) {
             <p>Build confidence. Sharpen your story. Land the opportunity.</p>
           </div>
 
-          {/* Candidate tools; a recruiter account cannot open them. */}
-          {user?.role !== 'recruiter' && (
+          {/* Candidate tools, so not offered to recruiters or administrators. */}
+          {(!user || user.role === 'candidate') && (
             <nav className="footer-links-group" aria-label="Product">
               <h2>Product</h2>
               {PRODUCT_LINKS.map(link => <Link key={link.label} to={link.to}>{link.label}</Link>)}

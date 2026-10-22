@@ -4,9 +4,11 @@ import com.aiinterview.dto.AuthResponse;
 import com.aiinterview.dto.LoginRequest;
 import com.aiinterview.dto.RegisterRequest;
 import com.aiinterview.dto.UserDto;
+import com.aiinterview.entity.ApprovalStatus;
 import com.aiinterview.entity.Role;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.DuplicateEmailException;
+import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.security.JwtService;
 import com.aiinterview.service.AuthService;
@@ -31,11 +33,22 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateEmailException("User with email '" + request.getEmail() + "' already exists.");
         }
 
+        Role role = Role.fromWireValue(request.getRole());
+
         User user = User.builder()
                 .name(request.getName().trim())
                 .email(request.getEmail().toLowerCase().trim())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.fromWireValue(request.getRole()))
+                .role(role)
+                // A recruiter sees other people's results, so asking for
+                // the role is not enough to get it: an administrator
+                // approves the account first. CustomUserDetailsService
+                // withholds ROLE_RECRUITER until then.
+                .approvalStatus(
+                        role == Role.RECRUITER
+                                ? ApprovalStatus.PENDING
+                                : ApprovalStatus.APPROVED
+                )
                 .active(true)
                 .build();
 
@@ -43,16 +56,9 @@ public class AuthServiceImpl implements AuthService {
 
         String token = jwtService.generateToken(savedUser.getEmail(), savedUser.getId());
 
-        UserDto userDto = UserDto.builder()
-                .id(savedUser.getId())
-                .name(savedUser.getName())
-                .email(savedUser.getEmail())
-                .role(savedUser.getRole().toWireValue())
-                .build();
-
         return AuthResponse.builder()
                 .token(token)
-                .user(userDto)
+                .user(UserDto.from(savedUser))
                 .build();
     }
 
@@ -71,18 +77,23 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
+        // A pending or rejected recruiter still signs in: the token only
+        // proves who they are, and the waiting page needs it to ask
+        // whether the decision has been made. What they may do is
+        // decided per request from the stored approval status.
         String token = jwtService.generateToken(user.getEmail(), user.getId());
-
-        UserDto userDto = UserDto.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
-                .role(user.getRole().toWireValue())
-                .build();
 
         return AuthResponse.builder()
                 .token(token)
-                .user(userDto)
+                .user(UserDto.from(user))
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDto currentUser(String email) {
+        return userRepository.findByEmail(email)
+                .map(UserDto::from)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
     }
 }

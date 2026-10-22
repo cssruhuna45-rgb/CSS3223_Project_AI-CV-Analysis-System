@@ -98,9 +98,15 @@ export default function InterviewRoom() {
   // STATE
   // ==========================================================
 
+  // Set by the join page when the candidate accepted a recruiter's
+  // invite code: { code, title, company, jobField }. Read once, so it
+  // survives being cleared from sessionStorage after the start.
+  const [jobInvite] = useState(() => getStoredJson('jobInvite'));
+
   // 'practice' or 'exam'. Null until the candidate chooses; the
-  // interview does not start before that.
-  const [mode, setMode] = useState(null);
+  // interview does not start before that. A job interview is always an
+  // exam - the server enforces it - so there is no choice to make.
+  const [mode, setMode] = useState(() => (getStoredJson('jobInvite') ? 'exam' : null));
   const [pendingMode, setPendingMode] = useState('practice');
   const isExam = mode === 'exam';
 
@@ -230,15 +236,28 @@ export default function InterviewRoom() {
   // SKILL GAP CONTEXT
   // ==========================================================
 
-  const skillGapResult =
+  // A skill gap worked out for a different field would steer the
+  // questions towards the wrong job, so on a job interview it is only
+  // used when it was for the same field as the job.
+  const storedSkillGap =
     getStoredJson('skillGapResult');
 
+  const skillGapResult =
+    jobInvite && storedSkillGap?.job_field !== jobInvite.jobField
+      ? null
+      : storedSkillGap;
+
+  // On a job interview the field and title are the job's own. The
+  // server replaces them anyway; using them here keeps the screen and
+  // the model answers consistent with what is actually being asked.
   const selectedJobField =
+    jobInvite?.jobField ||
     sessionStorage.getItem('selectedJobField') ||
     skillGapResult?.job_field ||
     '';
 
   const selectedJobFieldName =
+    jobInvite?.title ||
     sessionStorage.getItem('selectedJobFieldName') ||
     skillGapResult?.job_field_name ||
     jobRole;
@@ -392,7 +411,8 @@ export default function InterviewRoom() {
           relatedSkills,
           missingSkills,
           additionalSkills,
-          mode
+          mode,
+          jobInvite?.code || null
         );
 
         console.log(
@@ -423,6 +443,11 @@ export default function InterviewRoom() {
         setSessionId(newSessionId);
         setQuestion(newQuestion);
 
+        // The invite has been used. Left in place, the next interview
+        // the candidate starts on their own would be filed under this
+        // job and shown to its recruiter.
+        sessionStorage.removeItem('jobInvite');
+
         // Store session ID
         sessionStorage.setItem(
           'sessionId',
@@ -449,6 +474,11 @@ export default function InterviewRoom() {
           err?.message ||
           'Could not start the interview.'
         );
+
+        // A refused invite (closed job, already taken) must not carry
+        // over to the next interview; the join page sets it again if
+        // the candidate retries.
+        sessionStorage.removeItem('jobInvite');
 
       } finally {
         setLoading(false);

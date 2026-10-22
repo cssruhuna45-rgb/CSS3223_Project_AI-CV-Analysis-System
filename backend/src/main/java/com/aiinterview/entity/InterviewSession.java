@@ -54,7 +54,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString(exclude = {"user", "resume", "turns"})
+@ToString(exclude = {"user", "resume", "jobPosting", "turns"})
 @EqualsAndHashCode(of = "id")
 public class InterviewSession {
 
@@ -104,6 +104,15 @@ public class InterviewSession {
 
     @Column(name = "job_description", columnDefinition = "TEXT")
     private String jobDescription;
+
+    /**
+     * The job this interview was taken for through an invite code, and
+     * so the only recruiter who may see it. Null for an interview the
+     * candidate started on their own, which no recruiter ever sees.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_posting_id")
+    private JobPosting jobPosting;
 
     @Column(name = "status", nullable = false, length = 32)
     @Builder.Default

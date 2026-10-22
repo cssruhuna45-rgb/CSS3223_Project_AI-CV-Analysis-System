@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText, Play, Upload, BarChart2, TrendingUp, TrendingDown,
-  Minus, Flag, Clock, Trophy, AlertTriangle, ChevronRight, Sparkles, Award
+  Minus, Flag, Clock, Trophy, AlertTriangle, ChevronRight, Sparkles, Award, Briefcase
 } from 'lucide-react';
 import { resumeAPI, interviewAPI } from '../services/api';
+import { Button, Card } from '../components/ui';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_LIGHT = 'var(--accent)';
@@ -297,6 +298,23 @@ export default function Home({ user }) {
           </div>
         )}
       </Section>
+
+      {/* Job invite: the one way an interview reaches a recruiter */}
+      <Card as="section" padding="md" aria-labelledby="join-title" style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+          <div>
+            <h2 id="join-title" style={{ fontSize: 'var(--fs-base)', fontWeight: 700, marginBottom: 4 }}>
+              Have an invite code from a recruiter?
+            </h2>
+            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
+              Take that job's interview. Only that interview is shared with the recruiter; your practice stays private.
+            </p>
+          </div>
+          <Button variant="secondary" icon={<Briefcase size={15} />} onClick={() => navigate('/join')}>
+            Join a job interview
+          </Button>
+        </div>
+      </Card>
 
       {/* Past Interviews Section */}
       {interviews.length > 0 && (

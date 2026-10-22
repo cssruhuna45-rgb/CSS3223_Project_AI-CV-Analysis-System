@@ -55,6 +55,16 @@ public class User {
     @Builder.Default
     private boolean active = true;
 
+    /**
+     * A recruiter gets recruiter access only once this is APPROVED.
+     * Everyone else is APPROVED from the start. NOT NULL in the
+     * database (V6).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status", nullable = false, length = 16)
+    @Builder.Default
+    private ApprovalStatus approvalStatus = ApprovalStatus.APPROVED;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Resume> resumes = new ArrayList<>();
@@ -66,4 +76,12 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * The one question every recruiter-only path asks: is this a
+     * recruiter an administrator has let in?
+     */
+    public boolean isApprovedRecruiter() {
+        return role == Role.RECRUITER && approvalStatus == ApprovalStatus.APPROVED;
+    }
 }
