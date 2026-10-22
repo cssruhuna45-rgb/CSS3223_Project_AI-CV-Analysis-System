@@ -2,7 +2,14 @@
 Tests for 14-Day Learning Roadmap generator.
 """
 
+import json
+import os
 import unittest
+from unittest.mock import patch
+
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+
 from app.roadmap.schemas import (
     DayPlan,
     Milestone,
@@ -84,6 +91,43 @@ class TestRoadmapGenerator(unittest.TestCase):
         self.assertEqual(res.duration_days, 14)
         self.assertEqual(len(res.days), 14)
         self.assertTrue("Backend Systems Architect" in res.target_role)
+
+    def test_04_reads_gemini_content_blocks(self):
+        """
+        A model that answers with a list of content blocks, as newer
+        Gemini models can, must still produce the AI roadmap. Reading
+        response.content directly broke on the list and fell back to the
+        generic plan without saying so.
+        """
+        plan = {
+            "title": "AI-written roadmap",
+            "target_role": "Backend Engineer",
+            "summary": "Built from the model's answer.",
+            "focus_areas": ["Kafka"],
+            "milestones": [
+                {"phase": 1, "title": "Foundations", "day_range": "Days 1 - 14", "description": ""}
+            ],
+            "days": [
+                {"day": d, "title": f"Day {d}", "phase": "Foundations", "focus_area": "Kafka",
+                 "objective": "Learn", "tasks": ["Read", "Build"], "resources": ["Docs"],
+                 "estimated_hours": 2}
+                for d in range(1, 15)
+            ],
+        }
+
+        model = GenericFakeChatModel(messages=iter([
+            AIMessage(content=[{"type": "text", "text": json.dumps(plan)}])
+        ]))
+
+        req = RoadmapGenerateRequest(target_role="Backend Engineer", duration_days=14)
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test"}), \
+                patch("app.roadmap.generator._get_llm", return_value=model), \
+                patch("app.roadmap.generator._extract_rag_context", return_value=""):
+            res = generate_roadmap(req)
+
+        self.assertEqual(res.title, "AI-written roadmap")
+        self.assertEqual(len(res.days), 14)
 
 
 if __name__ == "__main__":

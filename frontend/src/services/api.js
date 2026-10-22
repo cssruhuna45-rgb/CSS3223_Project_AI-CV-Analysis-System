@@ -18,13 +18,25 @@ const authHeaders = () => ({
 
 async function handleResponse(res) {
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
+    // 401: no valid session (missing, expired or tampered token). The
+    // stored login is useless, so it is cleared and the user signs in.
+    if (res.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login') {
         window.location.assign('/login');
       }
       throw new Error('Your session has expired. Please log in again.');
+    }
+
+    // 403: signed in, but this account may not do this - a recruiter
+    // whose access was just revoked, say. Signing them out would be the
+    // wrong answer and lose their place; the page shows the message.
+    // The backend answers 401 and 403 separately for exactly this
+    // (SecurityConfig's authentication entry point).
+    if (res.status === 403) {
+      const denied = await res.json().catch(() => ({}));
+      throw new Error(denied.message || 'You do not have permission to do that.');
     }
 
     const err = await res.json().catch(() => ({}));

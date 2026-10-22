@@ -64,9 +64,9 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Deliberately 400 and 409, never 403: the frontend treats any 403
-     * as an expired session and signs the user out, which is the wrong
-     * answer to "this invite code is for candidates".
+     * 400 for a request that cannot be carried out as asked, 409 for one
+     * that clashes with stored data (a second attempt at a job
+     * interview). Both carry a message the page shows as it stands.
      */
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
