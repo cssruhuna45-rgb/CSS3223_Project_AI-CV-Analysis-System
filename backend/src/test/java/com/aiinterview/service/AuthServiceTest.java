@@ -90,6 +90,34 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("A new recruiter waits for approval; a new candidate does not")
+    void testRecruiterRegistrationStartsPending() {
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$hashedBCryptPasswordString");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(jwtService.generateToken(anyString(), any())).thenReturn("mock.jwt.token");
+
+        registerRequest.setRole("recruiter");
+        AuthResponse recruiter = authService.register(registerRequest);
+
+        assertEquals("recruiter", recruiter.getUser().getRole());
+        assertEquals("pending", recruiter.getUser().getApprovalStatus());
+
+        registerRequest.setRole("candidate");
+        AuthResponse candidate = authService.register(registerRequest);
+
+        assertEquals("approved", candidate.getUser().getApprovalStatus());
+
+        // Asking for admin is not refused, it is downgraded - and the
+        // downgraded account must not be left waiting for approval.
+        registerRequest.setRole("admin");
+        AuthResponse admin = authService.register(registerRequest);
+
+        assertEquals("candidate", admin.getUser().getRole());
+        assertEquals("approved", admin.getUser().getApprovalStatus());
+    }
+
+    @Test
     @DisplayName("Should throw DuplicateEmailException when email already exists")
     void testDuplicateEmailRegistration() {
         when(userRepository.existsByEmail(anyString())).thenReturn(true);

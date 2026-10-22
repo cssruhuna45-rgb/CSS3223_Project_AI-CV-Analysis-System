@@ -3,6 +3,7 @@ package com.aiinterview.controller;
 import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.service.AiServiceClient;
 import com.aiinterview.service.InterviewPersistenceService;
+import com.aiinterview.service.JobPostingService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -46,6 +47,8 @@ public class AiProxyController {
     private final AiServiceClient aiServiceClient;
 
     private final InterviewPersistenceService interviewPersistenceService;
+
+    private final JobPostingService jobPostingService;
 
     // ========================================================
     // Resume analysis
@@ -132,9 +135,17 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
+        requireAuthenticated(authentication);
+
+        // With an invite code, the job's own description, field and
+        // exam mode replace what the browser sent - before the AI
+        // service sees the request, so the questions are written for
+        // that job. An invalid or closed code stops here.
+        JsonNode request = jobPostingService.applyInvite(authentication.getName(), body);
+
         return forwardAndRecord(
                 "/api/v1/interview/start",
-                body,
+                request,
                 authentication,
                 interviewPersistenceService::recordStart
         );

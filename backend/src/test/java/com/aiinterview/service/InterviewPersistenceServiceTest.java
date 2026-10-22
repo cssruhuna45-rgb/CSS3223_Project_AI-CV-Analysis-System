@@ -2,9 +2,11 @@ package com.aiinterview.service;
 
 import com.aiinterview.entity.InterviewSession;
 import com.aiinterview.entity.InterviewTurn;
+import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.impl.InterviewPersistenceServiceImpl;
@@ -58,6 +60,9 @@ class InterviewPersistenceServiceTest {
     @Mock
     private ResumeRepository resumeRepository;
 
+    @Mock
+    private JobPostingRepository jobPostingRepository;
+
     private InterviewPersistenceServiceImpl persistenceService;
 
     private User user;
@@ -71,6 +76,7 @@ class InterviewPersistenceServiceTest {
                 interviewSessionRepository,
                 userRepository,
                 resumeRepository,
+                jobPostingRepository,
                 objectMapper
         );
 
@@ -214,6 +220,51 @@ class InterviewPersistenceServiceTest {
         );
 
         assertEquals(resume, captureSaved().getResume());
+    }
+
+    @Test
+    @DisplayName("Start files the interview under the job its invite code names")
+    void recordStartLinksJobByInviteCode() {
+
+        JobPosting job = JobPosting.builder().id(5L).inviteCode("ABCD-EF23").build();
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        when(jobPostingRepository.findByInviteCode("ABCD-EF23"))
+                .thenReturn(Optional.of(job));
+
+        persistenceService.recordStart(
+                EMAIL,
+                json("""
+                        {"job_description": "Backend engineer", "invite_code": "ABCD-EF23", "mode": "exam"}
+                        """),
+                json("""
+                        {"session_id": "sess-abc123", "question": {"question": "Q1"}}
+                        """)
+        );
+
+        assertEquals(job, captureSaved().getJobPosting());
+    }
+
+    @Test
+    @DisplayName("A job id sent by the browser is ignored; only an invite code links a job")
+    void recordStartIgnoresJobId() {
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        persistenceService.recordStart(
+                EMAIL,
+                json("""
+                        {"job_description": "Backend engineer", "job_posting_id": 5}
+                        """),
+                json("""
+                        {"session_id": "sess-abc123", "question": {"question": "Q1"}}
+                        """)
+        );
+
+        assertNull(captureSaved().getJobPosting());
     }
 
     @Test

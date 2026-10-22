@@ -75,6 +75,40 @@ export const authAPI = {
       }),
     }).then(handleResponse),
 
+  // The signed-in account as the server holds it now. A recruiter
+  // waiting for approval polls this rather than logging out and in.
+  me: () =>
+    fetch(`${SPRING}/api/v1/users/me`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+};
+
+
+// ============================================================
+// ADMIN
+// Spring Boot -> /api/v1/admin (ADMIN role only)
+// ============================================================
+
+export const adminAPI = {
+
+  recruiters: () =>
+    fetch(`${SPRING}/api/v1/admin/recruiters`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  approve: (id) =>
+    fetch(`${SPRING}/api/v1/admin/recruiters/${id}/approve`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  reject: (id) =>
+    fetch(`${SPRING}/api/v1/admin/recruiters/${id}/reject`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
 };
 
 
@@ -224,7 +258,8 @@ export const interviewAPI = {
     relatedSkills = [],
     missingSkills = [],
     additionalSkills = [],
-    mode = null
+    mode = null,
+    inviteCode = null
   ) => {
 
     console.log(
@@ -309,6 +344,13 @@ export const interviewAPI = {
           // 'practice' or 'exam'. Spring stores it so progress can
           // compare exam scores only; the AI service ignores it.
           mode,
+
+          // A recruiter's invite code. Spring checks it, replaces the
+          // job description, field and mode with the job's own, and
+          // files the interview under that job so its recruiter sees
+          // it. Null for an interview the candidate takes on their own.
+          invite_code:
+            inviteCode,
 
         }),
 
@@ -481,10 +523,54 @@ export const interviewAPI = {
 
 export const recruiterAPI = {
 
-  // Every candidate's interviews plus the headline totals.
-  // Recruiter-only: the backend rejects a candidate's token with 403.
-  overview: () =>
-    fetch(`${SPRING}/api/v1/recruiter/overview`, {
+  // Interviews taken for this recruiter's own jobs, plus the headline
+  // totals. jobId narrows to one job. Approved recruiters only: the
+  // backend rejects anyone else's token with 403.
+  overview: (jobId = null) =>
+    fetch(`${SPRING}/api/v1/recruiter/overview${jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''}`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  jobs: () =>
+    fetch(`${SPRING}/api/v1/recruiter/jobs`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  // { title, company, jobField, jobDescription } -> the job with its
+  // new invite code.
+  createJob: (job) =>
+    fetch(`${SPRING}/api/v1/recruiter/jobs`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(job),
+    }).then(handleResponse),
+
+  closeJob: (id) =>
+    fetch(`${SPRING}/api/v1/recruiter/jobs/${id}/close`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  reopenJob: (id) =>
+    fetch(`${SPRING}/api/v1/recruiter/jobs/${id}/reopen`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+};
+
+
+// ============================================================
+// JOB INVITES (candidate side)
+// Spring Boot -> /api/v1/jobs
+// ============================================================
+
+export const jobsAPI = {
+
+  // The job behind an invite code, shown before the candidate agrees
+  // to share an interview with its recruiter.
+  preview: (code) =>
+    fetch(`${SPRING}/api/v1/jobs/invite/${encodeURIComponent(code)}`, {
       headers: authHeaders(),
     }).then(handleResponse),
 

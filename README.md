@@ -55,6 +55,14 @@ Then fill in `.env`:
   python -c "import secrets; print(secrets.token_urlsafe(48))"
   ```
 
+Optional, but needed before anyone can use the recruiter dashboard:
+
+- `ADMIN_EMAIL` — the account that becomes administrator when the
+  backend starts. A new recruiter account waits for an administrator to
+  approve it at `/admin`, because the dashboard shows other people's
+  results. Register this email through the normal sign-up page first,
+  then set it and restart the backend. No password goes in `.env`.
+
 ---
 
 ### Option A — everything in Docker

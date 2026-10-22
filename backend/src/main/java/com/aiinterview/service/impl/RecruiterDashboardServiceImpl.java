@@ -4,7 +4,10 @@ import com.aiinterview.dto.RecruiterCandidateDto;
 import com.aiinterview.dto.RecruiterOverviewResponse;
 import com.aiinterview.entity.InterviewSession;
 import com.aiinterview.entity.InterviewTurn;
+import com.aiinterview.entity.User;
+import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.RecruiterDashboardService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,7 +27,8 @@ import java.util.Set;
  *
  * <p>Until interviews were persisted this page rendered a hardcoded
  * array of six invented candidates. Everything here comes from
- * interview_sessions instead.
+ * interview_sessions instead - and only the ones taken through an
+ * invite code to this recruiter's own jobs.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,14 +45,28 @@ public class RecruiterDashboardServiceImpl implements RecruiterDashboardService 
     private static final int MAX_ROLE_LENGTH = 70;
 
     private final InterviewSessionRepository interviewSessionRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
-    public RecruiterOverviewResponse getOverview() {
+    public RecruiterOverviewResponse getOverview(String recruiterEmail, Long jobId) {
 
+        User recruiter = userRepository.findByEmail(recruiterEmail)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found: " + recruiterEmail
+                ));
+
+        // Scoped by the recruiter id from the token. The optional job
+        // filter narrows within that set and so can never widen it: a
+        // job id belonging to someone else simply matches nothing.
         List<InterviewSession> sessions =
-                interviewSessionRepository.findAllWithUser();
+                interviewSessionRepository.findForRecruiter(recruiter.getId())
+                        .stream()
+                        .filter(s -> jobId == null
+                                || (s.getJobPosting() != null
+                                && jobId.equals(s.getJobPosting().getId())))
+                        .toList();
 
         List<RecruiterCandidateDto> candidates = new ArrayList<>();
 
@@ -115,7 +133,12 @@ public class RecruiterDashboardServiceImpl implements RecruiterDashboardService 
                                 ? null
                                 : session.getUser().getEmail()
                 )
-                .role(roleFrom(session.getJobDescription()))
+                .role(
+                        session.getJobPosting() != null
+                                ? session.getJobPosting().getTitle()
+                                : roleFrom(session.getJobDescription())
+                )
+                .jobId(session.getJobPosting() == null ? null : session.getJobPosting().getId())
                 .status(session.getStatus())
                 .score(session.getScore())
                 .questionCount(

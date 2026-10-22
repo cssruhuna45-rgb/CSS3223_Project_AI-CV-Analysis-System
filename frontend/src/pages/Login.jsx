@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { authAPI } from '../services/api';
+import { homePathFor, toStoredUser } from '../constants/accounts';
 
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,19 +18,16 @@ export default function Login({ onLogin }) {
     setError('');
     try {
       const data = await authAPI.login(form.email, form.password);
-      // Spring Boot returns { token, user: { id, name, email, role } }.
-      // The role must come from the server: letting the sign-in form
-      // choose it would hand anyone the recruiter dashboard.
-      const role = data.user?.role || 'candidate';
+      // Spring Boot returns { token, user: { id, name, email, role,
+      // approvalStatus } }. Both must come from the server: letting the
+      // sign-in form choose them would hand anyone the recruiter
+      // dashboard.
       localStorage.setItem('token', data.token);
-      const userData = {
-        name: data.user?.name || form.email.split('@')[0],
-        email: data.user?.email || form.email,
-        role,
-      };
+      const userData = toStoredUser(data.user, form.email.split('@')[0], form.email);
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
-      navigate(role === 'recruiter' ? '/dashboard' : '/home');
+      // Back to where they were going (an invite link, say), if anywhere.
+      navigate(location.state?.from || homePathFor(userData), { replace: true });
     } catch (err) {
       setError(err.message || 'Invalid email or password.');
     } finally {
@@ -124,7 +123,7 @@ export default function Login({ onLogin }) {
                 fontFamily: 'var(--font-sans)', fontSize: 'inherit',
                 textDecoration: 'underline', textUnderlineOffset: '3px',
               }}
-              onClick={() => navigate('/register')}
+              onClick={() => navigate('/register', { state: location.state })}
               onMouseEnter={(e) => { e.target.style.textShadow = '0 0 12px color-mix(in srgb, var(--accent) 50%, transparent)'; }}
               onMouseLeave={(e) => { e.target.style.textShadow = 'none'; }}
             >Create one</button>

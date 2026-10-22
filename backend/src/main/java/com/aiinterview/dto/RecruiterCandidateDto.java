@@ -31,9 +31,15 @@ public class RecruiterCandidateDto {
     private String candidateEmail;
 
     /**
-     * The role interviewed for, taken from the job description.
+     * The role interviewed for: the title of the job.
      */
     private String role;
+
+    /**
+     * The recruiter's job this interview was taken for, so the
+     * dashboard can show one job's candidates at a time.
+     */
+    private Long jobId;
 
     /**
      * active, completed or cancelled.

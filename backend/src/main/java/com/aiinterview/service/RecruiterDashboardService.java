@@ -5,10 +5,11 @@ import com.aiinterview.dto.RecruiterOverviewResponse;
 public interface RecruiterDashboardService {
 
     /**
-     * Every candidate's interviews plus the headline totals.
+     * The interviews taken for this recruiter's own jobs, plus the
+     * headline totals over them.
      *
-     * <p>Crosses candidates, so callers must already have established
-     * that the caller is a recruiter.
+     * @param recruiterEmail the signed-in recruiter, from the token
+     * @param jobId          one of their jobs to narrow to, or null for all
      */
-    RecruiterOverviewResponse getOverview();
+    RecruiterOverviewResponse getOverview(String recruiterEmail, Long jobId);
 }

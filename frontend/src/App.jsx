@@ -14,7 +14,12 @@ import Scorecard from './pages/Scorecard';
 import Progress from './pages/Progress';
 import SkillGap from './pages/SkillGap';
 import RecruiterDashboard from './pages/RecruiterDashboard';
+import PendingApproval from './pages/PendingApproval';
+import RecruiterJobs from './pages/RecruiterJobs';
+import JoinInterview from './pages/JoinInterview';
+import AdminPanel from './pages/AdminPanel';
 import DesignSystem from './pages/DesignSystem';
+import { homePathFor, isApprovedRecruiter, toStoredUser } from './constants/accounts';
 
 // Focus mode. The interview is the most demanding screen in the app,
 // so the footer links are left out there: nothing on screen competes
@@ -30,10 +35,23 @@ function FooterOutsideFocus({ user }) {
   return useFocusMode() ? null : <Footer user={user} />;
 }
 
-function ProtectedRoute({ user, children, recruiterOnly }) {
-  if (!user) return <Navigate to="/login" replace />;
-  if (recruiterOnly && user.role !== 'recruiter') return <Navigate to="/home" replace />;
-  return children;
+// Sends each account to the page it may use. These redirects only
+// keep people from landing on a screen that will be refused: the
+// server checks the role and approval on every request regardless.
+function ProtectedRoute({ user, children, only }) {
+  const location = useLocation();
+
+  // Remember where they were going, so an invite link opened while
+  // signed out lands back on the invite after signing in.
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+
+  const allowed =
+    only === 'recruiter' ? isApprovedRecruiter(user)
+    : only === 'admin' ? user.role === 'admin'
+    : only === 'pending' ? user.role === 'recruiter' && !isApprovedRecruiter(user)
+    : true;
+
+  return allowed ? children : <Navigate to={homePathFor(user)} replace />;
 }
 
 export default function App() {
@@ -41,7 +59,9 @@ export default function App() {
     const storedUser = localStorage.getItem('user');
     if (!localStorage.getItem('token') || !storedUser) return null;
     try {
-      return JSON.parse(storedUser);
+      // Passed through toStoredUser so an account saved before approval
+      // existed still gets a status - a recruiter without one waits.
+      return toStoredUser(JSON.parse(storedUser));
     } catch {
       localStorage.removeItem('user');
       return null;
@@ -75,7 +95,12 @@ export default function App() {
             <Route path="/scorecard" element={<ProtectedRoute user={user}><Scorecard /></ProtectedRoute>} />
             <Route path="/progress" element={<ProtectedRoute user={user}><Progress /></ProtectedRoute>} />
             <Route path="/skill-gap" element={<ProtectedRoute user={user}><SkillGap /></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute user={user} recruiterOnly><RecruiterDashboard /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute user={user} only="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
+            <Route path="/jobs" element={<ProtectedRoute user={user} only="recruiter"><RecruiterJobs /></ProtectedRoute>} />
+            <Route path="/join" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />
+            <Route path="/join/:code" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />
+            <Route path="/pending" element={<ProtectedRoute user={user} only="pending"><PendingApproval user={user} onUserChange={setUser} /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute user={user} only="admin"><AdminPanel /></ProtectedRoute>} />
             <Route path="/design-system" element={<DesignSystem />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

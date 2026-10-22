@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, Mic, BarChart2, Shield, Zap, ChevronRight, FileText, Users, Sparkles, Award, Compass } from 'lucide-react';
 import { PREDEFINED_JOB_FIELDS as JOB_FIELDS } from '../constants/jobFields';
+import { homePathFor } from '../constants/accounts';
 
 const FEATURES = [
   {
@@ -76,7 +77,7 @@ function useReveal(ref) {
 
 export default function Landing({ user }) {
   const navigate = useNavigate();
-  const startPath = user ? (user.role === 'recruiter' ? '/dashboard' : '/upload') : '/register';
+  const startPath = !user ? '/register' : user.role === 'candidate' ? '/upload' : homePathFor(user);
   const pageRef = useRef(null);
   useReveal(pageRef);
 

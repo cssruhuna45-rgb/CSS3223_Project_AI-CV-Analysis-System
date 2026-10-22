@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Users, TrendingUp, Clock, CheckCircle, Search, Eye,
-  Brain, Code, MessageSquare, Layers, BarChart2, AlertTriangle, Sparkles,
+  Brain, Code, MessageSquare, Layers, BarChart2, AlertTriangle, Sparkles, Briefcase,
 } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
+import { Button } from '../components/ui';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_CYAN = 'var(--accent)';
@@ -97,7 +99,13 @@ function Message({ icon, title, body }) {
 }
 
 export default function RecruiterDashboard() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // One job at a time when chosen on the Jobs page; all of them otherwise.
+  const jobId = searchParams.get('job') || '';
+
   const [data, setData] = useState(null);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -106,9 +114,17 @@ export default function RecruiterDashboard() {
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
+    recruiterAPI.jobs()
+      .then(setJobs)
+      .catch(err => console.error('[Recruiter] Could not load jobs:', err));
+  }, []);
 
-    recruiterAPI.overview()
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setSelected(null);
+
+    recruiterAPI.overview(jobId || null)
       .then(result => { if (!cancelled) setData(result); })
       .catch(err => {
         console.error('[Recruiter] Could not load the dashboard:', err);
@@ -117,7 +133,7 @@ export default function RecruiterDashboard() {
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [jobId]);
 
   const candidates = useMemo(() => data?.candidates || [], [data]);
 
@@ -187,6 +203,23 @@ export default function RecruiterDashboard() {
             ? 'No interviews have been taken yet.'
             : `${data.totalInterviews} interview${data.totalInterviews === 1 ? '' : 's'} across ${data.totalCandidates} candidate${data.totalCandidates === 1 ? '' : 's'}`}
         </p>
+
+        {jobs.length > 0 && (
+          <div style={{ marginTop: 'var(--space-4)', maxWidth: 360 }}>
+            <label className="label" htmlFor="job-filter">Job</label>
+            <select
+              id="job-filter"
+              className="input"
+              value={jobId}
+              onChange={(e) => setSearchParams(e.target.value ? { job: e.target.value } : {})}
+            >
+              <option value="">All my jobs</option>
+              {jobs.map((j) => (
+                <option key={j.id} value={String(j.id)}>{j.title}{j.open ? '' : ' (closed)'}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -228,9 +261,14 @@ export default function RecruiterDashboard() {
         }}>
           <Users size={36} color="var(--accent-cyan)" style={{ margin: '0 auto 14px' }} className="animate-float" />
           <p style={{ fontSize: 'var(--fs-base)', fontWeight: 600, color: TEXT_PRIMARY, marginBottom: 6 }}>No interviews yet</p>
-          <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>
-            Once candidates complete interviews their results appear here.
+          <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, marginBottom: jobs.length === 0 ? 'var(--space-4)' : 0 }}>
+            {jobs.length === 0
+              ? 'Create a job and share its invite link. Interviews candidates take through it appear here; nothing else candidates do on the platform is shown to you.'
+              : 'Interviews candidates take through your jobs’ invite links appear here.'}
           </p>
+          {jobs.length === 0 && (
+            <Button icon={<Briefcase size={16} />} onClick={() => navigate('/jobs')}>Create a job</Button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: candidate ? '1fr 380px' : '1fr', gap: 20 }}>
