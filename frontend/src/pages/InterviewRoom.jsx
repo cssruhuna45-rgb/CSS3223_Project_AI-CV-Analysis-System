@@ -50,6 +50,7 @@ const MODES = {
       'Expected answers only on the scorecard',
       'When time runs out, your answer is submitted as it is',
       'Counted in your progress',
+      'Leaving this page and pasting text are recorded with each answer',
     ],
   },
 };
@@ -184,6 +185,20 @@ export default function InterviewRoom() {
 
   // The utterance currently being spoken, so it can be cancelled
   const utteranceRef = useRef(null);
+
+  // ----------------------------------------------------------
+  // INTEGRITY SIGNALS (exam mode only)
+  //
+  // What the browser saw while the current answer was written: how
+  // often and for how long the candidate left the page, and how much
+  // they pasted. Sent with the answer and shown to a recruiter beside
+  // the score. Nothing is blocked - blocking paste breaks assistive
+  // tools and a second device is invisible to a browser anyway - and
+  // the candidate is told before the exam starts that this is recorded.
+  // ----------------------------------------------------------
+
+  const integrityRef = useRef({ leftPage: 0, awayMs: 0, pastes: 0, pastedChars: 0 });
+  const awaySinceRef = useRef(null);
 
   // ----------------------------------------------------------
   // MICROPHONE STATE THAT MUST NOT LIVE IN REACT STATE
@@ -1039,6 +1054,34 @@ export default function InterviewRoom() {
   // SUBMIT ANSWER
   // ==========================================================
 
+  // The signals for the answer being submitted, including any time
+  // away that has not ended yet. Not reset here: a submit that fails
+  // and is retried must still carry them.
+  const integrityForAnswer = () => {
+    if (!isExam) return null;
+    const s = integrityRef.current;
+    const awayNow = awaySinceRef.current ? Date.now() - awaySinceRef.current : 0;
+    return {
+      left_page_count: s.leftPage,
+      away_seconds: Math.round((s.awayMs + awayNow) / 1000),
+      paste_count: s.pastes,
+      pasted_chars: s.pastedChars,
+    };
+  };
+
+  const resetIntegrity = () => {
+    integrityRef.current = { leftPage: 0, awayMs: 0, pastes: 0, pastedChars: 0 };
+    awaySinceRef.current = null;
+  };
+
+  // Counted from the answer box only, and only in exam mode.
+  const handleAnswerPaste = (e) => {
+    if (!isExam) return;
+    const pasted = e.clipboardData?.getData('text') || '';
+    integrityRef.current.pastes += 1;
+    integrityRef.current.pastedChars += pasted.length;
+  };
+
   // override: the text to send instead of the answer box, used when the
   // exam clock runs out. Callers pass nothing, never a click event.
   const handleSubmit = async (override) => {
@@ -1112,8 +1155,10 @@ export default function InterviewRoom() {
         // Submit final answer
         await interviewAPI.submitAnswer(
           sessionId,
-          text
+          text,
+          integrityForAnswer()
         );
+        resetIntegrity();
 
         setFinishStep(2);
 
@@ -1151,8 +1196,12 @@ export default function InterviewRoom() {
       const data =
         await interviewAPI.submitAnswer(
           sessionId,
-          text
+          text,
+          integrityForAnswer()
         );
+
+      // Sent and stored: the next answer starts counting from zero.
+      resetIntegrity();
 
       console.log(
         '[Frontend] Next question response:',
@@ -1232,6 +1281,40 @@ export default function InterviewRoom() {
     autoSubmittedRef.current = true;
     handleSubmit(answer.trim() || NO_ANSWER_TEXT);
   }, [timeLeft, isExam]);
+
+  // Leaving the page while an exam question is on screen: switching
+  // tab (visibilitychange) or switching to another window (blur). Both
+  // usually fire for one tab switch, so only the change from "here" to
+  // "away" counts, and the time away is added when the candidate is back.
+  const examQuestionOnScreen = isExam && Boolean(sessionId) && Boolean(question) && !isFinishing;
+
+  useEffect(() => {
+    if (!examQuestionOnScreen) return undefined;
+
+    const goneAway = () => {
+      if (awaySinceRef.current) return;
+      awaySinceRef.current = Date.now();
+      integrityRef.current.leftPage += 1;
+    };
+
+    const cameBack = () => {
+      if (!awaySinceRef.current) return;
+      integrityRef.current.awayMs += Date.now() - awaySinceRef.current;
+      awaySinceRef.current = null;
+    };
+
+    const onVisibility = () => (document.hidden ? goneAway() : cameBack());
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', goneAway);
+    window.addEventListener('focus', cameBack);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', goneAway);
+      window.removeEventListener('focus', cameBack);
+    };
+  }, [examQuestionOnScreen]);
 
   // Submit: in practice, show the expected answer first; in an exam,
   // send the answer and move straight on.
@@ -1942,6 +2025,7 @@ export default function InterviewRoom() {
             aria-describedby="interview-answer-hint"
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
+            onPaste={handleAnswerPaste}
             onKeyDown={(e) => {
               // Ctrl+Enter (Cmd+Enter on a Mac) submits. Plain Enter
               // still starts a new line, which long answers need.
@@ -1966,6 +2050,7 @@ export default function InterviewRoom() {
             }}
           >
             Press Ctrl + Enter to submit.
+            {isExam && ' Leaving this page and pasting text are recorded with your answer.'}
           </p>
 
           <div

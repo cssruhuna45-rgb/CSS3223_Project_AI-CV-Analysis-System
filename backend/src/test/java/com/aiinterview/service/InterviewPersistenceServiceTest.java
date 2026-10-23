@@ -549,6 +549,69 @@ class InterviewPersistenceServiceTest {
     }
 
     @Test
+    @DisplayName("Integrity signals sent with an exam answer are stored on its turn")
+    void answerStoresIntegritySignals() {
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordAnswer(
+                EMAIL,
+                json("""
+                        {
+                          "session_id": "sess-abc123",
+                          "answer": "Use parameterised queries.",
+                          "integrity": {
+                            "left_page_count": 2,
+                            "away_seconds": 41,
+                            "paste_count": -3,
+                            "pasted_chars": 9999999
+                          }
+                        }
+                        """),
+                json("""
+                        {"question": {"question": "Q2"}}
+                        """)
+        );
+
+        InterviewTurn answered = captureSaved().getTurns().get(0);
+
+        assertEquals(2, answered.getLeftPageCount());
+        assertEquals(41, answered.getAwaySeconds());
+        // The browser's numbers are reported, not trusted: a negative
+        // count becomes 0 and an absurd one is capped.
+        assertEquals(0, answered.getPasteCount());
+        assertEquals(100_000, answered.getPastedChars());
+    }
+
+    @Test
+    @DisplayName("Without integrity signals (practice mode) the columns stay null, not 0")
+    void answerWithoutIntegrityLeavesNull() {
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordAnswer(
+                EMAIL,
+                json("""
+                        {"session_id": "sess-abc123", "answer": "An answer."}
+                        """),
+                json("""
+                        {"question": {"question": "Q2"}}
+                        """)
+        );
+
+        InterviewTurn answered = captureSaved().getTurns().get(0);
+
+        assertNull(answered.getLeftPageCount());
+        assertNull(answered.getPastedChars());
+    }
+
+    @Test
     @DisplayName("An interview that was never stored is skipped, not created mid-flight")
     void answerForUnknownSessionIsSkipped() {
 

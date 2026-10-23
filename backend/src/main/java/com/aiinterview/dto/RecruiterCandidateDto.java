@@ -66,6 +66,21 @@ public class RecruiterCandidateDto {
      */
     private List<CategoryScoreDto> categoryScores;
 
+    /**
+     * Integrity signals summed over the interview's answers: times the
+     * candidate left the page and for how long, and how often and how
+     * much they pasted. Null (and left out of the JSON) when none were
+     * recorded. Reported by the candidate's browser, so signals to
+     * weigh, not proof.
+     */
+    private Integer leftPageCount;
+
+    private Integer awaySeconds;
+
+    private Integer pasteCount;
+
+    private Integer pastedChars;
+
     @Data
     @Builder
     @NoArgsConstructor

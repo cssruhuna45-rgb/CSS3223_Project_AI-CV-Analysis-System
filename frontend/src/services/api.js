@@ -378,7 +378,8 @@ export const interviewAPI = {
 
   submitAnswer: (
     sessionId,
-    answer
+    answer,
+    integrity = null
   ) =>
     fetch(
       `${AI}/interview/answer`,
@@ -394,6 +395,11 @@ export const interviewAPI = {
 
           answer:
             answer,
+
+          // Exam mode only: how often the candidate left the page and
+          // pasted while writing this answer. Spring stores it on the
+          // answer for the recruiter; the AI service ignores it.
+          ...(integrity ? { integrity } : {}),
 
         }),
 

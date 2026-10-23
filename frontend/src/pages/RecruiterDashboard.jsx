@@ -98,6 +98,66 @@ function Message({ icon, title, body }) {
   );
 }
 
+function formatDuration(seconds) {
+  if (!seconds) return '0 s';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m ? `${m} min${s ? ` ${s} s` : ''}` : `${s} s`;
+}
+
+// What the candidate's browser recorded during the exam: leaving the
+// page and pasting. Shown as facts for the recruiter to weigh, never as
+// a verdict - a candidate may switch tabs to silence a notification,
+// and a second device is invisible to the browser. Absent for
+// interviews recorded before this existed, which is not the same as
+// "nothing happened", so it says so.
+function IntegritySignals({ candidate }) {
+  const recorded = candidate.leftPageCount != null || candidate.pasteCount != null;
+
+  const rowStyle = {
+    display: 'flex', justifyContent: 'space-between', gap: 12,
+    fontSize: 'var(--fs-sm)', color: TEXT_PRIMARY,
+  };
+
+  return (
+    <section aria-labelledby="integrity-title" style={{
+      marginBottom: 20, padding: '12px 14px', borderRadius: 12,
+      border: `1px solid ${TRACK}`,
+    }}>
+      <h3 id="integrity-title" style={{
+        fontSize: 'var(--fs-xs)', fontWeight: 600, color: TEXT, margin: '0 0 8px',
+        textTransform: 'uppercase', letterSpacing: '0.04em',
+      }}>
+        During the exam
+      </h3>
+
+      {!recorded ? (
+        <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, margin: 0 }}>Not recorded for this interview.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={rowStyle}>
+            <span>Left the page</span>
+            <strong>
+              {candidate.leftPageCount ?? 0} time{candidate.leftPageCount === 1 ? '' : 's'}
+              {candidate.leftPageCount ? ` · ${formatDuration(candidate.awaySeconds)}` : ''}
+            </strong>
+          </div>
+          <div style={rowStyle}>
+            <span>Pasted text</span>
+            <strong>
+              {candidate.pasteCount ?? 0} time{candidate.pasteCount === 1 ? '' : 's'}
+              {candidate.pasteCount ? ` · ${candidate.pastedChars} characters` : ''}
+            </strong>
+          </div>
+          <p style={{ fontSize: 'var(--fs-xs)', color: TEXT, margin: '4px 0 0', lineHeight: 1.5 }}>
+            Reported by the candidate's browser. A signal to ask about, not proof of anything.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function RecruiterDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -441,6 +501,8 @@ export default function RecruiterDashboard() {
                 {candidate.answeredCount} of {candidate.questionCount} question
                 {candidate.questionCount === 1 ? '' : 's'} answered
               </p>
+
+              <IntegritySignals candidate={candidate} />
 
               {candidate.categoryScores && candidate.categoryScores.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

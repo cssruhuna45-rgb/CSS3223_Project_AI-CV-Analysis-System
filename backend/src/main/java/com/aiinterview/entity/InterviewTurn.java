@@ -77,4 +77,26 @@ public class InterviewTurn {
 
     @Column(name = "answered_at")
     private LocalDateTime answeredAt;
+
+    // --------------------------------------------------------
+    // Integrity signals (V8): what the browser saw while this answer
+    // was being written, recorded in exam mode only. Null = not
+    // recorded, which is not the same as 0 = recorded, none seen.
+    // --------------------------------------------------------
+
+    /** Times the candidate left the interview page (tab or window). */
+    @Column(name = "left_page_count")
+    private Integer leftPageCount;
+
+    /** Total seconds spent away from the page. */
+    @Column(name = "away_seconds")
+    private Integer awaySeconds;
+
+    /** Times text was pasted into the answer. */
+    @Column(name = "paste_count")
+    private Integer pasteCount;
+
+    /** Characters pasted in total. */
+    @Column(name = "pasted_chars")
+    private Integer pastedChars;
 }

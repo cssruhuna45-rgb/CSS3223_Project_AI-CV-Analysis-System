@@ -131,7 +131,8 @@ export default function JoinInterview({ user }) {
                 <ShieldCheck size={20} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                 <div style={{ fontSize: 'var(--fs-sm)', lineHeight: 'var(--lh-normal)' }}>
                   <strong>Your result for this interview is shared with {who}.</strong>{' '}
-                  They will see your name, email, answers and scores for this one interview.
+                  They will see your name, email, answers and scores for this one interview,
+                  and how often you left the page or pasted text while answering.
                   It is timed (exam mode) and can be taken once. Your practice interviews
                   and anything else you do here stay private.
                 </div>

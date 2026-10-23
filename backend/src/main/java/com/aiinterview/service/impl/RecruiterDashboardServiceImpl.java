@@ -150,7 +150,37 @@ public class RecruiterDashboardServiceImpl implements RecruiterDashboardService 
                 .startedAt(session.getStartedAt())
                 .completedAt(session.getCompletedAt())
                 .categoryScores(categoryScores(session))
+                .leftPageCount(sum(session, InterviewTurn::getLeftPageCount))
+                .awaySeconds(sum(session, InterviewTurn::getAwaySeconds))
+                .pasteCount(sum(session, InterviewTurn::getPasteCount))
+                .pastedChars(sum(session, InterviewTurn::getPastedChars))
                 .build();
+    }
+
+    /**
+     * One integrity signal added up over the answers that recorded it.
+     * Null when no answer did - "not recorded" must not show as 0,
+     * which would read as "watched, and nothing happened".
+     */
+    private static Integer sum(
+            InterviewSession session,
+            java.util.function.Function<InterviewTurn, Integer> field
+    ) {
+
+        if (session.getTurns() == null) {
+            return null;
+        }
+
+        Integer total = null;
+
+        for (InterviewTurn turn : session.getTurns()) {
+            Integer value = field.apply(turn);
+            if (value != null) {
+                total = (total == null ? 0 : total) + value;
+            }
+        }
+
+        return total;
     }
 
     /**
