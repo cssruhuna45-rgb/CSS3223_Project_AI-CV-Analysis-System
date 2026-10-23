@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from app.interview.question_generator import get_llm, is_non_answer
+from app.interview.question_generator import get_interactive_llm, is_non_answer
 
 
 # ============================================================
@@ -206,7 +206,9 @@ def assess_answer(
         }
 
     try:
-        chain = QUALITY_PROMPT | get_llm() | StrOutputParser()
+        # The interactive model: this runs while the candidate waits
+        # for their next question, inside that question's time budget.
+        chain = QUALITY_PROMPT | get_interactive_llm() | StrOutputParser()
 
         raw = chain.invoke(
             {

@@ -8,7 +8,13 @@ import os
 import unittest
 from unittest import mock
 
-from app.llm_config import DEFAULT_FALLBACK_MODELS, get_model_chain
+from app.llm_config import (
+    DEFAULT_FALLBACK_MODELS,
+    get_interactive_timeout,
+    get_max_retries,
+    get_model_chain,
+    get_timeout,
+)
 
 
 class TestModelChain(unittest.TestCase):
@@ -35,6 +41,19 @@ class TestModelChain(unittest.TestCase):
             "GEMINI_FALLBACK_MODELS": "",
         }):
             self.assertEqual(get_model_chain(), ["model-a"])
+
+    def test_no_retries_inside_one_model_by_default(self):
+        # The fallback chain is the retry; a retry per model repeated
+        # each model's full timeout before moving on.
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GEMINI_MAX_RETRIES", None)
+            self.assertEqual(get_max_retries(), 0)
+
+    def test_interview_turn_calls_time_out_sooner(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GEMINI_INTERACTIVE_TIMEOUT_SECONDS", None)
+            os.environ.pop("GEMINI_TIMEOUT_SECONDS", None)
+            self.assertLess(get_interactive_timeout(), get_timeout())
 
     def test_explicit_primary_overrides_env(self):
         with mock.patch.dict(os.environ, {

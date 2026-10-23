@@ -1,3 +1,5 @@
+import os
+import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 from uuid import uuid4
@@ -116,12 +118,67 @@ class InterviewSession:
 
     evaluation: Optional[dict] = None
 
+    # --------------------------------------------------------
+    # Last use, on the monotonic clock. Idle sessions are evicted
+    # by _evict_idle_sessions; see SESSION_IDLE_TTL_SECONDS.
+    # --------------------------------------------------------
+
+    last_active: float = field(
+        default_factory=time.monotonic
+    )
+
 
 # ============================================================
 # IN-MEMORY SESSION STORAGE
+#
+# Live interviews are held here, in this process. Spring keeps the
+# durable record (questions, answers, scorecard) in PostgreSQL; this is
+# only the working state of interviews in progress.
+#
+# Nothing ever removed a session: a finished or abandoned interview,
+# with the candidate's whole CV text inside it, stayed in memory until
+# the service restarted, so memory grew with every interview ever
+# started. Sessions idle for longer than the TTL are now dropped.
+#
+# The TTL is measured from the last call that touched the session, not
+# from its start, so a slow candidate is never cut off mid-interview;
+# only an interview nobody has used for hours goes. A finished one is
+# no longer needed here at all - its scorecard is stored by Spring and
+# read back from there.
 # ============================================================
 
 _sessions: dict[str, InterviewSession] = {}
+
+SESSION_IDLE_TTL_SECONDS = max(
+    60,
+    int(os.getenv("SESSION_IDLE_TTL_SECONDS", str(6 * 60 * 60))),
+)
+
+
+def _is_expired(session: InterviewSession, now: float) -> bool:
+    return now - session.last_active > SESSION_IDLE_TTL_SECONDS
+
+
+def _evict_idle_sessions(now: float | None = None) -> int:
+    """Drops every session idle past the TTL. Returns how many went."""
+
+    now = time.monotonic() if now is None else now
+
+    expired = [
+        sid for sid, s in list(_sessions.items())
+        if _is_expired(s, now)
+    ]
+
+    for sid in expired:
+        _sessions.pop(sid, None)
+
+    if expired:
+        print(
+            f"[InterviewSession] Evicted {len(expired)} idle "
+            f"session(s); {len(_sessions)} active"
+        )
+
+    return len(expired)
 
 
 # ============================================================
@@ -137,6 +194,10 @@ def create_session(
     missing_skills: List[str] | None = None,
     additional_skills: List[str] | None = None,
 ) -> InterviewSession:
+
+    # Every new interview sweeps out the abandoned ones, so the store
+    # stays bounded without a background thread.
+    _evict_idle_sessions()
 
     session_id = str(uuid4())
 
@@ -241,12 +302,25 @@ def get_session(
         session_id
     )
 
+    now = time.monotonic()
+
+    # An idle session not yet swept is treated as gone, so whether it
+    # is found never depends on when the last sweep happened.
+    if session is not None and _is_expired(session, now):
+
+        _sessions.pop(session_id, None)
+
+        session = None
+
     if session is None:
 
         raise ValueError(
             f"Interview session "
             f"'{session_id}' was not found."
         )
+
+    # Every use keeps it alive: the TTL counts idle time only.
+    session.last_active = now
 
     return session
 
