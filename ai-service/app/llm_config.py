@@ -64,15 +64,34 @@ def get_timeout() -> int:
         return 60
 
 
-def get_max_retries() -> int:
+def get_interactive_timeout() -> int:
     """
-    Retries inside the client. Kept low because the callers already
-    retry, and stacked retries are what turned a 503 into a hang.
+    Seconds per Gemini call made while a candidate waits between two
+    questions (grading the answer, writing and checking the next
+    question).
+
+    Shorter than get_timeout() because these prompts are short and a
+    whole turn has to finish inside Spring's request timeout: a model
+    that has not answered in this time is more usefully swapped for the
+    next one in the fallback chain than waited on.
     """
     try:
-        return max(0, int(os.getenv("GEMINI_MAX_RETRIES", "1")))
+        return max(5, int(os.getenv("GEMINI_INTERACTIVE_TIMEOUT_SECONDS", "30")))
     except ValueError:
-        return 1
+        return 30
+
+
+def get_max_retries() -> int:
+    """
+    Retries inside the client for one model. Zero by default: the
+    fallback chain already moves a failed call to the next model, and a
+    retry here repeated each model's full timeout before that happened -
+    with three models, one stuck call could hold a request for minutes.
+    """
+    try:
+        return max(0, int(os.getenv("GEMINI_MAX_RETRIES", "0")))
+    except ValueError:
+        return 0
 
 
 def get_model_chain(primary: Optional[str] = None) -> List[str]:
@@ -104,6 +123,7 @@ def build_llm(
     temperature: float = 0.0,
     structured_output: Any = None,
     primary: Optional[str] = None,
+    timeout: Optional[int] = None,
 ):
     """
     A Gemini chat model that falls back to the next model when a call
@@ -119,6 +139,9 @@ def build_llm(
 
     primary
         Use this model first instead of GEMINI_MODEL.
+
+    timeout
+        Seconds per call to each model; defaults to get_timeout().
     """
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -136,7 +159,7 @@ def build_llm(
             model=name,
             google_api_key=api_key,
             temperature=temperature,
-            timeout=get_timeout(),
+            timeout=timeout or get_timeout(),
             max_retries=get_max_retries(),
         )
 

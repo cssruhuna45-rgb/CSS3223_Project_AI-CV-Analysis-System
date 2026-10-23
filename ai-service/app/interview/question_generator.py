@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -15,6 +17,7 @@ from app.ai_errors import is_rate_limit_error
 
 from app.llm_config import (
     build_llm,
+    get_interactive_timeout,
     get_model_name,
 )
 
@@ -38,6 +41,22 @@ MAX_JD_LENGTH = 8000
 MAX_ANSWER_LENGTH = 6000
 
 MAX_GENERATION_RETRIES = 2
+
+# Seconds one question may take, from the start of generate_question:
+# grading the previous answer, retrieval, and every generation and
+# review attempt. Spring gives the whole request 200 seconds. Up to
+# three attempts of two calls each, plus the grading call, could run
+# well past that when Gemini is slow, and the candidate then saw an
+# error although a usable question was already in hand. Once the
+# budget is spent, no new attempt starts and a question that passed
+# every check in Python is used without waiting for the model's
+# review. The call already running can still take up to the
+# interactive timeout for each model in the chain, so the budget
+# leaves room for that.
+QUESTION_TIME_BUDGET_SECONDS = max(
+    10,
+    int(os.getenv("QUESTION_TIME_BUDGET_SECONDS", "75")),
+)
 
 # Number of consecutive weak answers before changing topic
 MAX_SAME_TOPIC_WEAK_ATTEMPTS = 2
@@ -683,6 +702,20 @@ def get_llm():
     """
 
     return build_llm(temperature=LLM_TEMPERATURE)
+
+
+def get_interactive_llm():
+    """
+    The model for calls made while the candidate waits between two
+    questions: grading their answer, then writing and checking the
+    next question. Same model chain as get_llm(), with the shorter
+    per-call timeout so one turn fits inside Spring's request timeout.
+    """
+
+    return build_llm(
+        temperature=LLM_TEMPERATURE,
+        timeout=get_interactive_timeout(),
+    )
 
 
 # ============================================================
@@ -1833,6 +1866,13 @@ def generate_question(
     additional_skills: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
 
+    # The clock for QUESTION_TIME_BUDGET_SECONDS starts here, so it
+    # covers grading the previous answer as well as the attempts below.
+    started = time.monotonic()
+
+    def over_budget() -> bool:
+        return time.monotonic() - started > QUESTION_TIME_BUDGET_SECONDS
+
     # ========================================================
     # Normalize inputs
     # ========================================================
@@ -2076,7 +2116,7 @@ def generate_question(
     # Create LLM
     # ========================================================
 
-    llm = get_llm()
+    llm = get_interactive_llm()
 
     # ========================================================
     # Prompt
@@ -2126,6 +2166,22 @@ def generate_question(
     for attempt in range(
         MAX_GENERATION_RETRIES + 1
     ):
+
+        # The first attempt always runs; later ones only while the
+        # time budget lasts.
+        if attempt > 0 and over_budget():
+
+            print(
+                "[QuestionGenerator] "
+                f"Time budget of {QUESTION_TIME_BUDGET_SECONDS}s "
+                "spent; no further attempts."
+            )
+
+            last_error = (
+                last_error or "Time budget spent."
+            )
+
+            break
 
         try:
 
@@ -2294,7 +2350,24 @@ def generate_question(
 
             # =================================================
             # LLM validation
+            #
+            # Skipped once the time budget is spent: the question
+            # has passed every check in Python (length, difficulty,
+            # duplicates, topic change), and a usable question now
+            # beats a better one after the request has timed out.
             # =================================================
+
+            if over_budget():
+
+                print(
+                    "[QuestionGenerator] "
+                    "Time budget spent; using the question without "
+                    "the model's review."
+                )
+
+                result["session_id"] = session_id
+
+                return result
 
             is_valid = (
                 validate_question_with_llm(

@@ -33,10 +33,24 @@ public class AiServiceClient {
             "X-Internal-Api-Key";
 
     /**
-     * Generous, because a single interview turn runs an LLM call.
+     * How long one call to the AI service may take. It must be longer
+     * than the AI service's own worst case, or Spring gives up and
+     * reports a failure while the answer is still on its way:
+     *
+     * <ul>
+     *   <li>an interview turn: the 75 s question budget
+     *       (QUESTION_TIME_BUDGET_SECONDS) plus the call still running
+     *       when it ends, at most 30 s for each of three models
+     *       (GEMINI_INTERACTIVE_TIMEOUT_SECONDS) - about 165 s;</li>
+     *   <li>one heavy call (grading a whole interview, a roadmap, a CV
+     *       analysis): 60 s for each of three models
+     *       (GEMINI_TIMEOUT_SECONDS) - 180 s.</li>
+     * </ul>
+     *
+     * It used to be 120 s, below both. Raise this with those settings.
      */
     private static final Duration REQUEST_TIMEOUT =
-            Duration.ofSeconds(120);
+            Duration.ofSeconds(200);
 
     private static final Duration CONNECT_TIMEOUT =
             Duration.ofSeconds(10);
