@@ -63,6 +63,30 @@ class RecruiterDashboardServiceTest {
     }
 
     @Test
+    @DisplayName("integrity signals are summed over the answers that recorded them")
+    void sumsIntegritySignals() {
+        InterviewSession exam = session(1L, alice, "completed", 80, "Backend Developer");
+        exam.addTurn(InterviewTurn.builder().question("Q1").answer("A1")
+                .leftPageCount(1).awaySeconds(20).pasteCount(0).pastedChars(0).build());
+        exam.addTurn(InterviewTurn.builder().question("Q2").answer("A2")
+                .leftPageCount(2).awaySeconds(15).pasteCount(1).pastedChars(300).build());
+
+        InterviewSession old = session(2L, bob, "completed", 70, "Backend Developer");
+        old.addTurn(InterviewTurn.builder().question("Q1").answer("A1").build());
+
+        when(interviewSessionRepository.findForRecruiter(RECRUITER_ID)).thenReturn(List.of(exam, old));
+
+        var rows = service.getOverview(RECRUITER_EMAIL, null).getCandidates();
+
+        assertEquals(3, rows.get(0).getLeftPageCount());
+        assertEquals(35, rows.get(0).getAwaySeconds());
+        assertEquals(1, rows.get(0).getPasteCount());
+        assertEquals(300, rows.get(0).getPastedChars());
+        // Nothing recorded is null, not 0: "not watched" is not "clean".
+        assertNull(rows.get(1).getLeftPageCount());
+    }
+
+    @Test
     @DisplayName("asks only for the signed-in recruiter's interviews")
     void scopedToRecruiter() {
         when(interviewSessionRepository.findForRecruiter(RECRUITER_ID)).thenReturn(List.of());

@@ -155,6 +155,7 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
             answered.setAnswer(answer);
             answered.setAnsweredAt(LocalDateTime.now());
             answered.setAnswerMode(text(request, "answer_mode"));
+            recordIntegrity(answered, request.get("integrity"));
         }
 
         JsonNode nextQuestion = aiResponse.get("question");
@@ -326,6 +327,47 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
         }
 
         return jobPostingRepository.findByInviteCode(code).orElse(null);
+    }
+
+    /**
+     * Stores the integrity signals the browser sent with an answer.
+     *
+     * <p>Only sent in exam mode; absent means not recorded and the
+     * columns stay null. The values come from the browser, so they are
+     * reported, not proven: each is taken only if it is a whole number,
+     * and capped so a doctored request cannot store nonsense. A
+     * candidate who wanted to hide something could send zeros - which
+     * is why these are signals for a recruiter to weigh, never a score.
+     */
+    private void recordIntegrity(InterviewTurn turn, JsonNode integrity) {
+
+        if (integrity == null || !integrity.isObject()) {
+            return;
+        }
+
+        turn.setLeftPageCount(count(integrity, "left_page_count", MAX_EVENTS));
+        turn.setAwaySeconds(count(integrity, "away_seconds", MAX_AWAY_SECONDS));
+        turn.setPasteCount(count(integrity, "paste_count", MAX_EVENTS));
+        turn.setPastedChars(count(integrity, "pasted_chars", MAX_PASTED_CHARS));
+    }
+
+    private static final int MAX_EVENTS = 1_000;
+
+    /** A day; no single answer takes longer. */
+    private static final int MAX_AWAY_SECONDS = 86_400;
+
+    /** Answers are cut to a few thousand characters downstream anyway. */
+    private static final int MAX_PASTED_CHARS = 100_000;
+
+    private static Integer count(JsonNode node, String field, int max) {
+
+        JsonNode value = node.get(field);
+
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToInt()) {
+            return null;
+        }
+
+        return Math.max(0, Math.min(max, value.asInt()));
     }
 
     private InterviewTurn toTurn(JsonNode question) {
