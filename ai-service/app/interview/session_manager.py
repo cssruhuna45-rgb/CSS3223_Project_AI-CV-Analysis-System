@@ -1,6 +1,7 @@
+import json
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import List, Optional
 from uuid import uuid4
 
@@ -118,67 +119,172 @@ class InterviewSession:
 
     evaluation: Optional[dict] = None
 
-    # --------------------------------------------------------
-    # Last use, on the monotonic clock. Idle sessions are evicted
-    # by _evict_idle_sessions; see SESSION_IDLE_TTL_SECONDS.
-    # --------------------------------------------------------
 
-    last_active: float = field(
-        default_factory=time.monotonic
+# ============================================================
+# SESSION STORAGE
+#
+# The working state of interviews in progress. Spring keeps the durable
+# record (questions, answers, scorecard) in PostgreSQL; a finished
+# interview is read back from there, not from here.
+#
+# Sessions used to live in a dict inside this process, so a restart of
+# the AI service lost every interview in progress, and a second
+# container or worker could not see the first one's interviews. With
+# REDIS_URL set they are kept in Redis instead, outside the process.
+# Without it (unit tests, running the service by hand) they stay in
+# memory, with the old limits.
+#
+# Both stores hold the session as JSON, never the object. get_session
+# therefore returns a copy, and a change reaches the store only through
+# save_session - in memory as in Redis, so a forgotten save shows up in
+# a unit test instead of only in production.
+#
+# Idle sessions expire. The TTL counts from the last call that touched
+# the session, not from its start: every read renews it, so a slow
+# candidate is never cut off mid-interview, and only an interview
+# nobody has used for hours goes - with the candidate's CV text in it.
+#
+# Two requests for the same session at the same moment would each save
+# their own copy, and the later save wins. One candidate answers one
+# question at a time, and the interview page sends no second answer
+# while the first is in flight, so the store takes no lock.
+# ============================================================
+
+_KEY_PREFIX = "interview:session:"
+
+_FIELD_NAMES = {f.name for f in fields(InterviewSession)}
+
+
+def session_idle_ttl_seconds() -> int:
+    # Read when used, not at import: main.py loads ai-service/.env
+    # only after this module has been imported.
+    return max(
+        60,
+        int(os.getenv("SESSION_IDLE_TTL_SECONDS", str(6 * 60 * 60))),
+    )
+
+
+class _MemoryStore:
+    """This process only. Expiry is checked on the monotonic clock."""
+
+    def __init__(self):
+        self._items: dict[str, tuple[float, str]] = {}
+
+    def get_and_touch(self, key: str, ttl: int) -> str | None:
+        now = time.monotonic()
+        item = self._items.get(key)
+
+        if item is None:
+            return None
+
+        expires_at, value = item
+
+        if now >= expires_at:
+            self._items.pop(key, None)
+            return None
+
+        self._items[key] = (now + ttl, value)
+        return value
+
+    def set(self, key: str, value: str, ttl: int) -> None:
+        now = time.monotonic()
+
+        # Every write sweeps out the expired ones, so memory stays
+        # bounded without a background thread.
+        for k in [k for k, (exp, _) in self._items.items() if now >= exp]:
+            self._items.pop(k, None)
+
+        self._items[key] = (now + ttl, value)
+
+    def delete(self, key: str) -> bool:
+        return self._items.pop(key, None) is not None
+
+
+class _RedisStore:
+    """Shared by every worker and container that uses the same Redis."""
+
+    def __init__(self, url: str):
+        import redis
+
+        self._redis = redis.Redis.from_url(
+            url,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+        )
+
+    def get_and_touch(self, key: str, ttl: int) -> str | None:
+        # GETEX reads the value and resets its expiry in one step.
+        return self._redis.getex(key, ex=ttl)
+
+    def set(self, key: str, value: str, ttl: int) -> None:
+        # Redis drops the key itself when the TTL runs out.
+        self._redis.set(key, value, ex=ttl)
+
+    def delete(self, key: str) -> bool:
+        return self._redis.delete(key) > 0
+
+
+_store = None
+
+
+def _get_store():
+    # Chosen on first use, for the same reason as the TTL. If Redis is
+    # configured but down, calls fail loudly rather than falling back to
+    # memory: a second container would then hold sessions the first
+    # cannot see, the very problem Redis is here to fix.
+    global _store
+
+    if _store is None:
+        url = os.getenv("REDIS_URL", "").strip()
+
+        if url:
+            _store = _RedisStore(url)
+            print("[InterviewSession] Sessions are kept in Redis")
+        else:
+            _store = _MemoryStore()
+            print(
+                "[InterviewSession] REDIS_URL is not set; sessions are "
+                "kept in this process and lost on restart"
+            )
+
+    return _store
+
+
+def _key(session_id: str) -> str:
+    return _KEY_PREFIX + session_id
+
+
+def _to_json(session: InterviewSession) -> str:
+    return json.dumps(asdict(session))
+
+
+def _from_json(raw: str) -> InterviewSession:
+    # Fields this version does not know are skipped and missing ones
+    # take their defaults, so a session written by the previous release
+    # still loads during a deploy.
+    data = json.loads(raw)
+
+    return InterviewSession(
+        **{k: v for k, v in data.items() if k in _FIELD_NAMES}
     )
 
 
 # ============================================================
-# IN-MEMORY SESSION STORAGE
-#
-# Live interviews are held here, in this process. Spring keeps the
-# durable record (questions, answers, scorecard) in PostgreSQL; this is
-# only the working state of interviews in progress.
-#
-# Nothing ever removed a session: a finished or abandoned interview,
-# with the candidate's whole CV text inside it, stayed in memory until
-# the service restarted, so memory grew with every interview ever
-# started. Sessions idle for longer than the TTL are now dropped.
-#
-# The TTL is measured from the last call that touched the session, not
-# from its start, so a slow candidate is never cut off mid-interview;
-# only an interview nobody has used for hours goes. A finished one is
-# no longer needed here at all - its scorecard is stored by Spring and
-# read back from there.
+# SAVE SESSION
 # ============================================================
 
-_sessions: dict[str, InterviewSession] = {}
+def save_session(
+    session: InterviewSession,
+) -> InterviewSession:
 
-SESSION_IDLE_TTL_SECONDS = max(
-    60,
-    int(os.getenv("SESSION_IDLE_TTL_SECONDS", str(6 * 60 * 60))),
-)
+    _get_store().set(
+        _key(session.session_id),
+        _to_json(session),
+        session_idle_ttl_seconds(),
+    )
 
-
-def _is_expired(session: InterviewSession, now: float) -> bool:
-    return now - session.last_active > SESSION_IDLE_TTL_SECONDS
-
-
-def _evict_idle_sessions(now: float | None = None) -> int:
-    """Drops every session idle past the TTL. Returns how many went."""
-
-    now = time.monotonic() if now is None else now
-
-    expired = [
-        sid for sid, s in list(_sessions.items())
-        if _is_expired(s, now)
-    ]
-
-    for sid in expired:
-        _sessions.pop(sid, None)
-
-    if expired:
-        print(
-            f"[InterviewSession] Evicted {len(expired)} idle "
-            f"session(s); {len(_sessions)} active"
-        )
-
-    return len(expired)
+    return session
 
 
 # ============================================================
@@ -194,10 +300,6 @@ def create_session(
     missing_skills: List[str] | None = None,
     additional_skills: List[str] | None = None,
 ) -> InterviewSession:
-
-    # Every new interview sweeps out the abandoned ones, so the store
-    # stays bounded without a background thread.
-    _evict_idle_sessions()
 
     session_id = str(uuid4())
 
@@ -255,7 +357,7 @@ def create_session(
         last_answer_quality="none",
     )
 
-    _sessions[session_id] = session
+    save_session(session)
 
     print(
         f"[InterviewSession] Created session: "
@@ -298,31 +400,20 @@ def get_session(
     session_id: str,
 ) -> InterviewSession:
 
-    session = _sessions.get(
-        session_id
+    # Every read renews the TTL: it counts idle time only.
+    raw = _get_store().get_and_touch(
+        _key(session_id),
+        session_idle_ttl_seconds(),
     )
 
-    now = time.monotonic()
-
-    # An idle session not yet swept is treated as gone, so whether it
-    # is found never depends on when the last sweep happened.
-    if session is not None and _is_expired(session, now):
-
-        _sessions.pop(session_id, None)
-
-        session = None
-
-    if session is None:
+    if raw is None:
 
         raise ValueError(
             f"Interview session "
             f"'{session_id}' was not found."
         )
 
-    # Every use keeps it alive: the TTL counts idle time only.
-    session.last_active = now
-
-    return session
+    return _from_json(raw)
 
 
 # ============================================================
@@ -407,7 +498,7 @@ def add_question(
                 topic
             )
 
-    return session
+    return save_session(session)
 
 
 # ============================================================
@@ -442,7 +533,7 @@ def add_answer(
             answer_quality
         )
 
-    return session
+    return save_session(session)
 
 # ============================================================
 # UPDATE ANSWER QUALITY
@@ -461,7 +552,7 @@ def update_answer_quality(
         quality
     )
 
-    return session
+    return save_session(session)
 
 
 # ============================================================
@@ -482,7 +573,7 @@ def update_weak_answer_streak(
         streak
     )
 
-    return session
+    return save_session(session)
 
 
 # ============================================================
@@ -562,7 +653,7 @@ def update_interview_state(
             answer_quality
         )
 
-    return session
+    return save_session(session)
 
 
 # ============================================================
@@ -579,7 +670,7 @@ def finish_session(
 
     session.status = "completed"
 
-    return session
+    return save_session(session)
 
 
 # ============================================================
@@ -590,23 +681,6 @@ def delete_session(
     session_id: str,
 ) -> bool:
 
-    if session_id in _sessions:
-
-        del _sessions[
-            session_id
-        ]
-
-        return True
-
-    return False
-
-
-# ============================================================
-# GET ALL SESSIONS
-# ============================================================
-
-def get_all_sessions() -> List[InterviewSession]:
-
-    return list(
-        _sessions.values()
+    return _get_store().delete(
+        _key(session_id)
     )
