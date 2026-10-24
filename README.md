@@ -9,10 +9,13 @@ then sit an adaptive technical interview driven by a RAG knowledge base.
 | `backend/` | Java 23, Spring Boot, PostgreSQL | 8080 |
 | `ai-service/` | Python, FastAPI, LangChain, Gemini | 8000 |
 | database | PostgreSQL (Docker) | 5432 |
+| sessions | Redis (Docker) | - |
 
 Under `docker compose`, port 8000 is not published to the host at all -
 the AI service is reachable only from the backend, over the compose
-network.
+network. Redis is not published either; it holds the interviews in
+progress for the AI service, so restarting that service no longer loses
+an interview halfway through.
 
 The browser talks **only** to the Spring backend. Spring authenticates the
 user's JWT and forwards AI calls to the Python service with a shared
@@ -115,6 +118,10 @@ python -m venv .venv && .venv/Scripts/activate    # macOS/Linux: source .venv/bi
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
+
+Run this way, without `REDIS_URL`, interviews in progress are kept in
+the process and `--reload` drops them on every code change. Start a new
+interview after editing the AI service.
 
 **Backend** — copy `backend/.env.example` to `backend/.env` and put the
 same `AI_SERVICE_INTERNAL_API_KEY` in it:

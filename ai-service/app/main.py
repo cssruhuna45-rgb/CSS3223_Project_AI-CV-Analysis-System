@@ -68,6 +68,9 @@ from app.interview.session_manager import (
     add_question,
     add_answer,
     finish_session,
+    save_session,
+    update_interview_state,
+    update_weak_answer_streak,
 )
 
 
@@ -1392,14 +1395,20 @@ def answer_interview_endpoint(
             "none",
         }:
 
-            session.weak_answer_streak += 1
+            weak_answer_streak = (
+                session.weak_answer_streak + 1
+            )
 
         else:
 
-            session.weak_answer_streak = 0
+            weak_answer_streak = 0
 
-        session.last_answer_quality = (
-            answer_quality
+        # get_session hands back a copy; only a save reaches the
+        # store, so the change goes through the session manager.
+        session = update_interview_state(
+            req.session_id,
+            weak_answer_streak=weak_answer_streak,
+            answer_quality=answer_quality,
         )
 
         print(
@@ -1411,7 +1420,7 @@ def answer_interview_endpoint(
         # SAVE ANSWER
         # ====================================================
 
-        add_answer(
+        session = add_answer(
 
             req.session_id,
 
@@ -1642,7 +1651,10 @@ def answer_interview_endpoint(
 
         if topic_changed:
 
-            session.weak_answer_streak = 0
+            session = update_weak_answer_streak(
+                req.session_id,
+                0,
+            )
 
             print(
                 "[InterviewAnswer] "
@@ -1948,6 +1960,8 @@ def finish_interview_endpoint(
         )
 
         finished_session.evaluation = evaluation
+
+        save_session(finished_session)
 
         print(
             "[InterviewFinish] "
