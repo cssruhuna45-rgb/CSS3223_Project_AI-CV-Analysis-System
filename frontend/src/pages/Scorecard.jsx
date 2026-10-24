@@ -733,11 +733,11 @@ export default function Scorecard() {
         <button
           className="btn btn-outline"
           style={{ flex: 1, minWidth: 160, justifyContent: 'center', padding: '12px' }}
-          onClick={() => navigate('/home')}
+          onClick={() => navigate('/dashboard')}
         >
           {/* Named as the navbar names it, with a back arrow rather than
               the "retry" arrow it had. */}
-          <ArrowLeft size={15} /> Back to Workspace
+          <ArrowLeft size={15} /> Back to Dashboard
         </button>
         <button
           className="btn btn-primary"

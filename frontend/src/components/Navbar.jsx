@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Brain, LayoutDashboard, LogOut, ChevronDown, TrendingUp, Home, Award, Sparkles, Menu, X, ShieldCheck, Briefcase } from 'lucide-react';
+import { LayoutDashboard, LogOut, ChevronDown, TrendingUp, Home, Award, Sparkles, Menu, X, ShieldCheck, Briefcase } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 import ThemeToggle from './ThemeToggle';
 import { homePathFor, isApprovedRecruiter } from '../constants/accounts';
 
@@ -53,12 +54,12 @@ export default function Navbar({ user, onLogout }) {
   }, [location.pathname]);
 
   const recruiterLinks = [
-    { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+    { path: '/recruiter', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
     { path: '/jobs', label: 'Jobs', icon: <Briefcase size={15} /> },
   ];
 
   const candidateLinks = [
-    { path: '/home', label: 'Workspace', icon: <Home size={15} /> },
+    { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
     { path: '/progress', label: 'My Progress', icon: <TrendingUp size={15} /> },
     { path: '/scorecard', label: 'Scorecards', icon: <Award size={15} /> },
   ];
@@ -101,31 +102,18 @@ export default function Navbar({ user, onLogout }) {
           }
         }}
       >
-        <div className="nav-brand-icon">
-          <Brain size={20} color="var(--on-accent)" />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 800, fontSize: 'var(--fs-lg)', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-            AI<span style={{
-              background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>Interview</span>
-          </span>
-          <span style={{
-            fontSize: 'var(--fs-xs)',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            padding: '2px 7px',
-            borderRadius: 6,
-            background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
-            color: 'var(--accent)',
-          }}>
-            AI 2.0
-          </span>
-        </div>
+        {/* Mark as artwork, wordmark as text. The supplied lockup's
+            own wordmark is white, and this header follows the theme. */}
+        <BrandLogo variant="mark" alt="" className="nav-brand-mark" />
+        <span style={{
+          fontWeight: 800,
+          fontSize: 'var(--fs-base)',
+          letterSpacing: '0.04em',
+          color: 'var(--text-primary)',
+          whiteSpace: 'nowrap',
+        }}>
+          VYNTERVA<span style={{ color: 'var(--accent)' }}> AI</span>
+        </span>
       </div>
 
       {/* Mobile Hamburger Button */}

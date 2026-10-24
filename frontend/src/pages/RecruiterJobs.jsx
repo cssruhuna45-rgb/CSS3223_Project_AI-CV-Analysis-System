@@ -201,7 +201,7 @@ export default function RecruiterJobs() {
                     {job.open ? 'Close' : 'Reopen'}
                   </Button>
                   <Button size="sm" icon={<Users size={14} />}
-                    onClick={() => navigate(`/dashboard?job=${job.id}`)}>
+                    onClick={() => navigate(`/recruiter?job=${job.id}`)}>
                     View candidates
                   </Button>
                 </div>
