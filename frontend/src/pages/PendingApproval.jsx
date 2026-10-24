@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, XCircle, RefreshCw } from 'lucide-react';
@@ -10,6 +11,7 @@ import { Button, Card } from '../components/ui';
 // closed until then - the server refuses it too, this page only says
 // why instead of showing an error.
 export default function PendingApproval({ user, onUserChange }) {
+  const notify = useToast();
   const navigate = useNavigate();
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +26,14 @@ export default function PendingApproval({ user, onUserChange }) {
       localStorage.setItem('user', JSON.stringify(fresh));
       onUserChange(fresh);
       const next = homePathFor(fresh);
-      if (next !== '/pending') navigate(next, { replace: true });
+      if (next !== '/pending') {
+        notify('Your account is approved.');
+        navigate(next, { replace: true });
+      } else {
+        notify(fresh.approvalStatus === 'rejected'
+          ? 'Recruiter access was not approved.'
+          : 'Your account is still awaiting approval.', 'info');
+      }
     } catch (err) {
       setError(err.message || 'Could not check right now. Please try again.');
     } finally {

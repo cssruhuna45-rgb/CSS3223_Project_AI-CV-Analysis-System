@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
@@ -5,6 +6,7 @@ import { authAPI } from '../services/api';
 import { homePathFor, toStoredUser } from '../constants/accounts';
 
 export default function Login({ onLogin }) {
+  const notify = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '' });
@@ -26,6 +28,7 @@ export default function Login({ onLogin }) {
       const userData = toStoredUser(data.user, form.email.split('@')[0], form.email);
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
+      notify('Signed in successfully.');
       // Back to where they were going (an invite link, say), if anywhere.
       navigate(location.state?.from || homePathFor(userData), { replace: true });
     } catch (err) {

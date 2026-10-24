@@ -1,3 +1,4 @@
+import { useToast } from './ToastProvider';
 import React, { useMemo, useState } from 'react';
 import { Wand2, Copy, Check, AlertCircle, ShieldCheck } from 'lucide-react';
 import { aiResumeAPI } from '../services/api';
@@ -50,6 +51,7 @@ function DraftPreview({ draft, gaps, answers }) {
 }
 
 export default function BulletTuner({ suggestions = [], jobField = '' }) {
+  const notify = useToast();
   const [bullet, setBullet] = useState('');
   const [result, setResult] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -95,6 +97,7 @@ export default function BulletTuner({ suggestions = [], jobField = '' }) {
       // so Ctrl+C still works.
       const area = e.currentTarget.closest('.bullet-tuner')?.querySelector('#bullet-final');
       area?.select();
+      notify('Couldn’t copy automatically; please copy the text manually.', 'warning');
     }
   };
 

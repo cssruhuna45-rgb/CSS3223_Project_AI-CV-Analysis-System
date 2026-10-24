@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
@@ -5,6 +6,7 @@ import { authAPI } from '../services/api';
 import { homePathFor, toStoredUser } from '../constants/accounts';
 
 export default function Register({ onLogin }) {
+  const notify = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'candidate' });
@@ -25,6 +27,12 @@ export default function Register({ onLogin }) {
       const userData = toStoredUser(data.user, form.name, form.email);
       localStorage.setItem('user', JSON.stringify(userData));
       onLogin(userData);
+      notify(
+        userData.role === 'recruiter'
+          ? 'Account created; administrator approval is pending.'
+          : 'Account created successfully.',
+        userData.role === 'recruiter' ? 'info' : 'success'
+      );
       // A candidate who arrived through an invite link goes back to it;
       // otherwise a new candidate starts with their CV.
       const from = location.state?.from;

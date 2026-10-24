@@ -1,0 +1,61 @@
+.app-toast-stack {
+  /* Clear the sticky navigation (68px desktop, 60/56px mobile). */
+  --toast-top: calc(84px + env(safe-area-inset-top, 0px));
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  top: var(--toast-top);
+  z-index: 10000;
+  display: grid;
+  gap: 10px;
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100dvh - var(--toast-top) - 16px - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  pointer-events: none;
+}
+.app-toast {
+  --toast-color: var(--info);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--toast-color);
+  border-left-width: 4px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  pointer-events: auto;
+}
+.app-toast--success { --toast-color: var(--success); }
+.app-toast--warning { --toast-color: var(--warning); }
+.app-toast--error { --toast-color: var(--danger); }
+.app-toast-icon { flex-shrink: 0; color: var(--toast-color); margin-top: 2px; }
+.app-toast-message { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-sm); }
+.app-toast-message strong { color: var(--toast-color); }
+.app-toast-message p { margin: 4px 0 0; line-height: 1.5; }
+.app-toast-close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.app-toast-close:hover { background: color-mix(in srgb, var(--toast-color) 12%, transparent); }
+.app-toast-close:focus-visible { outline: 2px solid var(--toast-color); outline-offset: 2px; }
+
+@media (max-width: 768px) {
+  .app-toast-stack { --toast-top: calc(76px + env(safe-area-inset-top, 0px)); }
+}
+@media (max-width: 480px) {
+  .app-toast-stack {
+    --toast-top: calc(68px + env(safe-area-inset-top, 0px));
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    width: auto;
+  }
+}

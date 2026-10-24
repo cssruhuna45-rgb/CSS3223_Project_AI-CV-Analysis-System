@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ShieldCheck, Check, X } from 'lucide-react';
 import { adminAPI } from '../services/api';
@@ -29,6 +30,7 @@ function formatDate(iso) {
 // rejected account, or rejecting an approved one to take access away -
 // and takes effect on that recruiter's next request.
 export default function AdminPanel() {
+  const notify = useToast();
   const [recruiters, setRecruiters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -54,6 +56,7 @@ export default function AdminPanel() {
     setError('');
     try {
       const updated = await (action === 'approve' ? adminAPI.approve(id) : adminAPI.reject(id));
+      notify(action === 'approve' ? 'Recruiter access approved.' : 'Recruiter access rejected.', action === 'approve' ? 'success' : 'info');
       setRecruiters((list) => list.map((r) => (r.id === id ? updated : r)));
     } catch (err) {
       setError(err.message || 'That change was not saved. Please try again.');
