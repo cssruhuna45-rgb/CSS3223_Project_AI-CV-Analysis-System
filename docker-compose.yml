@@ -87,17 +87,17 @@ services:
   # ------------------------------------------------------------------
   # 4. React frontend
   #
-  # The browser calls the backend on localhost:8080 directly, which is
-  # why that port is published; nginx here only serves static files.
+  # The browser uses port 3000 for pages and API requests; nginx
+  # forwards /api/ to the backend over the internal Docker network.
   # ------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
       args:
-        # Inlined into the JavaScript bundle at build time. Point it at
-        # the machine's address instead of localhost when the browser
-        # runs somewhere other than the Docker host.
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8080}
+        # Inlined at build time. / uses the same-origin nginx proxy.
+        # Override only when using a separately hosted backend.
+        # Local development without Docker still defaults to port 8080.
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-/}
     container_name: interview_frontend
     restart: unless-stopped
     ports:

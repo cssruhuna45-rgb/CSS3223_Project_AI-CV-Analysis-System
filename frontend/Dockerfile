@@ -21,7 +21,7 @@ COPY src/ src/
 # Where the browser should send API calls. Create React App inlines
 # REACT_APP_* at build time, so this has to be known here rather than
 # set on the running container.
-ARG REACT_APP_API_URL=http://localhost:8080
+ARG REACT_APP_API_URL=/
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
 # react-scripts treats lint warnings as build failures when CI is set,

@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -93,6 +94,7 @@ const getStoredJson = (key) => {
 // ============================================================
 
 export default function InterviewRoom() {
+  const notify = useToast();
   const navigate = useNavigate();
 
   // ==========================================================
@@ -1183,6 +1185,10 @@ export default function InterviewRoom() {
 
         // Redirect with session ID param in URL so the scorecard is permanent
         setTimeout(() => {
+          notify(finishData.evaluated === false || finishData.evaluation_error
+            ? 'Interview submitted, but evaluation could not be completed.'
+            : 'Interview completed—your results are ready.',
+            finishData.evaluated === false || finishData.evaluation_error ? 'warning' : 'success');
           navigate(`/scorecard?session=${encodeURIComponent(sessionId)}`);
         }, 600);
 

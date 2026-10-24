@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock } from 'lucide-react';
@@ -19,6 +20,7 @@ function inviteLink(code) {
 // with it take an exam-mode interview against this job's description,
 // and only those interviews reach this recruiter's dashboard.
 export default function RecruiterJobs() {
+  const notify = useToast();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function RecruiterJobs() {
     try {
       const job = await recruiterAPI.createJob(form);
       setJobs((list) => [job, ...list]);
+      notify('Job created successfully.');
       setForm(EMPTY_FORM);
       setShowForm(false);
     } catch (err) {
@@ -68,6 +71,7 @@ export default function RecruiterJobs() {
     } catch {
       // Clipboard refused: the link is on screen to copy by hand.
       setCopiedId(null);
+      notify('Couldn’t copy automatically; please copy the link manually.', 'warning');
     }
   };
 
@@ -76,6 +80,7 @@ export default function RecruiterJobs() {
     setError('');
     try {
       const updated = await (job.open ? recruiterAPI.closeJob(job.id) : recruiterAPI.reopenJob(job.id));
+      notify(job.open ? 'Job closed to new interviews.' : 'Job reopened successfully.', job.open ? 'info' : 'success');
       // The close/reopen response carries no counts; keep the ones shown.
       setJobs((list) => list.map((j) => (j.id === job.id
         ? { ...updated, interviewCount: j.interviewCount, completedCount: j.completedCount }

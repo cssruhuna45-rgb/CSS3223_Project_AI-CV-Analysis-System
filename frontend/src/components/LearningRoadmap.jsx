@@ -1,3 +1,4 @@
+import { useToast } from './ToastProvider';
 import React, { useState, useEffect } from 'react';
 import {
   Calendar,
@@ -48,6 +49,7 @@ export default function LearningRoadmap({
   initialRoadmap = null,
   onProgressUpdate,
 }) {
+  const notify = useToast();
   const [roadmap, setRoadmap] = useState(initialRoadmap);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -125,6 +127,7 @@ export default function LearningRoadmap({
       };
 
       const data = await roadmapAPI.generate(payload);
+      notify('Your learning plan is ready.');
       setRoadmap(data);
       if (data.completed_days) {
         setCompletedDays(new Set(data.completed_days));
@@ -159,8 +162,10 @@ export default function LearningRoadmap({
         setCompletedDays(new Set(updated.completed_days));
       }
       if (onProgressUpdate) onProgressUpdate(updated);
+      notify('Progress saved.');
     } catch (err) {
       console.error('[LearningRoadmap] Progress update failed:', err);
+      notify('Progress wasn’t saved; please try again.', 'error');
       // Revert optimistic update
       setCompletedDays((prev) => {
         const next = new Set(prev);
