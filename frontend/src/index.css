@@ -2138,3 +2138,92 @@ body {
 
 .bullet-note { color: var(--success-light); }
 .bullet-error { color: var(--danger); margin-top: var(--space-3); }
+
+/* ==================================================================
+   PRINT / SAVE AS PDF
+
+   The scorecard and a candidate's result print through the browser's
+   print dialog. utils/print.js switches the theme to light for the
+   print, so the colours here are the light palette; this block only
+   removes what does not belong on paper and keeps cards whole.
+   ================================================================== */
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #FFFFFF !important;
+    min-height: 0;
+  }
+
+  /* Navigation, footer, buttons and anything marked no-print. */
+  .immersive-nav,
+  .site-footer,
+  .skip-to-content,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .app-shell {
+    display: block;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* Shadows are noise on paper. Animations jump to their end state
+     rather than being removed: .stagger-item starts at opacity 0 and
+     only the animation makes it visible. */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    animation-fill-mode: forwards !important;
+    transition: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* A card or table row is never split across two pages. */
+  .card,
+  .stat-card,
+  tr {
+    break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  /* The dashboard prints one candidate: the list gives way to it. */
+  .has-candidate .hide-when-printing-candidate {
+    display: none !important;
+  }
+
+  .print-single {
+    grid-template-columns: 1fr !important;
+  }
+
+  .print-header {
+    padding-bottom: 8px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-strong);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+}

@@ -29,6 +29,7 @@ import InterviewProgress from '../components/InterviewProgress';
 import LearningRoadmap from '../components/LearningRoadmap';
 import { interviewAPI } from '../services/api';
 import { CodeText } from '../components/ui';
+import { printDate, printPage } from '../utils/print';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_LIGHT = 'var(--accent)';
@@ -402,7 +403,7 @@ export default function Scorecard() {
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '36px 24px' }}>
 
       {/* Top Navigation & Actions Bar */}
-      <div style={{
+      <div className="no-print" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -429,12 +430,17 @@ export default function Scorecard() {
           </button>
           <button
             className="btn btn-outline"
-            onClick={() => window.print()}
+            onClick={() => printPage(`Interview scorecard ${printDate()}`)}
             style={{ fontSize: 'var(--fs-xs)', gap: 6, padding: '7px 14px' }}
           >
             <Download size={14} /> Print / Save PDF
           </button>
         </div>
+      </div>
+
+      {/* Only on paper: says what the page is, since the navbar is gone. */}
+      <div className="print-only print-header">
+        AI Interview Platform &middot; Interview scorecard &middot; {printDate()}
       </div>
 
       {/* Header */}
@@ -729,7 +735,7 @@ export default function Scorecard() {
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="no-print" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button
           className="btn btn-outline"
           style={{ flex: 1, minWidth: 160, justifyContent: 'center', padding: '12px' }}
