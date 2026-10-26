@@ -25,6 +25,21 @@ public class ResumeAnalysisController {
     private final ResumeRepository resumeRepository;
     private final ResumeAnalysisRepository resumeAnalysisRepository;
     private final UserRepository userRepository;
+    private final com.aiinterview.service.ResumeAnalysisService analysisService;
+
+    @PostMapping("/{id}/analysis")
+    @Transactional
+    public ResponseEntity<ResumeAnalysisResponse> analyze(@PathVariable Long id, Authentication authentication) {
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new UnauthorizedAccessException("Please sign in again."));
+        Resume resume = resumeRepository.findForAnalysisById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("This CV is no longer available."));
+        if (!resume.getUser().getId().equals(user.getId())) throw new UnauthorizedAccessException("You cannot analyse this CV.");
+        if (resumeAnalysisRepository.findByResumeId(id).isEmpty() && !analysisService.analyzeAndStore(id)) {
+            throw new com.aiinterview.exception.BadRequestException("This CV could not be analysed. Please check that it contains readable text.");
+        }
+        return getResumeAnalysis(id, authentication);
+    }
 
     @Operation(
             summary = "Get resume analysis",

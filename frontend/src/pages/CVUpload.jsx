@@ -27,6 +27,22 @@ import { PREDEFINED_JOB_FIELDS, getJobFieldName } from '../constants/jobFields';
 export default function CVUpload() {
   const navigate = useNavigate();
   const fileRef = useRef(null);
+  const requestRef = useRef(null);
+  const savedUploadRef = useRef(null);
+  const uploadKeyRef = useRef(null);
+  const [stage, setStage] = useState('');
+  const [restoreRetry, setRestoreRetry] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [notice, setNotice] = useState('');
+  const [canRetry, setCanRetry] = useState(false);
+  useEffect(() => () => requestRef.current?.abort(), []);
+  useEffect(() => {
+    if (!stage) return undefined;
+    setElapsed(0);
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [stage]);
 
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
@@ -65,6 +81,11 @@ export default function CVUpload() {
     const resumeId = sessionStorage.getItem('resumeId');
     const resumeText = sessionStorage.getItem('resumeText') || '';
     if (!resumeId) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const options = { signal: controller.signal };
+    setError('');
+    setStage('Loading your saved CV analysis');
 
     const applyAnalysis = (result) => {
       sessionStorage.setItem('resumeAnalysis', JSON.stringify(result));
@@ -78,139 +99,159 @@ export default function CVUpload() {
       if (!resumeText) return;
       setReviewLoading(true);
       try {
-        const cvReview = await aiResumeAPI.feedback(resumeId, resumeText);
-        if (cancelled) return;
+        const cvReview = await aiResumeAPI.feedback(resumeId, resumeText, options);
+        if (cancelled || controller.signal.aborted) return;
         sessionStorage.setItem('cvReview', JSON.stringify(cvReview));
         setReview(cvReview);
       } catch (err) {
         console.error('[CVUpload] CV review failed:', err);
-        if (!cancelled) setReviewError(err.message || 'Could not review the CV.');
+        if (!cancelled && !controller.signal.aborted) setReviewError(err.message || 'Could not review the CV.');
       } finally {
-        if (!cancelled) setReviewLoading(false);
+        if (!cancelled && !controller.signal.aborted) setReviewLoading(false);
       }
     };
 
     (async () => {
       setRestoring(true);
       try {
-        const stored = await resumeAPI.getAnalysis(resumeId);
-        if (cancelled) return;
+        const stored = await resumeAPI.getAnalysis(resumeId, options);
+        if (cancelled || controller.signal.aborted) return;
         applyAnalysis(stored);
-        runReview();
+        await runReview();
       } catch (err) {
+        if (err.status !== 404) {
+          if (!cancelled && !controller.signal.aborted) setError(err.message || 'Could not load the saved analysis.');
+          return;
+        }
         // A 404 is expected when the upload's analysis did not finish.
         console.warn('[CVUpload] No stored analysis, re-analysing:', err.message);
         if (!resumeText) {
-          if (!cancelled) {
+          if (!cancelled && !controller.signal.aborted) {
             setError('That CV could not be loaded. Please upload it again.');
           }
           return;
         }
         try {
-          const fresh = await aiResumeAPI.analyze(resumeId, resumeText);
-          if (cancelled) return;
+          const fresh = await resumeAPI.analyze(resumeId, options);
+          if (cancelled || controller.signal.aborted) return;
           applyAnalysis(fresh);
-          runReview();
+          await runReview();
         } catch (analyseErr) {
           console.error('[CVUpload] Re-analysis failed:', analyseErr);
-          if (!cancelled) {
+          if (!cancelled && !controller.signal.aborted) {
             setError(analyseErr.message || 'Could not load your saved CV.');
           }
         }
       } finally {
-        if (!cancelled) setRestoring(false);
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+          setRestoring(false);
+          setStage('');
+        }
       }
     })();
 
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true; controller.abort(); if (requestRef.current === controller) requestRef.current = null; };
+  }, [restoreRetry]);
 
   const handleFile = (f) => {
-    if (!f) return;
-    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) {
-      setFile(f);
-      setError('');
-      setAnalysis(null);
-      setReview(null);
-      sessionStorage.removeItem('cvReview');
-    } else {
-      setError('Only PDF files are supported. Please upload a valid PDF resume.');
-    }
+    if (!f || requestRef.current || restoring) return;
+    let message = '';
+    if (!f.name.toLowerCase().endsWith('.pdf') || (f.type && f.type !== 'application/pdf')) {
+      message = 'Choose a PDF file to continue.';
+    } else if (!f.size) message = 'This file is empty. Choose a PDF that contains your CV.';
+    else if (f.size > 10 * 1024 * 1024) message = 'This PDF is larger than 10 MB. Choose a smaller PDF or reduce its size.';
+    setError(message);
+    setCanRetry(false);
+    if (message) { if (fileRef.current) fileRef.current.value = ''; return; }
+    setFile(f);
+    savedUploadRef.current = null;
+    uploadKeyRef.current = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    setNotice('');
+    setAnalysis(null);
+    setReview(null);
+    ['cvReview', 'resumeId', 'resumeText', 'resumeAnalysis'].forEach((key) => sessionStorage.removeItem(key));
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setDrag(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    if (!requestRef.current && !restoring) handleFile(e.dataTransfer.files?.[0]);
+  };
+
+  const cancelAnalysis = () => {
+    requestRef.current?.abort();
+    requestRef.current = null;
+    setLoading(false);
+    setRestoring(false);
+    setReviewLoading(false);
+    setStage('');
+    setNotice('Stopped waiting. Work already received by the server may still finish; any saved CV is kept.');
   };
 
   const handleAnalyze = async () => {
-    if (!file) {
-      setError('Please select a PDF resume file first.');
-      return;
-    }
-
+    if (requestRef.current || restoring) return;
+    if (!file) { setError('Please select a PDF resume file first.'); return; }
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const options = { signal: controller.signal, requestKey: uploadKeyRef.current };
+    const active = () => requestRef.current === controller && !controller.signal.aborted;
     setLoading(true);
     setError('');
-
+    setNotice('');
+    setCanRetry(false);
     try {
-      // 1. Upload to backend (Spring Boot)
-      const resumeData = await resumeAPI.upload(file);
-      const resumeId = resumeData?.id || Date.now();
+      let resumeData = savedUploadRef.current;
+      if (!resumeData) {
+        setStage('Uploading your CV and reading its text');
+        resumeData = await resumeAPI.upload(file, options);
+        if (!active()) return;
+        savedUploadRef.current = resumeData;
+      }
+      const resumeId = resumeData?.id;
       const resumeText = resumeData?.extractedText || '';
-
-      if (!resumeText || resumeText.trim().length === 0) {
-        throw new Error('Could not extract text from the uploaded PDF. Please verify the document is not an empty or scanned image PDF.');
+      if (!resumeId || !resumeText.trim()) {
+        setCanRetry(false);
+        throw new Error('We could not read text from this PDF. Choose a text-based PDF or a clearer scan.');
       }
-
-      // 2. The analysis. Spring already ran it during the upload and
-      //    stored the result (ResumeController -> analyzeAndStore), so
-      //    it is read back rather than asked for again: calling the AI
-      //    service here as well spent a second Gemini call on the same
-      //    extraction for every upload. Only when that stored analysis
-      //    is missing - the upload's attempt failed - is it run now.
-      let aiResult;
-      try {
-        aiResult = await resumeAPI.getAnalysis(resumeId);
-      } catch (storedErr) {
-        console.warn('[CVUpload] No stored analysis, analysing now:', storedErr.message);
-        aiResult = await aiResumeAPI.analyze(resumeId, resumeText);
-      }
-
-      // Save state to sessionStorage
       sessionStorage.setItem('resumeId', String(resumeId));
       sessionStorage.setItem('resumeText', resumeText);
-      sessionStorage.setItem('resumeAnalysis', JSON.stringify(aiResult));
-
-      setAnalysis(aiResult);
-
-      // Default select the top recommendation if available
-      if (aiResult.recommended_job_fields && aiResult.recommended_job_fields.length > 0) {
-        setManualField(aiResult.recommended_job_fields[0].field);
+      setStage('Analysing your skills and career matches');
+      let aiResult;
+      try {
+        aiResult = await resumeAPI.getAnalysis(resumeId, options);
+      } catch (err) {
+        if (!active()) return;
+        if (err.status !== 404) throw err;
+        aiResult = await resumeAPI.analyze(resumeId, options);
       }
-
-      // 3. Review how the CV is written. Deliberately after the
-      //    analysis is already on screen, and in its own try/catch:
-      //    a failed review must not lose the extraction.
+      if (!active()) return;
+      sessionStorage.setItem('resumeAnalysis', JSON.stringify(aiResult));
+      setAnalysis(aiResult);
+      if (aiResult.recommended_job_fields?.length) setManualField(aiResult.recommended_job_fields[0].field);
+      setStage('Preparing feedback on your CV');
       setReviewLoading(true);
       setReviewError('');
       try {
-        const cvReview = await aiResumeAPI.feedback(resumeId, resumeText);
-        sessionStorage.setItem('cvReview', JSON.stringify(cvReview));
-        setReview(cvReview);
-      } catch (reviewErr) {
-        console.error('CV review error:', reviewErr);
-        setReviewError(reviewErr.message || 'Could not review the CV.');
-      } finally {
-        setReviewLoading(false);
+        const result = await aiResumeAPI.feedback(resumeId, resumeText, options);
+        if (!active()) return;
+        sessionStorage.setItem('cvReview', JSON.stringify(result));
+        setReview(result);
+      } catch (err) {
+        if (active()) setReviewError(err.message || 'Could not prepare CV feedback.');
       }
     } catch (err) {
-      console.error('Analysis error:', err);
-      setError(err.message || 'We could not analyze your resume right now. Please verify the backend and AI service are running, then try again.');
+      if (active()) {
+        setError(err.message || 'Could not analyse your CV. Please try again.');
+        setCanRetry(!savedUploadRef.current || Boolean(savedUploadRef.current.extractedText?.trim()));
+      }
     } finally {
-      setLoading(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+        setReviewLoading(false);
+        setStage('');
+      }
     }
   };
 
@@ -227,6 +268,13 @@ export default function CVUpload() {
   };
 
   const handleReset = () => {
+    if (requestRef.current || restoring) return;
+    savedUploadRef.current = null;
+    uploadKeyRef.current = null;
+    setReview(null);
+    setNotice('');
+    setCanRetry(false);
+    ['resumeId', 'resumeText', 'cvReview'].forEach((key) => sessionStorage.removeItem(key));
     setFile(null);
     setAnalysis(null);
     setError('');
@@ -248,6 +296,12 @@ export default function CVUpload() {
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 20px 80px' }} className="animate-fade-in">
       <StepBar current={1} />
+      {notice && <p role="status" className="card" style={{ padding: 16 }}>{notice}</p>}
+      {(loading || restoring) && <section className="card" style={{ padding: 16, margin: '16px 0' }}>
+        <p role="status" aria-live="polite"><strong>{stage}...</strong></p>
+        <p style={{ margin: '8px 0' }}>{elapsed}s elapsed{elapsed >= 30 ? ' - This is taking longer than usual. You can keep waiting or cancel.' : ''}</p>
+        <button type="button" className="btn btn-outline" onClick={cancelAnalysis}>Cancel</button>
+      </section>}
 
       {/* Header */}
       <div style={{ marginBottom: 36, textAlign: 'center' }}>
@@ -317,6 +371,7 @@ export default function CVUpload() {
             <input
               ref={fileRef}
               type="file"
+              disabled={loading || restoring}
               accept=".pdf,application/pdf"
               style={{ display: 'none' }}
               onChange={(e) => handleFile(e.target.files[0])}
@@ -348,7 +403,8 @@ export default function CVUpload() {
                   <button
                     type="button"
                     className="btn btn-danger"
-                    onClick={(e) => { e.stopPropagation(); setFile(null); setError(''); }}
+                    disabled={loading || restoring}
+                    onClick={(e) => { e.stopPropagation(); handleReset(); if (fileRef.current) fileRef.current.value = ''; }}
                     style={{ fontSize: 'var(--fs-sm)', padding: '8px 16px' }}
                     aria-label="Remove chosen file"
                   >
@@ -359,6 +415,7 @@ export default function CVUpload() {
                     className="btn btn-outline"
                     onClick={(e) => { e.stopPropagation(); fileRef.current && fileRef.current.click(); }}
                     style={{ fontSize: 'var(--fs-sm)', padding: '8px 16px' }}
+                    disabled={loading || restoring}
                     aria-label="Choose a different PDF file"
                   >
                     Change File
@@ -412,14 +469,16 @@ export default function CVUpload() {
             >
               <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} />
               <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>{error}</p>
-              <button
+              {!file && sessionStorage.getItem('resumeId') && <button className="btn btn-outline" onClick={() => setRestoreRetry((n) => n + 1)}>Retry loading CV</button>}
+              {canRetry && <button
                 type="button"
                 className="btn btn-outline"
+                disabled={loading}
                 onClick={handleAnalyze}
                 style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }}
               >
-                Retry
-              </button>
+                Retry analysis
+              </button>}
             </div>
           )}
 
@@ -500,7 +559,7 @@ export default function CVUpload() {
             <button
               type="button"
               className="btn btn-outline"
-              onClick={handleReset}
+              disabled={loading || restoring} onClick={handleReset}
               style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}
               aria-label="Upload a different resume"
             >

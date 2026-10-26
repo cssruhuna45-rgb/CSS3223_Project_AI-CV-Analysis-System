@@ -95,6 +95,23 @@ class ResumeServiceTest {
     }
 
     @Test
+    void repeatedUploadKeyReturnsExistingCvWithoutWritingAnotherFile() {
+        String key = "same-upload-request-1234";
+        when(userRepository.findForUpdateByEmail("alice@example.com")).thenReturn(Optional.of(user1));
+        when(resumeRepository.findByUserIdAndUploadRequestKey(1L, key)).thenReturn(Optional.of(resumeUser1));
+        assertEquals(100L, resumeService.uploadResume(validPdfFile, "alice@example.com", key).getId());
+        verifyNoInteractions(fileStorageService, pdfTextExtractionService);
+        verify(resumeRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsOversizeBeforeWritingFile() {
+        var large = new MockMultipartFile("file", "large.pdf", "application/pdf", new byte[10 * 1024 * 1024 + 1]);
+        assertThrows(InvalidFileException.class, () -> resumeService.uploadResume(large, "alice@example.com"));
+        verifyNoInteractions(fileStorageService, resumeRepository);
+    }
+
+    @Test
     @DisplayName("Should successfully upload valid PDF resume")
     void testUploadValidPdfResume() {
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user1));

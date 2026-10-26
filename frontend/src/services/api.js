@@ -1,3 +1,4 @@
+import { apiFetch } from './request';
 // Local development calls Spring directly; Docker sets / to use the
 // frontend nginx API proxy on the same origin as the page.
 const SPRING = (process.env.REACT_APP_API_URL || 'http://localhost:8080').replace(/\/$/, '');
@@ -45,7 +46,9 @@ async function handleResponse(res) {
       (Array.isArray(err.detail) ? err.detail.map((d) => d.msg).join(', ') : null) ||
       err.error ||
       `Request failed (${res.status} ${res.statusText})`;
-    throw new Error(msg);
+    const error = new Error(res.status >= 500 ? 'The service could not complete this request. Please try again in a moment.' : msg);
+    error.status = res.status;
+    throw error;
   }
 
   return res.json();
@@ -60,7 +63,7 @@ async function handleResponse(res) {
 export const authAPI = {
 
   register: (name, email, password, role) =>
-    fetch(`${SPRING}/api/v1/auth/register`, {
+    apiFetch(`${SPRING}/api/v1/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,7 +77,7 @@ export const authAPI = {
     }).then(handleResponse),
 
   login: (email, password) =>
-    fetch(`${SPRING}/api/v1/auth/login`, {
+    apiFetch(`${SPRING}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -88,7 +91,7 @@ export const authAPI = {
   // The signed-in account as the server holds it now. A recruiter
   // waiting for approval polls this rather than logging out and in.
   me: () =>
-    fetch(`${SPRING}/api/v1/users/me`, {
+    apiFetch(`${SPRING}/api/v1/users/me`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
@@ -103,18 +106,18 @@ export const authAPI = {
 export const adminAPI = {
 
   recruiters: () =>
-    fetch(`${SPRING}/api/v1/admin/recruiters`, {
+    apiFetch(`${SPRING}/api/v1/admin/recruiters`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
   approve: (id) =>
-    fetch(`${SPRING}/api/v1/admin/recruiters/${id}/approve`, {
+    apiFetch(`${SPRING}/api/v1/admin/recruiters/${id}/approve`, {
       method: 'POST',
       headers: authHeaders(),
     }).then(handleResponse),
 
   reject: (id) =>
-    fetch(`${SPRING}/api/v1/admin/recruiters/${id}/reject`, {
+    apiFetch(`${SPRING}/api/v1/admin/recruiters/${id}/reject`, {
       method: 'POST',
       headers: authHeaders(),
     }).then(handleResponse),
@@ -129,26 +132,31 @@ export const adminAPI = {
 
 export const resumeAPI = {
 
-  upload: (file) => {
+  upload: (file, options = {}) => {
     const form = new FormData();
 
     form.append('file', file);
 
-    return fetch(`${SPRING}/api/v1/resumes`, {
+    return apiFetch(`${SPRING}/api/v1/resumes`, {
       method: 'POST',
 
       headers: {
         Authorization: `Bearer ${getToken()}`,
+        ...(options.requestKey ? { 'Idempotency-Key': options.requestKey } : {}),
       },
-
+      signal: options.signal,
       body: form,
 
     }).then(handleResponse);
   },
 
 
+  analyze: (id, options = {}) => apiFetch(`${SPRING}/api/v1/resumes/${id}/analysis`, {
+    method: 'POST', signal: options.signal, headers: authHeaders(),
+  }).then(handleResponse),
+
   getAll: () =>
-    fetch(`${SPRING}/api/v1/resumes`, {
+    apiFetch(`${SPRING}/api/v1/resumes`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
@@ -156,19 +164,20 @@ export const resumeAPI = {
   // The analysis stored when this CV was uploaded. Lets a returning
   // candidate pick up where they left off instead of re-uploading.
   // 404 means the upload's best-effort analysis never completed.
-  getAnalysis: (id) =>
-    fetch(`${SPRING}/api/v1/resumes/${id}/analysis`, {
+  getAnalysis: (id, options = {}) =>
+    apiFetch(`${SPRING}/api/v1/resumes/${id}/analysis`, {
+      signal: options.signal,
       headers: authHeaders(),
     }).then(handleResponse),
 
 
   getById: (id) =>
-    fetch(`${SPRING}/api/v1/resumes/${id}`, {
+    apiFetch(`${SPRING}/api/v1/resumes/${id}`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
   delete: (id) =>
-    fetch(`${SPRING}/api/v1/resumes/${id}`, {
+    apiFetch(`${SPRING}/api/v1/resumes/${id}`, {
       method: 'DELETE',
 
       headers: authHeaders(),
@@ -194,9 +203,10 @@ export const aiResumeAPI = {
   // Reviews how the CV is written, against the standards in
   // documents/cv_resume_standards_guide.md. Separate from analyze,
   // which only extracts what the CV says.
-  feedback: (resumeId, resumeText) =>
-    fetch(`${AI}/resume/feedback`, {
+  feedback: (resumeId, resumeText, options = {}) =>
+    apiFetch(`${AI}/resume/feedback`, {
       method: 'POST',
+      signal: options.signal,
 
       headers: authHeaders(),
 
@@ -217,16 +227,18 @@ export const aiResumeAPI = {
   // Rewrites one bullet in Google's XYZ form. Facts the bullet does not
   // give come back as [bracketed] gaps for the candidate to fill; the
   // AI never supplies the numbers.
-  tuneBullet: (bullet, jobField = '') =>
-    fetch(`${AI}/resume/bullet/tune`, {
+  tuneBullet: (bullet, jobField = '', options = {}) =>
+    apiFetch(`${AI}/resume/bullet/tune`, {
       method: 'POST',
+      signal: options.signal,
       headers: authHeaders(),
       body: JSON.stringify({ bullet, job_field: jobField }),
     }).then(handleResponse),
 
-  analyze: (resumeId, resumeText) =>
-    fetch(`${AI}/resume/analyze`, {
+  analyze: (resumeId, resumeText, options = {}) =>
+    apiFetch(`${AI}/resume/analyze`, {
       method: 'POST',
+      signal: options.signal,
 
       headers: authHeaders(),
 
@@ -301,7 +313,7 @@ export const interviewAPI = {
       additionalSkills
     );
 
-    return fetch(
+    return apiFetch(
       `${AI}/interview/start`,
       {
         method: 'POST',
@@ -379,7 +391,7 @@ export const interviewAPI = {
     answer,
     integrity = null
   ) =>
-    fetch(
+    apiFetch(
       `${AI}/interview/answer`,
       {
         method: 'POST',
@@ -419,7 +431,7 @@ export const interviewAPI = {
     answer,
     jobField
   ) =>
-    fetch(
+    apiFetch(
       `${AI}/interview/model-answer`,
       {
         method: 'POST',
@@ -453,7 +465,7 @@ export const interviewAPI = {
   finish: (
     sessionId
   ) =>
-    fetch(
+    apiFetch(
       `${AI}/interview/finish`,
       {
         method: 'POST',
@@ -483,7 +495,7 @@ export const interviewAPI = {
   // ----------------------------------------------------------
 
   history: () =>
-    fetch(
+    apiFetch(
       `${SPRING}/api/v1/interviews/history`,
       {
         method: 'GET',
@@ -494,14 +506,14 @@ export const interviewAPI = {
   // The stored scorecard for a past interview, so a result can be
   // reopened from the home page rather than only right after finishing.
   getScorecard: (sessionId) =>
-    fetch(
+    apiFetch(
       `${SPRING}/api/v1/interviews/${encodeURIComponent(sessionId)}/scorecard`,
       { headers: authHeaders() }
     ).then(handleResponse),
 
 
   progress: () =>
-    fetch(
+    apiFetch(
       `${SPRING}/api/v1/interviews/progress`,
       {
         method: 'GET',
@@ -522,7 +534,7 @@ export const interviewAPI = {
   getSession: (
     sessionId
   ) =>
-    fetch(
+    apiFetch(
       `${AI}/interview/${sessionId}`,
       {
         headers: authHeaders(),
@@ -543,32 +555,32 @@ export const recruiterAPI = {
   // totals. jobId narrows to one job. Approved recruiters only: the
   // backend rejects anyone else's token with 403.
   overview: (jobId = null) =>
-    fetch(`${SPRING}/api/v1/recruiter/overview${jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''}`, {
+    apiFetch(`${SPRING}/api/v1/recruiter/overview${jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''}`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
   jobs: () =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs`, {
+    apiFetch(`${SPRING}/api/v1/recruiter/jobs`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
   // { title, company, jobField, jobDescription } -> the job with its
   // new invite code.
   createJob: (job) =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs`, {
+    apiFetch(`${SPRING}/api/v1/recruiter/jobs`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify(job),
     }).then(handleResponse),
 
   closeJob: (id) =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs/${id}/close`, {
+    apiFetch(`${SPRING}/api/v1/recruiter/jobs/${id}/close`, {
       method: 'POST',
       headers: authHeaders(),
     }).then(handleResponse),
 
   reopenJob: (id) =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs/${id}/reopen`, {
+    apiFetch(`${SPRING}/api/v1/recruiter/jobs/${id}/reopen`, {
       method: 'POST',
       headers: authHeaders(),
     }).then(handleResponse),
@@ -586,7 +598,7 @@ export const jobsAPI = {
   // The job behind an invite code, shown before the candidate agrees
   // to share an interview with its recruiter.
   preview: (code) =>
-    fetch(`${SPRING}/api/v1/jobs/invite/${encodeURIComponent(code)}`, {
+    apiFetch(`${SPRING}/api/v1/jobs/invite/${encodeURIComponent(code)}`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
@@ -714,7 +726,7 @@ export const skillGapAPI = {
     );
 
 
-    return fetch(
+    return apiFetch(
       `${AI}/skill-gap/analyze`,
       {
         method: 'POST',
@@ -739,7 +751,7 @@ export const skillGapAPI = {
 export const healthAPI = {
 
   check: () =>
-    fetch(
+    apiFetch(
       `${AI}/health`,
       {
         headers: authHeaders(),
@@ -757,32 +769,32 @@ export const healthAPI = {
 export const roadmapAPI = {
 
   generate: (data) =>
-    fetch(`${SPRING}/api/v1/roadmaps/generate`, {
+    apiFetch(`${SPRING}/api/v1/roadmaps/generate`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify(data),
     }).then(handleResponse),
 
   getBySessionId: (sessionId) =>
-    fetch(`${SPRING}/api/v1/roadmaps/session/${encodeURIComponent(sessionId)}`, {
+    apiFetch(`${SPRING}/api/v1/roadmaps/session/${encodeURIComponent(sessionId)}`, {
       method: 'GET',
       headers: authHeaders(),
     }).then(handleResponse),
 
   getLatest: () =>
-    fetch(`${SPRING}/api/v1/roadmaps/latest`, {
+    apiFetch(`${SPRING}/api/v1/roadmaps/latest`, {
       method: 'GET',
       headers: authHeaders(),
     }).then(handleResponse),
 
   getById: (id) =>
-    fetch(`${SPRING}/api/v1/roadmaps/${id}`, {
+    apiFetch(`${SPRING}/api/v1/roadmaps/${id}`, {
       method: 'GET',
       headers: authHeaders(),
     }).then(handleResponse),
 
   updateProgress: (id, dayNumber, completed) =>
-    fetch(`${SPRING}/api/v1/roadmaps/${id}/progress`, {
+    apiFetch(`${SPRING}/api/v1/roadmaps/${id}/progress`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({

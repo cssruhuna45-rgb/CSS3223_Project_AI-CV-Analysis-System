@@ -34,12 +34,22 @@ public class ResumeServiceImpl implements ResumeService {
     @Override
     @Transactional
     public ResumeResponseDto uploadResume(MultipartFile file, String userEmail) {
+        return uploadResume(file, userEmail, null);
+    }
+
+    @Override
+    @Transactional
+    public ResumeResponseDto uploadResume(MultipartFile file, String userEmail, String requestKey) {
+        if (requestKey != null && !requestKey.matches("[a-zA-Z0-9-]{16,80}")) {
+            throw new InvalidFileException("Invalid upload request key.");
+        }
 
         // 1. Validate file
         if (file == null || file.isEmpty()) {
             throw new InvalidFileException("Cannot upload an empty file.");
         }
 
+        if (file.getSize() > 10L * 1024 * 1024) throw new InvalidFileException("PDF files must be 10 MB or smaller.");
         String originalFilename = StringUtils.cleanPath(
                 Objects.requireNonNull(file.getOriginalFilename()));
 
@@ -53,10 +63,15 @@ public class ResumeServiceImpl implements ResumeService {
         }
 
         // 3. Find user
-        User user = userRepository.findByEmail(userEmail)
+        User user = (requestKey == null ? userRepository.findByEmail(userEmail) : userRepository.findForUpdateByEmail(userEmail))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User not found with email: " + userEmail));
 
+        // Locking this user's row serializes repeat requests, including a lost response.
+        if (requestKey != null) {
+            var existing = resumeRepository.findByUserIdAndUploadRequestKey(user.getId(), requestKey);
+            if (existing.isPresent()) return mapToDto(existing.get());
+        }
         // 4. Generate unique stored filename
         String storedFileName = UUID.randomUUID() + "_" + originalFilename;
 
@@ -68,6 +83,7 @@ public class ResumeServiceImpl implements ResumeService {
         // 6. Create Resume entity
         Resume resume = Resume.builder()
                 .user(user)
+                .uploadRequestKey(requestKey)
                 .originalFileName(originalFilename)
                 .storedFileName(storedFileName)
                 .filePath(filePath)
@@ -101,7 +117,7 @@ public class ResumeServiceImpl implements ResumeService {
         // AI analysis deliberately does NOT happen here. It is best
         // effort, and anything it did inside this transaction could
         // mark it rollback-only and take the upload down with it. The
-        // controller runs it once this transaction has committed.
+        // separate analysis endpoint runs it after this upload commits.
         return mapToDto(savedResume);
     }
 
