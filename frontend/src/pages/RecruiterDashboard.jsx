@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Users, TrendingUp, Clock, CheckCircle, Search, Eye,
-  Brain, Code, MessageSquare, Layers, BarChart2, AlertTriangle, Sparkles, Briefcase,
+  Brain, Code, MessageSquare, Layers, Download, AlertTriangle, Sparkles, Briefcase,
 } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
 import { Button } from '../components/ui';
+import { printDate, printPage } from '../utils/print';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_CYAN = 'var(--accent)';
@@ -240,10 +241,14 @@ export default function RecruiterDashboard() {
   ];
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }} className="animate-fade-in-up">
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}
+         className={`animate-fade-in-up${candidate ? ' has-candidate' : ''}`}>
+
+      {/* With a candidate open, printing gives that candidate alone: the
+          header, stats and list carry hide-when-printing-candidate. */}
 
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
+      <div className="hide-when-printing-candidate" style={{ marginBottom: 32 }}>
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px',
           borderRadius: 20, background: 'color-mix(in srgb, var(--accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
@@ -283,7 +288,7 @@ export default function RecruiterDashboard() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
+      <div className="hide-when-printing-candidate" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
         {statData.map((s, i) => (
           <div key={s.label} className="stat-card stagger-item" style={{
             '--stat-accent': s.color,
@@ -331,10 +336,10 @@ export default function RecruiterDashboard() {
           )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: candidate ? '1fr 380px' : '1fr', gap: 20 }}>
+        <div className="print-single" style={{ display: 'grid', gridTemplateColumns: candidate ? '1fr 380px' : '1fr', gap: 20 }}>
 
           {/* Candidate table */}
-          <div className="card" style={{
+          <div className="card hide-when-printing-candidate" style={{
             padding: 0,
             overflow: 'hidden',
             background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
@@ -463,6 +468,10 @@ export default function RecruiterDashboard() {
               boxShadow: 'none',
               animationDuration: '0.35s',
             }}>
+              <div className="print-only print-header">
+                AI Interview Platform &middot; Candidate interview result &middot; {printDate()}
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
                 <div style={{
                   width: 50, height: 50, borderRadius: '50%',
@@ -524,9 +533,14 @@ export default function RecruiterDashboard() {
                 </p>
               )}
 
-              <div className="glow-line" style={{ margin: '22px 0' }} />
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: 'var(--fs-sm)', padding: '11px', fontWeight: 700 }}>
-                <BarChart2 size={15} /> Full Report
+              <div className="glow-line no-print" style={{ margin: '22px 0' }} />
+              {/* Was a "Full Report" button with no action behind it. */}
+              <button
+                className="btn btn-primary no-print"
+                style={{ width: '100%', justifyContent: 'center', fontSize: 'var(--fs-sm)', padding: '11px', fontWeight: 700 }}
+                onClick={() => printPage(`Interview result - ${candidate.candidateName} - ${printDate()}`)}
+              >
+                <Download size={15} /> Print / Save PDF
               </button>
             </div>
           )}

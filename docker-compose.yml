@@ -1,4 +1,4 @@
-# Full stack: database, AI service, backend, frontend.
+# Full stack: database, Redis, AI service, backend, frontend.
 #
 #   docker compose up --build
 #   http://localhost:3000
@@ -32,7 +32,42 @@ services:
       retries: 10
 
   # ------------------------------------------------------------------
-  # 2. FastAPI AI service
+  # 2. Redis - interviews in progress
+  #
+  # Holds the working state of live interviews for the AI service, so
+  # restarting that service (or running more than one copy of it) no
+  # longer loses an interview halfway through. Each session expires
+  # after SESSION_IDLE_TTL_SECONDS without use.
+  #
+  # Nothing is written to disk: a session carries the candidate's CV
+  # text, and the durable record is in PostgreSQL anyway. If memory
+  # fills, the session closest to expiring goes first. Not published
+  # to the host; only the AI service talks to it.
+  # ------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: interview_redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - volatile-ttl
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ------------------------------------------------------------------
+  # 3. FastAPI AI service
   #
   # Deliberately NOT published to the host. Only the backend needs to
   # reach it, over the compose network, with the shared internal key.
@@ -50,13 +85,17 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY in .env}
       AI_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      REDIS_URL: redis://redis:6379/0
     volumes:
       # The Chroma index is expensive to rebuild and is derived from
       # documents/, so it outlives the container.
       - chroma_data:/app/chroma_db
+    depends_on:
+      redis:
+        condition: service_healthy
 
   # ------------------------------------------------------------------
-  # 3. Spring Boot backend
+  # 4. Spring Boot backend
   # ------------------------------------------------------------------
   backend-service:
     build: ./backend
@@ -85,7 +124,7 @@ services:
         condition: service_healthy
 
   # ------------------------------------------------------------------
-  # 4. React frontend
+  # 5. React frontend
   #
   # The browser uses port 3000 for pages and API requests; nginx
   # forwards /api/ to the backend over the internal Docker network.

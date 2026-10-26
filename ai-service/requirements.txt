@@ -11,6 +11,10 @@ chromadb>=0.4.20
 pypdf>=4.0.0
 python-dotenv>=1.0.0
 
+# Live interview sessions, when REDIS_URL is set; see
+# app/interview/session_manager.py. GETEX needs redis-py 4.0+.
+redis>=5.0.0
+
 # Local embeddings. app/rag/embeddings.py imports HuggingFaceEmbeddings
 # from langchain-huggingface, which needs sentence-transformers to load
 # all-MiniLM-L6-v2.
