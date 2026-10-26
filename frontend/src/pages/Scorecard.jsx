@@ -1,3 +1,4 @@
+import { useToast } from '../components/ToastProvider';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -109,6 +110,7 @@ function EmptyState({ navigate, title, message }) {
 }
 
 export default function Scorecard() {
+  const notify = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
@@ -215,16 +217,20 @@ export default function Scorecard() {
     });
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     const curSession = sessionId || result?.session_id;
     const url = curSession
       ? `${window.location.origin}/scorecard?session=${encodeURIComponent(curSession)}`
       : window.location.href;
 
-    navigator.clipboard.writeText(url).then(() => {
+    try {
+      await navigator.clipboard.writeText(url);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
-    });
+    } catch {
+      setCopiedLink(false);
+      notify('Couldn’t copy automatically; please copy the page address manually.', 'warning');
+    }
   };
 
   if (loading || historyLoading) {

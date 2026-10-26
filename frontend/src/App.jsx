@@ -4,6 +4,7 @@ import './index.css';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import { ToastProvider, useToast } from './components/ToastProvider';
 import Landing from './pages/Landing';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -60,6 +61,11 @@ function ProtectedRoute({ user, children, only }) {
 }
 
 export default function App() {
+  return <ToastProvider><AppContent /></ToastProvider>;
+}
+
+function AppContent() {
+  const notify = useToast();
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
     if (!localStorage.getItem('token') || !storedUser) return null;
@@ -78,6 +84,7 @@ export default function App() {
     localStorage.removeItem('user');
     sessionStorage.clear();
     setUser(null);
+    notify('You’ve signed out successfully.', 'success');
   };
 
   return (
