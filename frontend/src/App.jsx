@@ -3,10 +3,12 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import './index.css';
 
 import Navbar from './components/Navbar';
+import AppShell, { BLEED_ROUTES } from './components/AppShell';
 import Footer from './components/Footer';
 import { ToastProvider, useToast } from './components/ToastProvider';
 import Landing from './pages/Landing';
 import Home from './pages/Home';
+import CandidateHome from './pages/CandidateHome';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import CVUpload from './pages/CVUpload';
@@ -34,6 +36,57 @@ function useFocusMode() {
 
 function FooterOutsideFocus({ user }) {
   return useFocusMode() ? null : <Footer user={user} />;
+}
+
+// Pages that keep the public header whoever is looking at them. The
+// landing page argues for signing up and the design system is a
+// maintainer reference: neither belongs inside a workspace sidebar,
+// and a signed-in visitor following a shared link to one should see
+// the same page everybody else does.
+const PUBLIC_CHROME_ROUTES = ['/', '/login', '/register', '/design-system'];
+
+/**
+ * The frame around the routes.
+ *
+ * <p>A signed-in account gets the workspace shell - sidebar, page bar
+ * and page search - and a visitor keeps the public header, because the
+ * two have different jobs: one returns to a handful of pages over and
+ * over, the other is reading an argument for signing up.
+ *
+ * <p>The routes themselves are the same element in both branches, so
+ * nothing about this choice reaches the pages. Signing in or out does
+ * remount them, which it already did when the user state changed.
+ */
+function Chrome({ user, onLogout, children }) {
+  const { pathname } = useLocation();
+  const publicChrome = PUBLIC_CHROME_ROUTES.includes(pathname);
+
+  if (user && !publicChrome) {
+    return (
+      <AppShell user={user} onLogout={onLogout}>
+        <main
+          id="main-content"
+          className={`app-content shell-content ${
+            BLEED_ROUTES.includes(pathname) ? 'shell-content--bleed' : ''
+          }`}
+          role="main"
+        >
+          {children}
+        </main>
+        <FooterOutsideFocus user={user} />
+      </AppShell>
+    );
+  }
+
+  return (
+    <>
+      <Navbar user={user} onLogout={onLogout} />
+      <main id="main-content" className="app-content" role="main">
+        {children}
+      </main>
+      <FooterOutsideFocus user={user} />
+    </>
+  );
 }
 
 // Sends each account to the page it may use. These redirects only
@@ -95,19 +148,26 @@ function AppContent() {
           Skip to main content
         </a>
 
-        <Navbar user={user} onLogout={handleLogout} />
-        <main id="main-content" className="app-content" role="main">
+        <Chrome user={user} onLogout={handleLogout}>
           <Routes>
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
             <Route path="/register" element={<Register onLogin={setUser} />} />
-            <Route path="/home" element={<ProtectedRoute user={user} only="candidate"><Home user={user} /></ProtectedRoute>} />
+            {/* Two candidate entry points. /home is the branded front
+                door; /dashboard is the workspace that carries the live
+                CV, scores and recent results. */}
+            <Route path="/home" element={<ProtectedRoute user={user} only="candidate"><CandidateHome /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute user={user} only="candidate"><Home user={user} /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute user={user} only="candidate"><CVUpload /></ProtectedRoute>} />
             <Route path="/interview" element={<ProtectedRoute user={user} only="candidate"><InterviewRoom /></ProtectedRoute>} />
             <Route path="/scorecard" element={<ProtectedRoute user={user} only="candidate"><Scorecard /></ProtectedRoute>} />
             <Route path="/progress" element={<ProtectedRoute user={user} only="candidate"><Progress /></ProtectedRoute>} />
             <Route path="/skill-gap" element={<ProtectedRoute user={user} only="candidate"><SkillGap /></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute user={user} only="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
+            {/* The recruiter review screen. Was /dashboard, which now
+                belongs to the candidate workspace; a recruiter opening
+                an old /dashboard link fails that route's candidate
+                guard and is redirected here by homePathFor. */}
+            <Route path="/recruiter" element={<ProtectedRoute user={user} only="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute user={user} only="recruiter"><RecruiterJobs /></ProtectedRoute>} />
             <Route path="/join" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />
             <Route path="/join/:code" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />
@@ -116,8 +176,7 @@ function AppContent() {
             <Route path="/design-system" element={<DesignSystem />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </main>
-        <FooterOutsideFocus user={user} />
+        </Chrome>
       </div>
     </BrowserRouter>
   );

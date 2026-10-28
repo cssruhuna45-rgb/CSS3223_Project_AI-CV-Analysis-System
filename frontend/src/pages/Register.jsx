@@ -1,7 +1,8 @@
 import { useToast } from '../components/ToastProvider';
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
 import { authAPI } from '../services/api';
 import { homePathFor, toStoredUser } from '../constants/accounts';
 
@@ -54,16 +55,14 @@ export default function Register({ onLogin }) {
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }} className="animate-fade-in-up">
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div className="auth-icon">
-            <Brain size={30} color="var(--on-accent)" />
-          </div>
+          <BrandLogo variant="mark" alt="Vynterva AI" className="auth-logo" />
           <h1 style={{
             fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
             background: 'linear-gradient(var(--text-primary), var(--text-primary))',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}>Create account</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>Join the AI Interview Platform</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>Join Vynterva AI</p>
         </div>
 
         <div className="card auth-card">
