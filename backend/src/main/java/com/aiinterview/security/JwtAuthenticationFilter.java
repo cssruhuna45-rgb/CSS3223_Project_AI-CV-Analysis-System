@@ -21,6 +21,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final com.aiinterview.repository.UserRepository users;
 
     @Override
     protected void doFilterInternal(
@@ -42,7 +43,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             userEmail = jwtService.extractUsername(jwt);
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                var account = users.findByEmail(userEmail).orElse(null);
+                var issuedAt = jwtService.extractClaim(jwt, io.jsonwebtoken.Claims::getIssuedAt);
+                var issuedAtMillis = jwtService.extractClaim(jwt, claims -> claims.get("issuedAtMillis", Long.class));
+                var issuedInstant = issuedAtMillis != null ? java.time.Instant.ofEpochMilli(issuedAtMillis)
+                        : issuedAt == null ? null : issuedAt.toInstant();
+                boolean passwordCurrent = account != null && account.isActive()
+                        && (account.getPasswordChangedAt() == null || (issuedInstant != null
+                        && !issuedInstant.isBefore(account.getPasswordChangedAt())));
+                if (passwordCurrent && jwtService.isTokenValid(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,

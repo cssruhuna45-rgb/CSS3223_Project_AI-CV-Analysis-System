@@ -157,3 +157,31 @@ curl -X GET "http://localhost:8080/api/v1/protected-resource" \
 2. **Password Verification**: `AuthServiceImpl` verifies password using `BCryptPasswordEncoder.matches()`.
 3. **Token Issuance**: `JwtService` creates a signed HMAC-SHA256 JWT containing the user's email (`sub`) and user ID (`userId`).
 4. **Token Interception**: For future requests, `JwtAuthenticationFilter` intercepts incoming requests, extracts the `Bearer` token, verifies signature and expiration, loads `UserDetails` from database, and sets Spring Security's `SecurityContext`.
+
+## Password recovery
+
+The login page links to `/forgot-password`. The API accepts
+`POST /api/v1/auth/forgot-password` with `{ "email": "you@example.com" }`.
+It returns the same acknowledgement for unknown, disabled and active accounts.
+`POST /api/v1/auth/reset-password` accepts `{ "token": "...", "password": "..." }`.
+Passwords must contain 6–72 characters and fit within BCrypt's 72-byte limit.
+
+Configure `FRONTEND_URL` to the frontend origin (HTTPS in production), plus
+`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`,
+`MAIL_SMTP_AUTH` and `MAIL_STARTTLS`. Use a verified sender and enable SMTP
+authentication and STARTTLS for a production mail provider. Defaults target a
+local SMTP catcher on port 1025; they do not deliver real email by themselves.
+Docker Compose passes these variables from the root `.env` to the backend.
+Its default mail host is `host.docker.internal` for a local SMTP catcher.
+
+Flyway migration V9 stores only the SHA-256 hash of each reset token. Links
+expire after 30 minutes, are single-use, and are replaced by a successful new
+request. Requests for an account are limited to one per minute. Configure
+per-IP request limits at your public reverse proxy as well. SMTP failures are
+logged without email addresses or tokens and retain any previously valid link.
+Successful resets invalidate previously issued login tokens.
+
+Manual check: start a local SMTP catcher, register an account, request a reset,
+open the email link, set a new password, then sign in. Confirm the old password
+and the used reset link fail. Repeat with an unknown email to check the same
+acknowledgement appears.

@@ -8,6 +8,7 @@ import { ToastProvider, useToast } from './components/ToastProvider';
 import Landing from './pages/Landing';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import PasswordRecovery from './pages/PasswordRecovery';
 import Register from './pages/Register';
 import CVUpload from './pages/CVUpload';
 import InterviewRoom from './pages/InterviewRoom';
@@ -100,6 +101,8 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
+            <Route path="/forgot-password" element={<PasswordRecovery key="forgot" />} />
+            <Route path="/reset-password" element={<PasswordRecovery key="reset" reset onReset={() => setUser(null)} />} />
             <Route path="/register" element={<Register onLogin={setUser} />} />
             <Route path="/home" element={<ProtectedRoute user={user} only="candidate"><Home user={user} /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute user={user} only="candidate"><CVUpload /></ProtectedRoute>} />

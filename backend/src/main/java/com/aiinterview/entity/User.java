@@ -38,6 +38,13 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(length = 64)
+    private String passwordResetHash;
+
+    private java.time.Instant passwordResetExpiresAt;
+    private java.time.Instant passwordResetRequestedAt;
+    private java.time.Instant passwordChangedAt;
+
     /**
      * Decides what the account may see. The column is NOT NULL in the
      * database, so leaving this unset makes every insert fail.
