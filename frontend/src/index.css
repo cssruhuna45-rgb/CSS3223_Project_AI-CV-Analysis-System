@@ -2935,12 +2935,32 @@ body {
     min-height: 0;
   }
 
-  /* Navigation, footer, buttons and anything marked no-print. */
+  /* Navigation, footer, buttons and anything marked no-print. The
+     workspace shell's sidebar, page bar and drawer go too. */
   .immersive-nav,
   .site-footer,
   .skip-to-content,
+  .shell-sidebar,
+  .shell-topbar,
+  .shell-drawer,
+  .shell-drawer-backdrop,
   .no-print {
     display: none !important;
+  }
+
+  /* With the sidebar gone, its reserved column would leave a blank
+     strip down the left of every page. */
+  .shell,
+  .shell-main {
+    min-height: 0;
+  }
+
+  .shell-main {
+    margin-left: 0;
+  }
+
+  .shell-content {
+    padding: 0;
   }
 
   .print-only {
