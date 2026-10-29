@@ -7,13 +7,19 @@ export function isApprovedRecruiter(user) {
   return user?.role === 'recruiter' && user?.approvalStatus === 'approved';
 }
 
+// Note the two dashboards. /dashboard is the candidate's own
+// workspace; the recruiter's review screen is /recruiter. They were
+// the other way round until the candidate page was renamed, so an old
+// recruiter link to /dashboard now lands on the candidate route, fails
+// its guard and is sent here - which returns /recruiter, where they
+// were going.
 export function homePathFor(user) {
   if (!user) return '/';
   if (user.role === 'admin') return '/admin';
   if (user.role === 'recruiter') {
-    return isApprovedRecruiter(user) ? '/dashboard' : '/pending';
+    return isApprovedRecruiter(user) ? '/recruiter' : '/pending';
   }
-  return '/home';
+  return '/dashboard';
 }
 
 // The shape stored in localStorage, built from the server's UserDto.

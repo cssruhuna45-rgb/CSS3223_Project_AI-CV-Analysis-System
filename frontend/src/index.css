@@ -145,6 +145,11 @@
   --radius-lg: 16px;
   --radius-pill: 9999px;
 
+  /* Width of the fixed workspace sidebar. Declared once because the
+     sidebar sets it and the content beside it has to reserve exactly
+     the same amount. */
+  --shell-sidebar-w: 252px;
+
   /* Timing */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -305,13 +310,754 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
+
+  /* Keeps wide decorative content from scrolling the page sideways.
+     `hidden` is the fallback; `clip` is what we actually want, because
+     overflow-x:hidden silently computes overflow-y to auto, which makes
+     this element a scroll container - and then every position:sticky
+     inside it (the workspace sidebar and page bar) sticks to a box that
+     never scrolls, so they scroll off the top with the page instead of
+     staying put. `clip` crops the same way without creating one. */
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .app-content {
   flex: 1;
   position: relative;
   z-index: 1;
+}
+
+/* ============================================================
+   WORKSPACE SHELL (signed in): sidebar + page bar
+   ------------------------------------------------------------
+   Solid surfaces and single-pixel borders only. The palette
+   rules out gradients, glow and animated backgrounds, so the
+   structure here is carried by spacing, weight and one accent.
+   ============================================================ */
+
+.shell {
+  flex: 1;
+  min-height: 100vh;
+}
+
+.shell-main {
+  /* Offset by the fixed sidebar's width rather than sharing a grid
+     with it: the sidebar is out of flow, so this is what reserves
+     its column. min-width keeps a wide table or code block inside
+     its own scroll area instead of widening the page. */
+  margin-left: var(--shell-sidebar-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.shell-content {
+  padding: var(--space-6) var(--space-6) var(--space-8);
+}
+
+/* ---------- Sidebar ---------- */
+
+/* Pinned to the viewport, so only the page beside it scrolls.
+   Fixed rather than sticky on purpose: sticky depends on which
+   ancestor happens to be a scroll container, which is the trap
+   that hid this bar in the first place. */
+.shell-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  width: var(--shell-sidebar-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+}
+
+.shell-sidebar-head {
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+.shell-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-3);
+}
+
+.shell-sidebar-foot {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Brand ---------- */
+
+.shell-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+/* The artwork, at its own aspect ratio - no plate behind it,
+   since the mark is transparent and carries no background. */
+.shell-brand-mark {
+  flex: none;
+  width: auto;
+  height: 30px;
+  display: block;
+}
+
+.shell-brand-name {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.shell-brand-accent {
+  color: var(--accent);
+}
+
+/* ---------- Navigation ---------- */
+
+.shell-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell-nav-link {
+  width: 100%;
+  min-height: 44px;            /* comfortable pointer target */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-smooth), color 0.15s var(--ease-smooth);
+}
+
+.shell-nav-link:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.shell-nav-icon {
+  flex: none;
+  color: currentColor;
+}
+
+/* Active page: a tinted row with a solid accent rule down its
+   leading edge, so the current page is identifiable without
+   relying on the tint alone. */
+.shell-nav-link--active {
+  position: relative;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.shell-nav-link--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+}
+
+/* ---------- Account ---------- */
+
+.shell-account {
+  position: relative;
+}
+
+.shell-account-trigger {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+
+.shell-account-trigger:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border);
+}
+
+.shell-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.shell-account-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.shell-account-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-account-role {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-account-chevron {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform 0.15s var(--ease-smooth);
+}
+
+.shell-account-chevron--open {
+  transform: rotate(180deg);
+}
+
+.shell-account-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+}
+
+.shell-account-menu-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.shell-account-menu-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.shell-account-menu-email {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.shell-account-menu-item {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.shell-account-menu-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.shell-account-menu-item--danger {
+  color: var(--danger);
+}
+
+/* ---------- Page bar ---------- */
+
+.shell-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 60px;
+  padding: 0 var(--space-6);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.shell-page-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.shell-icon-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: none;               /* only the drawer toggle, on narrow */
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.shell-icon-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* ---------- Page search ---------- */
+
+.page-search {
+  position: relative;
+  width: 260px;
+}
+
+.page-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.page-search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px 0 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+}
+
+.page-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.page-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-lg);
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.page-search-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.page-search-option--active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.page-search-option-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.page-search-option-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-search-option-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.page-search-option-description {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.page-search-empty {
+  padding: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   CANDIDATE HOME - focus dashboard
+   ------------------------------------------------------------
+   Themed throughout: this page reads on the light and dark
+   palettes alike, which is why the brand artwork here is the
+   V mark rather than the full lockup (whose wordmark is white).
+   ============================================================ */
+
+.focus-home {
+  max-width: 1040px;
+}
+
+.focus-intro {
+  margin-bottom: var(--space-5);
+}
+
+.focus-intro-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.focus-intro-text {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* ---------- Feature panel ---------- */
+
+.focus-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.focus-feature-body {
+  padding: var(--space-6);
+}
+
+.focus-eyebrow {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.focus-feature-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.focus-feature-text {
+  margin: 0 0 var(--space-5);
+  max-width: 46ch;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.focus-feature-cta {
+  gap: 8px;
+}
+
+/* A tint rather than a picture's own background, so the panel
+   belongs to whichever theme is active. */
+.focus-feature-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
+  border-left: 1px solid var(--border);
+}
+
+.focus-feature-logo {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+}
+
+/* ---------- Action cards ---------- */
+
+.focus-actions {
+  margin-top: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.focus-action {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: border-color 0.15s var(--ease-smooth), background 0.15s var(--ease-smooth);
+}
+
+.focus-action:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+}
+
+.focus-action-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.focus-action-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.focus-action-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.focus-action-description {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.focus-action-chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+
+/* The art panel is the first thing to go when the row can no
+   longer hold two readable columns. */
+@media (max-width: 860px) {
+  .focus-feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .focus-feature-art {
+    order: -1;
+    border-left: 0;
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-5);
+  }
+
+  .focus-feature-logo {
+    max-width: 140px;
+  }
+
+  .focus-feature-body {
+    padding: var(--space-5);
+  }
+}
+
+@media (max-width: 640px) {
+  .focus-feature-title {
+    font-size: var(--fs-xl);
+  }
+
+  .focus-feature-cta {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ---------- Drawer (narrow screens) ---------- */
+
+.shell-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--shadow-ink) 55%, transparent);
+}
+
+.shell-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 70;
+  width: min(300px, 86vw);
+  display: none;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  transform: translateX(-100%);
+  transition: transform 0.2s var(--ease-smooth);
+}
+
+.shell-drawer--open {
+  transform: translateX(0);
+}
+
+.shell-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.shell-drawer-head .shell-icon-btn {
+  display: inline-flex;
+}
+
+.shell-drawer-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+.shell-drawer-foot {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* Below this width the sidebar becomes the drawer. */
+@media (max-width: 900px) {
+  .shell-sidebar {
+    display: none;
+  }
+
+  /* Nothing is reserving a column any more. */
+  .shell-main {
+    margin-left: 0;
+  }
+
+  .shell-drawer {
+    display: flex;
+  }
+
+  .shell-drawer-toggle {
+    display: inline-flex;
+  }
+
+  .shell-topbar {
+    padding: 0 var(--space-4);
+  }
+
+  .shell-content {
+    padding: var(--space-5) var(--space-4) var(--space-7);
+  }
+}
+
+/* The search box is the first thing to give up width, then to
+   leave the bar entirely: the sidebar and drawer still reach
+   every page it could have reached. */
+@media (max-width: 1100px) {
+  .page-search {
+    width: 200px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-search {
+    display: none;
+  }
+
+  .shell-topbar {
+    padding: 0 var(--space-3);
+  }
+
+  .shell-content {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
 }
 
 .gradient-text {
@@ -371,6 +1117,14 @@ body {
 
 .nav-brand:hover {
   transform: scale(1.02);
+}
+
+/* Public header mark, at the artwork's own aspect ratio. */
+.nav-brand-mark {
+  flex: none;
+  width: auto;
+  height: 32px;
+  display: block;
 }
 
 .nav-brand-icon {
@@ -479,9 +1233,16 @@ body {
   gap: 10px;
   color: var(--text);
   text-decoration: none;
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.03em;
+}
+
+.footer-logo-mark {
+  flex: none;
+  width: auto;
+  height: 34px;
+  display: block;
 }
 
 .footer-logo > span:last-child > span {
@@ -1219,6 +1980,16 @@ body {
 .auth-card:hover {
   border-color: color-mix(in srgb, var(--accent) 20%, transparent);
   box-shadow: 0 30px 60px -12px color-mix(in srgb, var(--shadow-ink) 60%, transparent), 0 0 50px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* The brand mark above the sign-in and sign-up forms. No plate or
+   glow behind it: the artwork is transparent and carries its own
+   colour, so a filled square would only box it in. */
+.auth-logo {
+  display: block;
+  width: auto;
+  height: 62px;
+  margin: 0 auto 18px;
 }
 
 .auth-icon {
@@ -2164,12 +2935,32 @@ body {
     min-height: 0;
   }
 
-  /* Navigation, footer, buttons and anything marked no-print. */
+  /* Navigation, footer, buttons and anything marked no-print. The
+     workspace shell's sidebar, page bar and drawer go too. */
   .immersive-nav,
   .site-footer,
   .skip-to-content,
+  .shell-sidebar,
+  .shell-topbar,
+  .shell-drawer,
+  .shell-drawer-backdrop,
   .no-print {
     display: none !important;
+  }
+
+  /* With the sidebar gone, its reserved column would leave a blank
+     strip down the left of every page. */
+  .shell,
+  .shell-main {
+    min-height: 0;
+  }
+
+  .shell-main {
+    margin-left: 0;
+  }
+
+  .shell-content {
+    padding: 0;
   }
 
   .print-only {

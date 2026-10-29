@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { homePathFor } from '../constants/accounts';
+import BrandLogo from './BrandLogo';
 
 const PRODUCT_LINKS = [
   { label: 'CV Analysis', to: '/upload' },
@@ -28,13 +29,13 @@ function platformLinks(user) {
   if (user.role === 'recruiter') {
     // homePathFor sends a recruiter still waiting for approval to the
     // waiting page instead of a dashboard that would refuse them.
-    return homePathFor(user) === '/dashboard'
-      ? [{ label: 'Dashboard', to: '/dashboard' }, { label: 'Jobs', to: '/jobs' }]
+    return homePathFor(user) === '/recruiter'
+      ? [{ label: 'Dashboard', to: '/recruiter' }, { label: 'Jobs', to: '/jobs' }]
       : [{ label: 'Dashboard', to: homePathFor(user) }];
   }
 
   return [
-    { label: 'Workspace', to: '/home' },
+    { label: 'Dashboard', to: '/dashboard' },
     { label: 'My Progress', to: '/progress' },
     { label: 'Scorecards', to: '/scorecard' },
   ];
@@ -53,8 +54,11 @@ export default function Footer({ user }) {
       <div className="footer-inner">
         <div className="footer-main">
           <div className="footer-brand">
-            <Link className="footer-logo" to="/" aria-label="AIInterview home">
-              <span>AI<span>Interview</span></span>
+            {/* Mark as artwork, wordmark as text: the supplied lockup's
+                wordmark is white, and the footer follows the theme. */}
+            <Link className="footer-logo" to="/" aria-label="Vynterva AI home">
+              <BrandLogo variant="mark" alt="" className="footer-logo-mark" />
+              <span>VYNTERVA<span> AI</span></span>
             </Link>
             <p>Build confidence. Sharpen your story. Land the opportunity.</p>
           </div>
@@ -79,7 +83,7 @@ export default function Footer({ user }) {
         </div>
 
         <div className="footer-bottom">
-          <span>© 2026 AIInterview. Built for better interviews.</span>
+          <span>© 2026 Vynterva AI. Built for better interviews.</span>
         </div>
       </div>
     </footer>
