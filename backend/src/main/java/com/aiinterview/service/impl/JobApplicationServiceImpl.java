@@ -4,6 +4,8 @@ import com.aiinterview.dto.CandidateApplicationDto;
 import com.aiinterview.dto.CvSnapshotDto;
 import com.aiinterview.dto.JobApplicationRequestDto;
 import com.aiinterview.entity.ApplicationStatus;
+import com.aiinterview.entity.HiringDecision;
+import com.aiinterview.entity.HiringDecisionValue;
 import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Resume;
@@ -13,6 +15,7 @@ import com.aiinterview.entity.User;
 import com.aiinterview.exception.BadRequestException;
 import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.ResourceNotFoundException;
+import com.aiinterview.repository.HiringDecisionRepository;
 import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.ResumeAnalysisRepository;
@@ -32,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +53,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             "This job is not available, or is no longer taking candidates.";
 
     private final JobApplicationRepository jobApplicationRepository;
+    private final HiringDecisionRepository hiringDecisionRepository;
     private final JobPostingRepository jobPostingRepository;
     private final ResumeRepository resumeRepository;
     private final ResumeAnalysisRepository resumeAnalysisRepository;
@@ -199,9 +205,19 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
         User candidate = user(candidateEmail);
 
+        // Announced decisions in one query rather than one per
+        // application, keyed by application id.
+        Map<Long, HiringDecision> announced = hiringDecisionRepository
+                .findPublishedForCandidate(candidate.getId())
+                .stream()
+                .collect(Collectors.toMap(
+                        d -> d.getJobApplication().getId(),
+                        d -> d
+                ));
+
         return jobApplicationRepository.findForCandidate(candidate.getId())
                 .stream()
-                .map(this::toDto)
+                .map(application -> toDto(application, announced.get(application.getId())))
                 .toList();
     }
 
@@ -226,14 +242,50 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     // Internals
     // ========================================================
 
+    /**
+     * The candidate's view of one of their applications, without an
+     * announced decision.
+     */
     private CandidateApplicationDto toDto(JobApplication application) {
+        return toDto(
+                application,
+                hiringDecisionRepository
+                        .findPublishedForCandidate(
+                                application.getId(),
+                                application.getCandidate().getId()
+                        )
+                        .orElse(null)
+        );
+    }
+
+    /**
+     * @param announced the recruiter's published decision, or null
+     *                  while none has been announced. A draft is never
+     *                  passed here: the queries that find one match
+     *                  published rows only.
+     */
+    private CandidateApplicationDto toDto(JobApplication application, HiringDecision announced) {
 
         JobPosting job = application.getJobPosting();
 
         InterviewEligibilityService.InterviewAccess access =
                 interviewEligibilityService.describeAccess(application);
 
+        HiringDecisionValue decision = announced == null
+                ? HiringDecisionValue.PENDING
+                : announced.getDecision();
+
         return CandidateApplicationDto.builder()
+                .resultAnnounced(announced != null)
+                .hiringDecision(decision.name())
+                .hiringDecisionLabel(decision.getLabel())
+                .selected(decision == HiringDecisionValue.SELECTED)
+                .recruiterFeedback(
+                        announced == null ? null : announced.getCandidateFeedback()
+                )
+                .resultAnnouncedAt(
+                        announced == null ? null : announced.getPublishedAt()
+                )
                 .applicationId(application.getId())
                 .jobId(job.getId())
                 .jobTitle(job.getTitle())

@@ -1,4 +1,7 @@
-import { statusTone, matchLabel, matchTone, STATUS_TONES } from './jobApplicationsApi';
+import {
+  statusTone, matchLabel, matchTone, STATUS_TONES,
+  decisionTone, defaultFeedback,
+} from './jobApplicationsApi';
 
 // The display rules the applicant list and the status page both read.
 // Pure functions, so these pin down the two decisions that actually
@@ -56,5 +59,48 @@ describe('statusTone', () => {
   test('an unknown status falls back to neutral rather than breaking', () => {
     expect(statusTone('SOMETHING_NEW')).toBe('neutral');
     expect(statusTone(undefined)).toBe('neutral');
+  });
+});
+
+describe('decisionTone', () => {
+
+  test('selected reads as good news, not selected as bad', () => {
+    expect(decisionTone('SELECTED')).toBe('success');
+    expect(decisionTone('NOT_SELECTED')).toBe('danger');
+  });
+
+  test('an undecided application is neutral, not alarming', () => {
+    expect(decisionTone('PENDING')).toBe('neutral');
+    expect(decisionTone(undefined)).toBe('neutral');
+  });
+});
+
+describe('defaultFeedback', () => {
+
+  test('the selected wording names the role and promises contact, not a contract', () => {
+    const text = defaultFeedback('SELECTED', 'Backend Developer');
+
+    expect(text).toContain('Backend Developer');
+    expect(text).toContain('contact you');
+    // A selection is not an offer.
+    expect(text.toLowerCase()).not.toContain('offer letter');
+    expect(text.toLowerCase()).not.toContain('contract');
+  });
+
+  test('the not-selected wording is respectful and avoids "rejected"', () => {
+    const text = defaultFeedback('NOT_SELECTED', 'Backend Developer').toLowerCase();
+
+    expect(text).toContain('thank you');
+    expect(text).toContain('wish you success');
+    expect(text).not.toContain('rejected');
+    expect(text).not.toContain('unfortunately you failed');
+  });
+
+  test('a missing job title still produces usable wording', () => {
+    expect(defaultFeedback('SELECTED', null)).toContain('this position');
+  });
+
+  test('an undecided draft gets no suggested wording', () => {
+    expect(defaultFeedback('PENDING', 'Backend Developer')).toBe('');
   });
 });

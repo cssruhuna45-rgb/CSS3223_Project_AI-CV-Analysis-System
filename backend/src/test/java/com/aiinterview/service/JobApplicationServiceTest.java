@@ -12,6 +12,7 @@ import com.aiinterview.entity.User;
 import com.aiinterview.exception.BadRequestException;
 import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.ResourceNotFoundException;
+import com.aiinterview.repository.HiringDecisionRepository;
 import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.ResumeAnalysisRepository;
@@ -64,6 +65,9 @@ class JobApplicationServiceTest {
     private JobApplicationRepository jobApplicationRepository;
 
     @Mock
+    private HiringDecisionRepository hiringDecisionRepository;
+
+    @Mock
     private JobPostingRepository jobPostingRepository;
 
     @Mock
@@ -93,6 +97,7 @@ class JobApplicationServiceTest {
 
         service = new JobApplicationServiceImpl(
                 jobApplicationRepository,
+                hiringDecisionRepository,
                 jobPostingRepository,
                 resumeRepository,
                 resumeAnalysisRepository,

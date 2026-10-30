@@ -99,7 +99,94 @@ export const applicantsAPI = {
       headers: authHeaders(),
     }).then(handleResponse),
 
+  // ---- Final hiring decision ----
+  //
+  // Saving and announcing are separate calls on purpose: choosing an
+  // option tells the candidate nothing until publish() is called.
+
+  // { applicationId, decision, decisionLabel, publicationStatus,
+  //   published, readyToPublish, candidateFeedback, internalNotes,
+  //   decidedByName, decidedAt, publishedAt }.
+  // internalNotes is recruiter-only and never reaches the candidate.
+  getDecision: (applicationId) =>
+    fetch(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  // decision is 'SELECTED', 'NOT_SELECTED' or 'PENDING'. Saves a
+  // private draft; the candidate is told nothing.
+  saveDecision: (applicationId, { decision, candidateFeedback, internalNotes }) =>
+    fetch(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ decision, candidateFeedback, internalNotes }),
+    }).then(handleResponse),
+
+  // Announces the saved decision and notifies the candidate.
+  // Idempotent: a repeated call returns the decision unchanged and
+  // creates no second notification.
+  publishDecision: (applicationId) =>
+    fetch(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision/publish`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
 };
+
+// ---- Notifications -------------------------------------------------
+//
+// Scoped to the signed-in user by the server, which takes the identity
+// from the token rather than from anything sent here.
+
+export const notificationsAPI = {
+
+  // [{ id, type, title, message, applicationId, read, createdAt }]
+  mine: () =>
+    fetch(`${SPRING}/api/v1/notifications`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  unreadCount: () =>
+    fetch(`${SPRING}/api/v1/notifications/unread-count`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  markRead: (notificationId) =>
+    fetch(`${SPRING}/api/v1/notifications/${id(notificationId)}/read`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+};
+
+// ---- Hiring decision display helpers -------------------------------
+
+// Decision -> Badge tone. As everywhere else, the label itself comes
+// from the server, so colour is never the only signal.
+export function decisionTone(decision) {
+  if (decision === 'SELECTED') return 'success';
+  if (decision === 'NOT_SELECTED') return 'danger';
+  return 'neutral';
+}
+
+// The wording a recruiter starts from. Deliberately editable: these are
+// a courtesy, not a template the recruiter is stuck with.
+export function defaultFeedback(decision, jobTitle) {
+  const role = jobTitle || 'this position';
+
+  if (decision === 'SELECTED') {
+    return `Congratulations! You have been selected for the ${role} position. `
+      + 'Our recruitment team will contact you regarding the next steps.';
+  }
+
+  if (decision === 'NOT_SELECTED') {
+    return 'Thank you for attending the interview. After reviewing all '
+      + `applications, we have decided not to proceed with your application for ${role}. `
+      + 'We appreciate your interest and wish you success in future opportunities.';
+  }
+
+  return '';
+}
 
 // ---- Shared display helpers ----------------------------------------
 

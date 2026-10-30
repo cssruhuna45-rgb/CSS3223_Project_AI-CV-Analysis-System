@@ -51,4 +51,23 @@ public class ComparisonCandidateDto {
      * Aligned across candidates by {@code questionId}.
      */
     private List<ComparisonAnswerDto> answers;
+
+    // ---- Final hiring decision (V12) ------------------------------
+    //
+    // A third thing, distinct from both numbers above: the recruiter's
+    // own answer. Nothing derives it from either score.
+
+    /** PENDING, SELECTED or NOT_SELECTED. */
+    private String hiringDecision;
+
+    /** The wording to show, from the server. */
+    private String hiringDecisionLabel;
+
+    /**
+     * DRAFT or PUBLISHED, so the comparison can show at a glance who
+     * has actually been told. Recruiter-facing only.
+     */
+    private String publicationStatus;
+
+    private boolean decisionPublished;
 }

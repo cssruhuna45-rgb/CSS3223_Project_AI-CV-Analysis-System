@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  BarChart3, AlertCircle, Inbox, ChevronDown, ChevronRight, Users, Info,
+  BarChart3, AlertCircle, Inbox, ChevronDown, ChevronRight, Users, Info, UserCheck,
 } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
-import { applicantsAPI, matchLabel, statusTone } from '../services/jobApplicationsApi';
+import {
+  applicantsAPI, decisionTone, matchLabel, statusTone,
+} from '../services/jobApplicationsApi';
 import { Button, Card, SectionHeader, Badge } from '../components/ui';
+import HiringDecisionPanel from '../components/HiringDecisionPanel';
 
 const VERDICT_TONES = {
   strong: 'success',
@@ -182,6 +185,7 @@ export default function RecruiterComparison() {
                     <th style={thNum}>CV skill match</th>
                     <th style={thNum}>Interview score</th>
                     <th style={th}>Completed</th>
+                    <th style={th}>Hiring decision</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -200,6 +204,17 @@ export default function RecruiterComparison() {
                       </td>
                       <td style={td}>
                         {c.completedAt ? new Date(c.completedAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td style={td}>
+                        <Badge tone={decisionTone(c.hiringDecision)}>
+                          {c.hiringDecisionLabel}
+                        </Badge>
+                        {/* Draft vs announced: who has actually been told. */}
+                        {c.hiringDecision !== 'PENDING' && !c.decisionPublished && (
+                          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginTop: 2 }}>
+                            Draft — not announced
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -335,6 +350,42 @@ export default function RecruiterComparison() {
               ))}
             </div>
           </Card>
+
+          {/* The decision itself. Last on the page on purpose: it is
+              what the rest of the comparison is read in order to make,
+              and nothing above it decides anything. */}
+          <div style={{ marginTop: 'var(--space-6)' }}>
+            <SectionHeader
+              level={2}
+              icon={<UserCheck size={18} />}
+              title="Final hiring decisions"
+              subtitle="Yours to make. The scores above are what you read; they decide nothing on their own."
+            />
+
+            <div style={{ display: 'grid', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+              {shown.map((c) => (
+                <HiringDecisionPanel
+                  key={c.applicationId}
+                  candidate={c}
+                  jobTitle={comparison.jobTitle}
+                  onChanged={(decision) => setComparison((current) => ({
+                    ...current,
+                    candidates: current.candidates.map((row) => (
+                      row.applicationId === decision.applicationId
+                        ? {
+                          ...row,
+                          hiringDecision: decision.decision,
+                          hiringDecisionLabel: decision.decisionLabel,
+                          publicationStatus: decision.publicationStatus,
+                          decisionPublished: decision.published,
+                        }
+                        : row
+                    )),
+                  }))}
+                />
+              ))}
+            </div>
+          </div>
         </>
       )}
     </div>
