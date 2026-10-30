@@ -110,6 +110,21 @@ class InterviewSession:
     last_answer_quality: str = "none"
 
     # --------------------------------------------------------
+    # Job interview (fixed questions)
+    #
+    # MODE_FIXED sessions ask the approved questions held here, in
+    # order, instead of generating new ones. They stay on the server:
+    # a response carries only the question being asked, never the key
+    # points or the questions still to come.
+    # --------------------------------------------------------
+
+    mode: str = "adaptive"
+
+    fixed_questions: List[dict] = field(
+        default_factory=list
+    )
+
+    # --------------------------------------------------------
     # Scorecard
     #
     # Filled once, when the interview finishes. Cached so that a
@@ -149,6 +164,15 @@ class InterviewSession:
 # question at a time, and the interview page sends no second answer
 # while the first is in flight, so the store takes no lock.
 # ============================================================
+
+MODE_ADAPTIVE = "adaptive"
+
+MODE_FIXED = "fixed"
+
+
+def is_fixed(session: InterviewSession) -> bool:
+    return session.mode == MODE_FIXED
+
 
 _KEY_PREFIX = "interview:session:"
 
@@ -299,9 +323,18 @@ def create_session(
     related_skills: List[str] | None = None,
     missing_skills: List[str] | None = None,
     additional_skills: List[str] | None = None,
+    fixed_questions: List[dict] | None = None,
 ) -> InterviewSession:
 
     session_id = str(uuid4())
+
+    if fixed_questions:
+        return _create_fixed_session(
+            session_id,
+            job_description,
+            job_field,
+            fixed_questions,
+        )
 
     # Where this interview opens. Computed from the CV in Python - see
     # experience_level.py. Previously every session started at "medium"
@@ -390,6 +423,62 @@ def create_session(
     )
 
     return session
+
+
+def _create_fixed_session(
+    session_id: str,
+    job_description: str,
+    job_field: str,
+    fixed_questions: List[dict],
+) -> InterviewSession:
+    """
+    A job interview session.
+
+    No CV and no skill gap are kept, and the experience level is not
+    detected: every candidate for the job gets the same questions at
+    the same difficulty, so nothing about one candidate is needed.
+    """
+
+    ordered = sorted(
+        fixed_questions,
+        key=lambda q: q.get("position", 0),
+    )
+
+    session = InterviewSession(
+        session_id=session_id,
+        job_description=job_description,
+        job_field=job_field,
+        mode=MODE_FIXED,
+        fixed_questions=ordered,
+        current_question_number=1,
+        status="active",
+        current_difficulty=ordered[0].get("difficulty") or "medium",
+    )
+
+    save_session(session)
+
+    print(
+        f"[InterviewSession] Created job interview session "
+        f"{session_id} with {len(ordered)} fixed question(s)"
+    )
+
+    return session
+
+
+def next_fixed_question(
+    session: InterviewSession,
+) -> dict | None:
+    """
+    The approved question to ask after the answers given so far, or
+    None once every one has been answered.
+    """
+
+    index = len(session.answers)
+
+    if index >= len(session.fixed_questions):
+        return None
+
+    return session.fixed_questions[index]
 
 
 # ============================================================

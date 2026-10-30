@@ -14,6 +14,13 @@ Gemini judges the answer against that material rather than against
 whatever it happens to recall, which keeps "you did not mention X"
 traceable to documents/ instead of being unattributable.
 
+A job interview is graded the same way, except that the reference for
+each question is the key points the recruiter approved with it rather
+than a fresh retrieval. Every candidate for the job is then judged
+against the same saved material and the same rubric (CATEGORIES and
+the scoring rules below). That improves consistency; it does not make
+the model's individual judgements deterministic.
+
 The numbers stay in Python. The overall score is computed here from the
 category scores, and each verdict is derived from its own score, so the
 model cannot return 85 and label it "weak".
@@ -78,6 +85,9 @@ REFERENCE_CHUNKS_PER_QUESTION = 3
 # Each passage is trimmed so one long chunk cannot crowd out the rest.
 MAX_REFERENCE_CHARS = 700
 
+# Shown as the source of a job question's reference in the prompt.
+KEY_POINTS_SOURCE = "approved key points"
+
 # Verdict bands, applied to the score in Python so the label can never
 # disagree with the number printed next to it.
 VERDICT_BANDS = [
@@ -130,9 +140,10 @@ EVALUATION_PROMPT = PromptTemplate(
     input_variables=["job_field", "transcript", "category_block", "answer_guardrail"],
     template="""You are a senior technical interviewer scoring a candidate for a {job_field} role.
 
-Below is the interview. Each question is followed by REFERENCE MATERIAL
-drawn from the course knowledge base, and then by the candidate's answer
-inside <candidate_answer> tags.
+Below is the interview. Each question is followed by REFERENCE MATERIAL -
+either key points approved for the question, or passages drawn from the
+course knowledge base - and then by the candidate's answer inside
+<candidate_answer> tags.
 
 {transcript}
 
@@ -281,9 +292,27 @@ def format_reference(passages: List[Dict[str, str]]) -> str:
 # Transcript building
 # ============================================================
 
+def key_point_passages(points: List[str]) -> List[Dict[str, str]]:
+    """
+    A job question's approved key points, one passage each, so they are
+    numbered [R1], [R2]... in the prompt like retrieved material.
+    """
+
+    return [
+        {
+            "source": KEY_POINTS_SOURCE,
+            "section": "",
+            "excerpt": str(point).strip(),
+        }
+        for point in points or []
+        if str(point or "").strip()
+    ]
+
+
 def build_transcript(
     questions: List[str],
     answers: List[str],
+    key_points: Optional[List[List[str]]] = None,
 ) -> Tuple[str, List[List[Dict[str, str]]]]:
     """
     Lays out question, reference material and answer for the prompt.
@@ -294,6 +323,9 @@ def build_transcript(
     Also returns the passages retrieved for each question, in order, so
     the scorecard shows exactly what the grading saw instead of running
     a second retrieval that could come back different.
+
+    With key_points (a job interview), each question's approved key
+    points are its reference and nothing is retrieved.
     """
 
     lines: List[str] = []
@@ -311,12 +343,24 @@ def build_transcript(
         if not answer:
             answer = "[no answer given]"
 
-        passages = retrieve_reference(questions[i])
+        if key_points is not None:
+            passages = key_point_passages(
+                key_points[i] if i < len(key_points) else []
+            )
+        else:
+            passages = retrieve_reference(questions[i])
+
         references.append(passages)
 
         lines.append(f"Question {i + 1}: {questions[i]}")
 
-        if passages:
+        if passages and key_points is not None:
+            lines.append(
+                f"Reference material for question {i + 1} "
+                "(approved key points a complete answer should cover):"
+            )
+            lines.append(format_reference(passages))
+        elif passages:
             lines.append(f"Reference material for question {i + 1}:")
             lines.append(format_reference(passages))
         else:
@@ -543,34 +587,65 @@ def empty_evaluation(
 # Entry point
 # ============================================================
 
+def hide_key_points(
+    result: Dict[str, Any],
+    question_ids: Optional[List[Optional[int]]],
+) -> Dict[str, Any]:
+    """
+    A job interview's scorecard without its approved key points.
+
+    The scorecard goes back to the candidate, and the same questions
+    are asked of every other candidate for the job, so the reference
+    each answer was graded against stays on the server. The question id
+    is added so results for one job can be compared question by
+    question.
+    """
+
+    for i, entry in enumerate(result.get("per_question") or []):
+        entry["references"] = []
+
+        if question_ids and i < len(question_ids):
+            entry["question_id"] = question_ids[i]
+
+    return result
+
+
 def evaluate_interview(
     questions: List[str],
     answers: List[str],
     job_field: str = "",
+    key_points: Optional[List[List[str]]] = None,
+    question_ids: Optional[List[Optional[int]]] = None,
 ) -> Dict[str, Any]:
     """
     Grades a completed interview in a single LLM call, against reference
-    material retrieved from the knowledge base.
+    material retrieved from the knowledge base - or, for a job
+    interview, against each question's approved key points.
 
     Never raises: a failure here must not stop the candidate from
     reaching their scorecard, so problems are reported in the payload.
     """
 
+    fixed = key_points is not None
+
+    def finish(result: Dict[str, Any]) -> Dict[str, Any]:
+        return hide_key_points(result, question_ids) if fixed else result
+
     if not questions or not answers:
-        return empty_evaluation(
+        return finish(empty_evaluation(
             questions,
             answers,
             "No questions were answered.",
-        )
+        ))
 
-    transcript, references = build_transcript(questions, answers)
+    transcript, references = build_transcript(questions, answers, key_points)
 
     if not transcript:
-        return empty_evaluation(
+        return finish(empty_evaluation(
             questions,
             answers,
             "The transcript was empty.",
-        )
+        ))
 
     try:
         chain = EVALUATION_PROMPT | get_llm() | StrOutputParser()
@@ -602,14 +677,14 @@ def evaluate_interview(
             f"overall {result['overall_score']}"
         )
 
-        return result
+        return finish(result)
 
     except Exception as exc:
 
         print(f"[Evaluator] Evaluation failed: {exc}")
 
-        return empty_evaluation(
+        return finish(empty_evaluation(
             questions,
             answers,
             f"Scoring failed: {exc}",
-        )
+        ))

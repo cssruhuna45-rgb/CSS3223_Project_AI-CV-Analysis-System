@@ -1,6 +1,8 @@
 package com.aiinterview.entity;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -8,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,6 +23,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -37,7 +42,7 @@ import java.util.Set;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString(exclude = "recruiter")
+@ToString(exclude = {"recruiter", "requiredSkills", "questionsApprovedBy"})
 @EqualsAndHashCode(of = "id")
 public class JobPosting {
 
@@ -93,6 +98,48 @@ public class JobPosting {
     @Column(name = "is_open", nullable = false)
     @Builder.Default
     private boolean open = true;
+
+    // ---- Fixed interview (V10) ------------------------------------
+
+    public static final int MIN_QUESTION_COUNT = 5;
+
+    public static final int MAX_QUESTION_COUNT = 10;
+
+    /**
+     * What the job asks for, normalised (trimmed, lower case, no
+     * repeats) in the recruiter's order. Questions are generated from
+     * these; never from a candidate's CV.
+     */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "job_posting_required_skills",
+            joinColumns = @JoinColumn(name = "job_posting_id")
+    )
+    @OrderColumn(name = "position")
+    @Column(name = "skill", nullable = false, length = 100)
+    @Builder.Default
+    private List<String> requiredSkills = new ArrayList<>();
+
+    /** How many questions every candidate is asked: 5 to 10. */
+    @Column(name = "question_count", nullable = false)
+    @Builder.Default
+    private int questionCount = MIN_QUESTION_COUNT;
+
+    /**
+     * Set once, when the recruiter approves the question set. From then
+     * on the questions cannot change: a different assessment needs a
+     * new job, so every result filed under this one stays comparable.
+     */
+    @Column(name = "questions_approved_at")
+    private LocalDateTime questionsApprovedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "questions_approved_by")
+    private User questionsApprovedBy;
+
+    public boolean isQuestionsApproved() {
+        return questionsApprovedAt != null;
+    }
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

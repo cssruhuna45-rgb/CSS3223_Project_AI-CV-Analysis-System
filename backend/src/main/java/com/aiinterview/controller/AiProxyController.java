@@ -137,10 +137,11 @@ public class AiProxyController {
     ) {
         requireAuthenticated(authentication);
 
-        // With an invite code, the job's own description, field and
-        // exam mode replace what the browser sent - before the AI
-        // service sees the request, so the questions are written for
-        // that job. An invalid or closed code stops here.
+        // With an invite code, the job's own description, field, exam
+        // mode and approved questions replace what the browser sent -
+        // before the AI service sees the request, so every candidate
+        // for the job is asked the same questions. An invalid or closed
+        // code, or a job whose questions are not approved, stops here.
         JsonNode request = jobPostingService.applyInvite(authentication.getName(), body);
 
         return forwardAndRecord(
@@ -189,7 +190,8 @@ public class AiProxyController {
      * The expected answer for the question just submitted.
      *
      * <p>Not recorded against the session: it is study material shown
-     * back to the candidate, not part of their transcript.
+     * back to the candidate, not part of their transcript. Refused
+     * during a job interview.
      */
     @Operation(
             summary = "Get the model answer for an interview question",
@@ -200,6 +202,12 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
+        requireAuthenticated(authentication);
+
+        // Not while a job interview is running: the expected answer
+        // would hand over what the candidate is being graded on.
+        jobPostingService.requireNoJobInterviewInProgress(authentication.getName(), body);
+
         return forward("/api/v1/interview/model-answer", body, authentication);
     }
 

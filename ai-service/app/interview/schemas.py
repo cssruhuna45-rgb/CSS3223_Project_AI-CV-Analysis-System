@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from app.assessment.schemas import FixedQuestion
+
 
 class InterviewQuestionRequest(BaseModel):
     session_id: str = Field(
@@ -90,10 +92,33 @@ class InterviewStartRequest(BaseModel):
         description="Candidate skills outside the target job field requirements.",
     )
 
+    # ------------------------------------------------------------
+    # Job interview
+    #
+    # Set only by Spring, from a job's approved questions. When present
+    # the session asks exactly these, in order, and grades against their
+    # key points; the CV and skill gap fields above are then ignored.
+    # Absent or empty keeps the adaptive practice interview.
+    # ------------------------------------------------------------
+
+    fixed_questions: List[FixedQuestion] = Field(
+        default_factory=list,
+        max_length=10,
+        description="A job's approved questions, in order. Set by Spring only.",
+    )
+
 
 class InterviewStartResponse(BaseModel):
     session_id: str
     question: InterviewQuestionResponse
+
+    total_questions: Optional[int] = Field(
+        default=None,
+        description=(
+            "How many questions this interview has. Set for a job "
+            "interview; null for practice, where the page keeps its own."
+        ),
+    )
 
 
 class InterviewAnswerRequest(BaseModel):
@@ -111,7 +136,17 @@ class InterviewAnswerRequest(BaseModel):
 
 class InterviewAnswerResponse(BaseModel):
     session_id: str
-    question: InterviewQuestionResponse
+
+    # Null after the last answer of a job interview: there is no next
+    # question, and the page goes on to finish.
+    question: Optional[InterviewQuestionResponse] = None
+
+    total_questions: Optional[int] = None
+
+    complete: bool = Field(
+        default=False,
+        description="True once every question of a job interview is answered.",
+    )
 
 
 class ModelAnswerRequest(BaseModel):
@@ -215,6 +250,10 @@ class ReferencePassage(BaseModel):
 
 class QuestionEvaluation(BaseModel):
     question_number: int
+
+    # The approved question this was, on a job interview, so results
+    # for the same job can be compared question by question.
+    question_id: Optional[int] = None
     question: str
     answer: str
     score: int = Field(..., ge=0, le=100)

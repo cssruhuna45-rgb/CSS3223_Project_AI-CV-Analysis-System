@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Briefcase, ShieldCheck, FileText, ArrowRight, CheckCircle } from 'lucide-react';
+import { Briefcase, ShieldCheck, FileText, ArrowRight, CheckCircle, Clock } from 'lucide-react';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card } from '../components/ui';
@@ -118,6 +118,13 @@ export default function JoinInterview({ user }) {
               <CheckCircle size={18} color="var(--success)" aria-hidden="true" />
               You have already completed this interview. Each job allows one attempt.
             </p>
+          ) : !job.interviewReady ? (
+            // The recruiter has not approved this job's questions yet;
+            // the server would refuse the start anyway.
+            <p role="status" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', color: 'var(--text-secondary)' }}>
+              <Clock size={18} aria-hidden="true" />
+              This interview is not ready yet. The recruiter is still preparing its questions; please try again later.
+            </p>
           ) : !isCandidate ? (
             <p role="status" style={{ color: 'var(--text-secondary)' }}>
               Job interviews are taken from a candidate account. Sign in as a candidate to join.
@@ -133,7 +140,8 @@ export default function JoinInterview({ user }) {
                   <strong>Your result for this interview is shared with {who}.</strong>{' '}
                   They will see your name, email, answers and scores for this one interview,
                   and how often you left the page or pasted text while answering.
-                  It is timed (exam mode) and can be taken once. Your practice interviews
+                  It is timed (exam mode), has {job.questionCount} questions, and can be taken once.
+                  Every candidate for this job is asked the same questions. Your practice interviews
                   and anything else you do here stay private.
                 </div>
               </div>
@@ -142,7 +150,7 @@ export default function JoinInterview({ user }) {
                 <div>
                   {cvName && (
                     <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-3)' }}>
-                      The questions will be tailored to your latest CV, {cvName}.
+                      Your latest CV, {cvName}, is on file.
                     </p>
                   )}
                   <Button size="lg" icon={<ArrowRight size={18} />} onClick={start}>
@@ -152,8 +160,7 @@ export default function JoinInterview({ user }) {
               ) : (
                 <div>
                   <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-3)' }}>
-                    The questions are tailored to your CV, so upload it first. Then open this
-                    invite link again.
+                    Upload your CV first. Then open this invite link again.
                   </p>
                   <Button variant="secondary" icon={<FileText size={16} />} onClick={() => navigate('/upload')}>
                     Upload your CV

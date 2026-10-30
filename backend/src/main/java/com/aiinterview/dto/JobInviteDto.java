@@ -26,4 +26,13 @@ public class JobInviteDto {
 
     /** True when this candidate has already finished this interview. */
     private boolean alreadyCompleted;
+
+    /**
+     * False while the recruiter has not approved the job's questions:
+     * the interview cannot be started yet.
+     */
+    private boolean interviewReady;
+
+    /** How many questions the interview has. */
+    private int questionCount;
 }

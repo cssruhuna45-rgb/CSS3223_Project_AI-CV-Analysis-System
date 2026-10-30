@@ -125,7 +125,7 @@ directly.
 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| GET | `/api/v1/jobs/invite/{code}` | signed in | The job behind an invite code: title, company, field, description, recruiter name and whether the caller already completed it. Unknown and closed codes both answer 404 |
+| GET | `/api/v1/jobs/invite/{code}` | signed in | The job behind an invite code: title, company, field, description, recruiter name, whether the caller already completed it, `interviewReady` (questions approved) and `questionCount`. Unknown and closed codes both answer 404 |
 
 ### Recruiter (approved recruiters only)
 
@@ -134,10 +134,27 @@ Everything here is scoped to the recruiter in the token.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/recruiter/jobs` | The recruiter's jobs with interview counts |
-| POST | `/api/v1/recruiter/jobs` | `{ title, company?, jobField, jobDescription }` - create a job; returns it with its invite code |
+| POST | `/api/v1/recruiter/jobs` | `{ title, company?, jobField, jobDescription, requiredSkills[], questionCount (5-10) }` - create a job; returns it with its invite code. Skills are stored normalised (trimmed, lower case, no repeats) and must not be empty |
 | POST | `/api/v1/recruiter/jobs/{id}/close` | Stop accepting candidates; results are kept |
 | POST | `/api/v1/recruiter/jobs/{id}/reopen` | Accept candidates again |
 | GET | `/api/v1/recruiter/overview?jobId=` | Interviews taken through this recruiter's invite codes (exam mode only), with totals. `jobId` narrows to one job |
+
+### Job questions (approved recruiters only)
+
+A job's fixed interview. Every call returns the whole assessment:
+`{ jobId, title, requiredSkills, questionCount, approved, approvedAt, approvedBy, questions: [{ id, position, question, difficulty, topic, keyPoints, source }], issues: [] }`.
+`issues` lists what still stops approval. Once approved, every call that
+would change the set answers 409; a different assessment needs a new job.
+Another recruiter's job id answers 404.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/recruiter/jobs/{id}/questions` | The assessment |
+| PUT | `/api/v1/recruiter/jobs/{id}/question-settings` | `{ requiredSkills[], questionCount }` |
+| POST | `/api/v1/recruiter/jobs/{id}/questions/generate` | AI draft from the job's skills and description (never a CV); replaces the draft |
+| POST | `/api/v1/recruiter/jobs/{id}/questions/{questionId}/regenerate` | Replace one draft question |
+| PUT | `/api/v1/recruiter/jobs/{id}/questions` | `{ questions: [{ id?, question, difficulty, topic?, keyPoints[] }] }` - the whole draft in order; omitted questions are removed, changed ones become `source: RECRUITER` |
+| POST | `/api/v1/recruiter/jobs/{id}/questions/approve` | Lock the set. 400 with the issues unless: exactly `questionCount` questions, each 20-600 characters with 2-6 key points and a difficulty of easy/medium/hard, no repeats, at least two difficulties and none above 60% of the set |
 
 ### Administrator
 
@@ -157,9 +174,15 @@ Everything here is scoped to the recruiter in the token.
 2. The candidate opens `/join/<code>`; the page calls
    `GET /api/v1/jobs/invite/{code}` and shows who will see the result.
 3. Starting sends `invite_code` with `POST /api/v1/ai/interview/start`.
-   Spring refuses it unless the caller is a candidate, the job is open
-   and they have not already completed it (409), then forwards the
-   job's description and field and forces exam mode.
+   Spring refuses it unless the caller is a candidate, the job is open,
+   they have not already completed it (409) and the job's questions are
+   approved (409, not ready). It then forwards the job's description and
+   field, forces exam mode, adds the approved questions as
+   `fixed_questions` and empties the CV and skill gap fields, so every
+   candidate is asked the same questions in the same order.
+   `fixed_questions` sent by the browser are always removed.
+   `POST /api/v1/ai/interview/model-answer` answers 403 while the caller
+   has a job interview in progress.
 4. The stored interview is linked to the job by the code - never by a
    job id from the browser - and appears on that recruiter's dashboard
    only. Interviews started without a code are never shown to any
@@ -189,3 +212,31 @@ Called only by Spring. Every path except the public ones needs
 | POST | `/api/v1/roadmap/generate` | key | 14-day roadmap |
 | POST | `/api/v1/rag/query` | key | Question over the knowledge base |
 | POST | `/api/v1/rag/index` | key | Rebuild the Chroma index from `documents/` |
+| POST | `/api/v1/assessment/questions/generate` | key | Draft job questions with key points from `{ job_title, job_field, job_description, required_skills[], question_count (1-10), existing_questions[] }`; returns `{ questions, issues, grounded, sources }` |
+
+### Fixed-question interviews
+
+Spring adds `fixed_questions` to `/api/v1/interview/start`, built from
+the database (`JobQuestionService.fixedQuestionsPayload`):
+
+```json
+"fixed_questions": [
+  { "question_id": 11, "position": 1, "question": "...",
+    "difficulty": "easy", "topic": "Indexes", "key_points": ["...", "..."] }
+]
+```
+
+- The session asks them in `position` order; the CV is not stored and
+  does not change the questions or their difficulty.
+- Start and answer responses carry only the current question (with an
+  empty `reason`) and `total_questions`. Key points and later questions
+  stay in the session.
+- After the last answer, `/answer` returns `question: null,
+  complete: true`; a further answer is 400.
+- `/model-answer` is 403 and `/question` is 400 for an active job session.
+- `/finish` grades each answer against its approved key points (no
+  knowledge base retrieval) with the same rubric; the overall score is
+  computed in Python. `per_question[].question_id` is set and
+  `references` is empty, so the key points are not returned.
+- Without `fixed_questions` the interview is the adaptive, CV-based
+  practice interview, unchanged.

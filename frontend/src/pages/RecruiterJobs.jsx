@@ -1,12 +1,13 @@
 import { useToast } from '../components/ToastProvider';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock } from 'lucide-react';
+import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock, ListChecks } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Badge, Button, Card, SectionHeader } from '../components/ui';
+import JobQuestionEditor from '../components/JobQuestionEditor';
 
-const EMPTY_FORM = { title: '', company: '', jobField: '', jobDescription: '' };
+const EMPTY_FORM = { title: '', company: '', jobField: '', jobDescription: '', requiredSkills: '', questionCount: 5 };
 
 function fieldName(id) {
   return PREDEFINED_JOB_FIELDS.find((f) => f.id === id)?.name || id;
@@ -17,8 +18,9 @@ function inviteLink(code) {
 }
 
 // A recruiter's jobs. Each one has an invite code; candidates who join
-// with it take an exam-mode interview against this job's description,
-// and only those interviews reach this recruiter's dashboard.
+// with it take an exam-mode interview of this job's approved questions,
+// and only those interviews reach this recruiter's dashboard. A job is
+// not ready for candidates until its questions are approved.
 export default function RecruiterJobs() {
   const notify = useToast();
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ export default function RecruiterJobs() {
   const [formError, setFormError] = useState('');
 
   const [copiedId, setCopiedId] = useState(null);
+  const [questionsFor, setQuestionsFor] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
@@ -52,11 +55,17 @@ export default function RecruiterJobs() {
     setSaving(true);
     setFormError('');
     try {
-      const job = await recruiterAPI.createJob(form);
+      const job = await recruiterAPI.createJob({
+        ...form,
+        requiredSkills: form.requiredSkills.split(',').map((s) => s.trim()).filter(Boolean),
+        questionCount: Number(form.questionCount),
+      });
       setJobs((list) => [job, ...list]);
-      notify('Job created successfully.');
+      notify('Job created. Next, generate and approve its questions.');
       setForm(EMPTY_FORM);
       setShowForm(false);
+      // Straight on to the questions: candidates cannot start until then.
+      setQuestionsFor(job.id);
     } catch (err) {
       setFormError(err.message || 'The job was not created. Please try again.');
     } finally {
@@ -98,8 +107,8 @@ export default function RecruiterJobs() {
         <div>
           <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Jobs</h1>
           <p style={{ color: 'var(--text-secondary)', maxWidth: 620, lineHeight: 'var(--lh-normal)' }}>
-            Share a job's invite link with candidates. Their interview is asked against
-            this job's description in exam mode, and only those interviews appear on your
+            Approve a job's questions, then share its invite link. Every candidate is asked
+            the same approved questions in exam mode, and only those interviews appear on your
             dashboard. Interviews candidates take on their own stay private.
           </p>
         </div>
@@ -144,6 +153,25 @@ export default function RecruiterJobs() {
               </span>
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
+              <div>
+                <label className="label" htmlFor="job-skills">Required skills</label>
+                <input id="job-skills" className="input" required
+                  aria-describedby="job-skills-hint"
+                  placeholder="e.g. Spring Boot, PostgreSQL, REST APIs"
+                  value={form.requiredSkills} onChange={update('requiredSkills')} />
+                <span id="job-skills-hint" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+                  Separate with commas. Each question tests one of these.
+                </span>
+              </div>
+              <div>
+                <label className="label" htmlFor="job-count">Questions per candidate</label>
+                <select id="job-count" className="input" value={form.questionCount} onChange={update('questionCount')}>
+                  {[5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            </div>
+
             {formError && (
               <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{formError}</p>
             )}
@@ -177,7 +205,12 @@ export default function RecruiterJobs() {
                     {[job.company, fieldName(job.jobField)].filter(Boolean).join(' · ')}
                   </p>
                 </div>
-                <Badge tone={job.open ? 'success' : 'neutral'}>{job.open ? 'Open' : 'Closed'}</Badge>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
+                  <Badge tone={job.questionsApproved ? 'success' : 'warning'}>
+                    {job.questionsApproved ? `${job.questionCount} questions approved` : 'Questions not ready'}
+                  </Badge>
+                  <Badge tone={job.open ? 'success' : 'neutral'}>{job.open ? 'Open' : 'Closed'}</Badge>
+                </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap', margin: 'var(--space-4) 0' }}>
@@ -197,7 +230,13 @@ export default function RecruiterJobs() {
                 <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
                   {job.completedCount} of {job.interviewCount} interview{job.interviewCount === 1 ? '' : 's'} completed
                 </span>
-                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                  <Button size="sm" variant="secondary" icon={<ListChecks size={14} />}
+                    aria-expanded={questionsFor === job.id}
+                    aria-controls={`job-${job.id}-questions`}
+                    onClick={() => setQuestionsFor((id) => (id === job.id ? null : job.id))}>
+                    {questionsFor === job.id ? 'Hide questions' : job.questionsApproved ? 'View questions' : 'Set up questions'}
+                  </Button>
                   <Button size="sm" variant="ghost"
                     icon={job.open ? <Lock size={14} /> : <Unlock size={14} />}
                     loading={busyId === job.id}
@@ -211,6 +250,17 @@ export default function RecruiterJobs() {
                   </Button>
                 </div>
               </div>
+
+              {questionsFor === job.id && (
+                <div id={`job-${job.id}-questions`} style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border)' }}>
+                  <JobQuestionEditor
+                    jobId={job.id}
+                    onChange={(a) => setJobs((list) => list.map((j) => (j.id === job.id
+                      ? { ...j, questionsApproved: a.approved, questionCount: a.questionCount, requiredSkills: a.requiredSkills }
+                      : j)))}
+                  />
+                </div>
+              )}
             </Card>
           ))}
         </div>
