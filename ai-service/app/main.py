@@ -127,9 +127,13 @@ from app.resume.bullet_tuner import tune_bullet
 from app.skill_gap.schemas import (
     SkillGapRequest,
     SkillGapResponse,
+    SkillMatchRequest,
+    SkillMatchResponse,
 )
 
 from app.skill_gap.analyzer import analyze_skill_gap
+
+from app.skill_gap.matcher import match_candidate_to_job
 
 
 # ============================================================
@@ -2300,6 +2304,57 @@ def tune_bullet_endpoint(
             ),
             detail=f"Bullet rewrite failed: {str(e)}",
         )
+
+
+# ============================================================
+# SKILL MATCH (one job's required skills)
+#
+# Deterministic set arithmetic, no model and no Gemini key needed.
+# Spring calls this once per application, when it is submitted, and
+# stores the result; opening an applicant list never comes back here.
+# ============================================================
+
+
+@app.post(
+    "/api/v1/skill-gap/match",
+    response_model=SkillMatchResponse,
+    tags=["Skill Gap Analysis"],
+)
+def match_skills_endpoint(
+    req: SkillMatchRequest,
+):
+    """
+    Score a candidate's stored CV skills against the skills a
+    recruiter put on their job.
+
+    The percentage is decision support. It must never be used to
+    shortlist or reject a candidate automatically.
+    """
+
+    try:
+
+        result = match_candidate_to_job(
+            required_skills=req.required_skills,
+            candidate_skills=req.candidate_skills,
+        )
+
+    except ValueError as e:
+
+        # A job with no usable required skills. Not a server fault:
+        # the job is not ready for applications yet.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    print(
+        "[SkillMatchAPI] "
+        f"{result['match_percentage']}% "
+        f"({len(result['matched_skills'])}"
+        f"/{result['required_skill_count']} required skills)"
+    )
+
+    return result
 
 
 # ============================================================

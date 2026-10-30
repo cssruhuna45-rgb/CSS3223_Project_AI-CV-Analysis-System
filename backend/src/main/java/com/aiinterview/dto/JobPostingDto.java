@@ -41,8 +41,32 @@ public class JobPostingDto {
     private long interviewCount;
     private long completedCount;
 
+    // ---- Applications (V11) ---------------------------------------
+
+    /** How many candidates have applied for this job. */
+    private long applicationCount;
+
+    /** Still APPLIED: what the recruiter has left to review. */
+    private long pendingReviewCount;
+
+    private long shortlistedCount;
+
     public static JobPostingDto from(JobPosting job, long interviews, long completed) {
+        return from(job, interviews, completed, 0, 0, 0);
+    }
+
+    public static JobPostingDto from(
+            JobPosting job,
+            long interviews,
+            long completed,
+            long applications,
+            long pendingReview,
+            long shortlisted
+    ) {
         return JobPostingDto.builder()
+                .applicationCount(applications)
+                .pendingReviewCount(pendingReview)
+                .shortlistedCount(shortlisted)
                 .id(job.getId())
                 .title(job.getTitle())
                 .company(job.getCompany())

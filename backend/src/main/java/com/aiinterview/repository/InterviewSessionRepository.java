@@ -82,6 +82,40 @@ public interface InterviewSessionRepository
     );
 
     /**
+     * The one interview attempt made for an application, whatever
+     * state it is in (V11).
+     *
+     * <p>At most one row can match: a unique index covers
+     * {@code job_application_id}. That is what makes a double-clicked
+     * start safe - the second request finds this attempt and resumes or
+     * is refused, instead of giving the candidate a second go.
+     */
+    Optional<InterviewSession> findByJobApplicationId(Long applicationId);
+
+    /**
+     * The completed attempts for one of a recruiter's jobs, with the
+     * candidate, the application and the transcript loaded: everything
+     * the comparison page reads.
+     *
+     * <p>Scoped by recruiter as well as job, so another recruiter's job
+     * id returns nothing rather than their candidates' answers. Only
+     * sessions that belong to an application appear, so an interview
+     * taken through an invite code before applications existed is not
+     * mixed into a comparison it was never part of.
+     */
+    @Query("SELECT DISTINCT s FROM InterviewSession s "
+            + "JOIN FETCH s.jobApplication a "
+            + "JOIN FETCH a.candidate "
+            + "WHERE s.jobPosting.id = :jobId "
+            + "AND s.jobPosting.recruiter.id = :recruiterId "
+            + "AND s.status = 'completed' "
+            + "ORDER BY s.completedAt ASC")
+    List<InterviewSession> findCompletedForRecruiterJob(
+            @Param("jobId") Long jobId,
+            @Param("recruiterId") Long recruiterId
+    );
+
+    /**
      * Per job of one recruiter: [job id, interviews, completed].
      */
     @Query("SELECT s.jobPosting.id, COUNT(s), "

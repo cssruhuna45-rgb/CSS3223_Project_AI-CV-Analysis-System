@@ -21,6 +21,16 @@ from app.skill_gap.skill_catalog import (
     RELATED_SKILLS,
 )
 
+# Normalization and alias rules are shared with matcher.py, which
+# scores a CV against one recruiter's required skills rather than a
+# catalogue job field. Both have to agree on what a skill name means,
+# so there is one copy of the rules in normalization.py.
+from app.skill_gap.normalization import (
+    build_alias_lookup as _build_alias_lookup,
+    canonicalize_skill as _canonicalize_skill,
+    normalize_text as _normalize_text,
+)
+
 
 # ============================================================
 # Gemini Extraction Schema
@@ -157,94 +167,6 @@ Candidate Resume:
         return []
 
     return result.skills or []
-
-
-# ============================================================
-# Text Normalization
-# ============================================================
-
-def _normalize_text(value: str) -> str:
-    """
-    Normalize text for deterministic comparison.
-    """
-
-    if not value:
-        return ""
-
-    return (
-        value.strip()
-        .lower()
-        .replace("–", "-")
-        .replace("—", "-")
-        .replace("_", " ")
-    )
-
-
-# ============================================================
-# Alias Lookup
-# ============================================================
-
-def _build_alias_lookup():
-    """
-    Build reverse alias lookup.
-
-    Example:
-
-        "golang" -> "Go"
-        "go (golang)" -> "Go"
-        "k8s" -> "Kubernetes"
-        "k8" -> "Kubernetes"
-        "amazon web services" -> "AWS"
-    """
-
-    lookup = {}
-
-    for canonical_skill, aliases in SKILL_ALIASES.items():
-
-        canonical_key = _normalize_text(
-            canonical_skill
-        )
-
-        lookup[canonical_key] = canonical_skill
-
-        for alias in aliases:
-
-            alias_key = _normalize_text(
-                alias
-            )
-
-            if alias_key:
-                lookup[alias_key] = canonical_skill
-
-    return lookup
-
-
-# ============================================================
-# Canonicalize Skill
-# ============================================================
-
-def _canonicalize_skill(
-    skill: str,
-    alias_lookup: dict,
-) -> str:
-    """
-    Convert a skill to its canonical catalog name.
-
-    Unknown skills are preserved in normalized form.
-    """
-
-    if not skill:
-        return ""
-
-    normalized = _normalize_text(skill)
-
-    if not normalized:
-        return ""
-
-    return alias_lookup.get(
-        normalized,
-        skill.strip(),
-    )
 
 
 # ============================================================

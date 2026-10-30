@@ -19,7 +19,11 @@ import SkillGap from './pages/SkillGap';
 import RecruiterDashboard from './pages/RecruiterDashboard';
 import PendingApproval from './pages/PendingApproval';
 import RecruiterJobs from './pages/RecruiterJobs';
+import RecruiterApplicants from './pages/RecruiterApplicants';
+import RecruiterComparison from './pages/RecruiterComparison';
 import JoinInterview from './pages/JoinInterview';
+import JobApplication from './pages/JobApplication';
+import MyApplications from './pages/MyApplications';
 import AdminPanel from './pages/AdminPanel';
 import DesignSystem from './pages/DesignSystem';
 import { homePathFor, isApprovedRecruiter, toStoredUser } from './constants/accounts';
@@ -163,12 +167,16 @@ function AppContent() {
             <Route path="/scorecard" element={<ProtectedRoute user={user} only="candidate"><Scorecard /></ProtectedRoute>} />
             <Route path="/progress" element={<ProtectedRoute user={user} only="candidate"><Progress /></ProtectedRoute>} />
             <Route path="/skill-gap" element={<ProtectedRoute user={user} only="candidate"><SkillGap /></ProtectedRoute>} />
+            <Route path="/applications" element={<ProtectedRoute user={user} only="candidate"><MyApplications /></ProtectedRoute>} />
+            <Route path="/apply/:code" element={<ProtectedRoute user={user} only="candidate"><JobApplication /></ProtectedRoute>} />
             {/* The recruiter review screen. Was /dashboard, which now
                 belongs to the candidate workspace; a recruiter opening
                 an old /dashboard link fails that route's candidate
                 guard and is redirected here by homePathFor. */}
             <Route path="/recruiter" element={<ProtectedRoute user={user} only="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute user={user} only="recruiter"><RecruiterJobs /></ProtectedRoute>} />
+            <Route path="/applicants" element={<ProtectedRoute user={user} only="recruiter"><RecruiterApplicants /></ProtectedRoute>} />
+            <Route path="/comparison" element={<ProtectedRoute user={user} only="recruiter"><RecruiterComparison /></ProtectedRoute>} />
             <Route path="/join" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />
             <Route path="/join/:code" element={<ProtectedRoute user={user}><JoinInterview user={user} /></ProtectedRoute>} />
             <Route path="/pending" element={<ProtectedRoute user={user} only="pending"><PendingApproval user={user} onUserChange={setUser} /></ProtectedRoute>} />

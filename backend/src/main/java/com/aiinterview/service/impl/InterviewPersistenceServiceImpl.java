@@ -1,11 +1,14 @@
 package com.aiinterview.service.impl;
 
+import com.aiinterview.entity.ApplicationStatus;
 import com.aiinterview.entity.InterviewSession;
 import com.aiinterview.entity.InterviewTurn;
+import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
@@ -50,6 +53,7 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
     private final UserRepository userRepository;
     private final ResumeRepository resumeRepository;
     private final JobPostingRepository jobPostingRepository;
+    private final JobApplicationRepository jobApplicationRepository;
     private final ObjectMapper objectMapper;
 
     // ========================================================
@@ -89,12 +93,18 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
             return;
         }
 
+        JobPosting job = resolveJob(request);
+
         InterviewSession session = InterviewSession.builder()
                 .sessionId(sessionId)
                 .user(user)
                 .resume(resolveResume(request, user))
                 .jobDescription(text(request, "job_description"))
-                .jobPosting(resolveJob(request))
+                .jobPosting(job)
+                // Looked up from (job, candidate) rather than taken
+                // from the request: the browser never says which
+                // application an attempt belongs to.
+                .jobApplication(resolveApplication(job, user))
                 .mode(modeOf(request))
                 .status(InterviewSession.STATUS_ACTIVE)
                 .startedAt(LocalDateTime.now())
@@ -228,6 +238,13 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
 
         interviewSessionRepository.save(session);
 
+        // The application this attempt belongs to moves to INTERVIEWED
+        // in the same transaction as the session, so a recruiter never
+        // sees a finished interview against an application that still
+        // reads "Shortlisted". A replayed finish does not reach here:
+        // the completed check above already returned.
+        markApplicationInterviewed(session);
+
         log.info(
                 "Completed interview session {} with score {}",
                 sessionId,
@@ -238,6 +255,70 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
     // ========================================================
     // Internals
     // ========================================================
+
+    /**
+     * The application this attempt belongs to: the candidate's own
+     * application for the job the invite code named.
+     *
+     * <p>Null for a personal practice interview, which has no job. A
+     * job interview with no application should be impossible - the
+     * eligibility check refuses the start - so finding none is logged
+     * rather than passed over: it would mean the two paths had drifted
+     * apart. The session is still stored, because the candidate has
+     * already been asked a question by the time this runs.
+     */
+    private JobApplication resolveApplication(JobPosting job, User user) {
+
+        if (job == null) {
+            return null;
+        }
+
+        JobApplication application = jobApplicationRepository
+                .findByJobPostingIdAndCandidateId(job.getId(), user.getId())
+                .orElse(null);
+
+        if (application == null) {
+            log.warn(
+                    "Job interview for job {} by user {} has no application to link",
+                    job.getId(),
+                    user.getId()
+            );
+        }
+
+        return application;
+    }
+
+    /**
+     * Moves a finished attempt's application to INTERVIEWED.
+     *
+     * <p>Only from SHORTLISTED: an application that is somehow already
+     * INTERVIEWED, or that a recruiter rejected while the interview was
+     * running, is left exactly as it is rather than overwritten. The
+     * interview result itself is kept either way - it is still the
+     * candidate's work - and the mismatch is logged.
+     */
+    private void markApplicationInterviewed(InterviewSession session) {
+
+        JobApplication application = session.getJobApplication();
+
+        if (application == null) {
+            return;
+        }
+
+        if (!application.getStatus().canTransitionTo(ApplicationStatus.INTERVIEWED)) {
+            log.warn(
+                    "Application {} is {} and was not moved to INTERVIEWED",
+                    application.getId(),
+                    application.getStatus()
+            );
+            return;
+        }
+
+        application.setStatus(ApplicationStatus.INTERVIEWED);
+        application.setInterviewCompletedAt(session.getCompletedAt());
+
+        jobApplicationRepository.save(application);
+    }
 
     /**
      * Finds a session and refuses it unless the authenticated user

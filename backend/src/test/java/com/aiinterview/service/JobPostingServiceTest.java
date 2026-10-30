@@ -2,7 +2,9 @@ package com.aiinterview.service;
 
 import com.aiinterview.dto.JobPostingDto;
 import com.aiinterview.dto.JobPostingRequestDto;
+import com.aiinterview.entity.ApplicationStatus;
 import com.aiinterview.entity.InterviewSession;
+import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Role;
 import com.aiinterview.entity.User;
@@ -11,6 +13,7 @@ import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.impl.JobPostingServiceImpl;
@@ -64,12 +67,26 @@ class JobPostingServiceTest {
     @Mock
     private JobQuestionService jobQuestionService;
 
+    @Mock
+    private JobApplicationRepository jobApplicationRepository;
+
+    /**
+     * The eligibility rules themselves are
+     * {@link InterviewEligibilityServiceTest}'s subject. Here it is
+     * mocked, so these tests cover what this service does with its
+     * verdict: rewrite the request when it passes, and get out of the
+     * way when it refuses.
+     */
+    @Mock
+    private InterviewEligibilityService interviewEligibilityService;
+
     @InjectMocks
     private JobPostingServiceImpl service;
 
     private User recruiter;
     private User candidate;
     private JobPosting job;
+    private JobApplication shortlisted;
 
     @BeforeEach
     void setUp() {
@@ -90,10 +107,26 @@ class JobPostingServiceTest {
         when(userRepository.findByEmail("cara@example.com")).thenReturn(Optional.of(candidate));
         when(jobPostingRepository.findByInviteCode(CODE)).thenReturn(Optional.of(job));
 
+        // Not applied yet, unless a test says otherwise.
+        when(jobApplicationRepository.findByJobPostingIdAndCandidateId(any(), any()))
+                .thenReturn(Optional.empty());
+
         // The approved set as JobQuestionService hands it over.
         ArrayNode approved = objectMapper.createArrayNode();
         approved.addObject().put("position", 1).put("question", "How does an index speed up a query?");
         when(jobQuestionService.fixedQuestionsPayload(job)).thenReturn(approved);
+
+        // Eligible by default, so each test can narrow to the one
+        // refusal it is about.
+        shortlisted = JobApplication.builder()
+                .id(77L)
+                .jobPosting(job)
+                .candidate(candidate)
+                .status(ApplicationStatus.SHORTLISTED)
+                .build();
+
+        when(interviewEligibilityService.requireEligibleApplication(any(), any()))
+                .thenReturn(shortlisted);
     }
 
     private JsonNode json(String raw) throws Exception {
@@ -314,20 +347,39 @@ class JobPostingServiceTest {
                 () -> service.applyInvite("cara@example.com", json("{\"invite_code\": \"" + CODE + "\"}")));
     }
 
+    // ---- Eligibility is delegated, not duplicated --------------------
+    //
+    // The rules are InterviewEligibilityServiceTest's subject. What
+    // matters here is that this service asks, and that a refusal stops
+    // the interview rather than being swallowed.
+
     @Test
-    @DisplayName("only candidates can take a job interview")
-    void recruiterCannotJoin() throws Exception {
-        assertThrows(BadRequestException.class,
-                () -> service.applyInvite("rita@example.com", json("{\"invite_code\": \"" + CODE + "\"}")));
+    @DisplayName("a valid code is checked against the candidate's application")
+    void codeChecksEligibility() throws Exception {
+        service.applyInvite("cara@example.com", json("{\"invite_code\": \"" + CODE + "\"}"));
+
+        verify(interviewEligibilityService).requireEligibleApplication(candidate, job);
     }
 
     @Test
-    @DisplayName("one completed attempt per job")
-    void secondAttemptRefused() throws Exception {
-        when(interviewSessionRepository.existsByUserIdAndJobPostingIdAndStatus(
-                20L, 5L, InterviewSession.STATUS_COMPLETED)).thenReturn(true);
+    @DisplayName("a candidate who may not sit the interview is refused")
+    void ineligibleCandidateRefused() throws Exception {
+        when(interviewEligibilityService.requireEligibleApplication(candidate, job))
+                .thenThrow(new ConflictException("not shortlisted"));
 
         assertThrows(ConflictException.class,
                 () -> service.applyInvite("cara@example.com", json("{\"invite_code\": \"" + CODE + "\"}")));
+    }
+
+    @Test
+    @DisplayName("an account that may not apply is refused before any questions are read")
+    void wrongAccountTypeRefused() throws Exception {
+        when(interviewEligibilityService.requireEligibleApplication(recruiter, job))
+                .thenThrow(new BadRequestException("only candidates"));
+
+        assertThrows(BadRequestException.class,
+                () -> service.applyInvite("rita@example.com", json("{\"invite_code\": \"" + CODE + "\"}")));
+
+        verify(jobQuestionService, never()).fixedQuestionsPayload(any());
     }
 }
