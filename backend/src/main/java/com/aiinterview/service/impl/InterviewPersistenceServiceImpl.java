@@ -160,7 +160,9 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
 
         JsonNode nextQuestion = aiResponse.get("question");
 
-        if (nextQuestion != null) {
+        // A job interview's last answer comes back with "question": null
+        // (a JSON null node, not a missing field): there is no next turn.
+        if (nextQuestion != null && nextQuestion.isObject()) {
             session.addTurn(toTurn(nextQuestion));
         }
 

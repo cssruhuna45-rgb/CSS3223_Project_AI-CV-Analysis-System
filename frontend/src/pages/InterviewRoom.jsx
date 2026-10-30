@@ -24,6 +24,8 @@ import StepBar from '../components/StepBar';
 import ModelAnswer from '../components/ModelAnswer';
 import { CodeText, stripBackticks } from '../components/ui';
 
+// Length of a practice interview. A job interview has the recruiter's
+// chosen 5-10 questions; the server says how many when it starts.
 const MAX_QUESTIONS = 5;
 const TOTAL_TIME = 120;
 
@@ -115,6 +117,9 @@ export default function InterviewRoom() {
 
   const [sessionId, setSessionId] = useState(null);
   const [question, setQuestion] = useState('');
+
+  // MAX_QUESTIONS until the start response says otherwise.
+  const [totalQuestions, setTotalQuestions] = useState(MAX_QUESTIONS);
   const [qIndex, setQIndex] = useState(0);
   const [answer, setAnswer] = useState('');
 
@@ -459,6 +464,12 @@ export default function InterviewRoom() {
 
         setSessionId(newSessionId);
         setQuestion(newQuestion);
+
+        // Set for a job interview, from its approved question set.
+        // Practice leaves it null and keeps MAX_QUESTIONS.
+        if (Number.isInteger(data?.total_questions) && data.total_questions > 0) {
+          setTotalQuestions(data.total_questions);
+        }
 
         // The invite has been used. Left in place, the next interview
         // the candidate starts on their own would be filed under this
@@ -1149,7 +1160,7 @@ export default function InterviewRoom() {
       // LAST QUESTION
       // ======================================================
 
-      if (qIndex + 1 >= MAX_QUESTIONS) {
+      if (qIndex + 1 >= totalQuestions) {
         console.log('[Frontend] Final question reached, starting AI evaluation.');
         setIsFinishing(true);
         setFinishStep(1);
@@ -1612,7 +1623,7 @@ export default function InterviewRoom() {
               color: 'var(--text-primary)',
             }}
           >
-            Question {qIndex + 1} of {MAX_QUESTIONS}
+            Question {qIndex + 1} of {totalQuestions}
           </h1>
         </div>
 
@@ -1726,7 +1737,7 @@ export default function InterviewRoom() {
             height: '100%',
             borderRadius: 3,
             background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
-            width: `${((qIndex + 1) / MAX_QUESTIONS) * 100}%`,
+            width: `${((qIndex + 1) / totalQuestions) * 100}%`,
             transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             boxShadow: 'none',
           }}
@@ -2210,7 +2221,7 @@ export default function InterviewRoom() {
               fontSize: 'var(--fs-base)',
               fontWeight: 700,
               gap: 8,
-              background: qIndex + 1 >= MAX_QUESTIONS
+              background: qIndex + 1 >= totalQuestions
                 ? 'linear-gradient(var(--accent-solid), var(--accent-solid))'
                 : undefined,
               boxShadow: 'none',
@@ -2221,7 +2232,7 @@ export default function InterviewRoom() {
                 <Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} />
                 Evaluating Interview Performance…
               </>
-            ) : qIndex + 1 >= MAX_QUESTIONS ? (
+            ) : qIndex + 1 >= totalQuestions ? (
               <>
                 <Trophy size={17} /> Complete & Evaluate Interview
               </>

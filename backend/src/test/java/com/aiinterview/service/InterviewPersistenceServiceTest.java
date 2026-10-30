@@ -612,6 +612,33 @@ class InterviewPersistenceServiceTest {
     }
 
     @Test
+    @DisplayName("A job interview's last answer (question: null) adds no empty turn")
+    void lastJobAnswerAddsNoTurn() {
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordAnswer(
+                EMAIL,
+                json("""
+                        {"session_id": "sess-abc123", "answer": "The last answer."}
+                        """),
+                json("""
+                        {"session_id": "sess-abc123", "question": null,
+                         "total_questions": 1, "complete": true}
+                        """)
+        );
+
+        InterviewSession saved = captureSaved();
+
+        assertEquals(1, saved.getTurns().size());
+        assertEquals("The last answer.", saved.getTurns().get(0).getAnswer());
+        assertEquals(1, saved.getQuestionCount());
+    }
+
+    @Test
     @DisplayName("An interview that was never stored is skipped, not created mid-flight")
     void answerForUnknownSessionIsSkipped() {
 

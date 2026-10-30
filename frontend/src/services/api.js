@@ -1,6 +1,6 @@
 // Local development calls Spring directly; Docker sets / to use the
 // frontend nginx API proxy on the same origin as the page.
-const SPRING = (process.env.REACT_APP_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+export const SPRING = (process.env.REACT_APP_API_URL || 'http://localhost:8080').replace(/\/$/, '');
 
 // The Python AI service is never called from the browser. Spring
 // authenticates the user's JWT and proxies to it under /api/v1/ai,
@@ -9,12 +9,12 @@ const AI = `${SPRING}/api/v1/ai`;
 
 const getToken = () => localStorage.getItem('token');
 
-const authHeaders = () => ({
+export const authHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${getToken()}`,
 });
 
-async function handleResponse(res) {
+export async function handleResponse(res) {
   if (!res.ok) {
     // 401: no valid session (missing, expired or tampered token). The
     // stored login is useless, so it is cleared and the user signs in.

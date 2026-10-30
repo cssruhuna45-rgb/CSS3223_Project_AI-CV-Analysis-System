@@ -35,9 +35,23 @@ public interface JobPostingService {
      * one, the code is checked and the job description, job field and
      * mode are replaced with the job's own, so a candidate cannot be
      * interviewed against an easier text while their result is filed
-     * under this job.
+     * under this job. The job's approved questions are added as
+     * {@code fixed_questions} and the CV fields are emptied, so every
+     * candidate is asked the same questions. A job whose questions are
+     * not approved is refused as not ready. Without a code, any
+     * {@code fixed_questions} the browser sent are removed.
      */
     JsonNode applyInvite(String candidateEmail, JsonNode startRequest);
+
+    /**
+     * Refuses an expected-answer request made while the user is sitting
+     * a job interview: for that interview's session, or for any while
+     * one of theirs is still running.
+     *
+     * @throws com.aiinterview.exception.UnauthorizedAccessException when
+     *         a job interview is in progress
+     */
+    void requireNoJobInterviewInProgress(String userEmail, JsonNode modelAnswerRequest);
 
     /** Normalised form of what a person typed, or empty if it cannot be a code. */
     Optional<String> normalizeCode(String raw);
