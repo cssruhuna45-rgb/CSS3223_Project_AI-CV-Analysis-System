@@ -80,4 +80,31 @@ public class CandidateApplicationDto {
      * whether questions exist in draft.
      */
     private String interviewMessage;
+
+    // ---- Final hiring result (V12) --------------------------------
+    //
+    // Populated only from a decision the recruiter has announced. A
+    // draft never reaches here: the query behind it matches published
+    // rows only, so "not announced" looks the same whether or not the
+    // recruiter has written something privately.
+
+    /** False until the recruiter announces their decision. */
+    private boolean resultAnnounced;
+
+    /** SELECTED or NOT_SELECTED once announced; PENDING while not. */
+    private String hiringDecision;
+
+    /** The wording to show, from the server. */
+    private String hiringDecisionLabel;
+
+    /** True only for an announced SELECTED, so the UI can celebrate. */
+    private boolean selected;
+
+    /**
+     * The recruiter's message to this candidate, if they wrote one.
+     * Never their private notes - those have no field here.
+     */
+    private String recruiterFeedback;
+
+    private LocalDateTime resultAnnouncedAt;
 }

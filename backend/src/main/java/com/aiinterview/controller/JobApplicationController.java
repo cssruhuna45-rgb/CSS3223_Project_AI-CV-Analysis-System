@@ -1,7 +1,9 @@
 package com.aiinterview.controller;
 
 import com.aiinterview.dto.CandidateApplicationDto;
+import com.aiinterview.dto.CandidateFinalResultDto;
 import com.aiinterview.dto.JobApplicationRequestDto;
+import com.aiinterview.service.HiringDecisionService;
 import com.aiinterview.service.JobApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -39,6 +41,8 @@ public class JobApplicationController {
 
     private final JobApplicationService jobApplicationService;
 
+    private final HiringDecisionService hiringDecisionService;
+
     @Operation(summary = "Apply for a job with one of your own CVs")
     @PostMapping("/jobs/{jobId}/applications")
     public ResponseEntity<CandidateApplicationDto> apply(
@@ -69,6 +73,25 @@ public class JobApplicationController {
     ) {
         return ResponseEntity.ok(
                 jobApplicationService.getMine(authentication.getName(), applicationId)
+        );
+    }
+
+    /**
+     * The candidate's final hiring result for one of their own
+     * applications (V12).
+     *
+     * <p>Only an announced decision is ever loaded, so a recruiter's
+     * private draft cannot be read here, and the response has no field
+     * for internal recruiter notes at all.
+     */
+    @Operation(summary = "Your announced hiring result for one of your applications")
+    @GetMapping("/candidate/applications/{applicationId}/final-result")
+    public ResponseEntity<CandidateFinalResultDto> finalResult(
+            @PathVariable Long applicationId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                hiringDecisionService.getFinalResult(authentication.getName(), applicationId)
         );
     }
 }

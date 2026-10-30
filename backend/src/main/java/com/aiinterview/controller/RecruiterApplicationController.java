@@ -3,7 +3,10 @@ package com.aiinterview.controller;
 import com.aiinterview.dto.ApplicantDetailDto;
 import com.aiinterview.dto.ApplicantSummaryDto;
 import com.aiinterview.dto.ApplicationDecisionRequestDto;
+import com.aiinterview.dto.HiringDecisionDto;
+import com.aiinterview.dto.HiringDecisionRequestDto;
 import com.aiinterview.dto.JobComparisonDto;
+import com.aiinterview.service.HiringDecisionService;
 import com.aiinterview.service.RecruiterApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +45,8 @@ import java.util.List;
 public class RecruiterApplicationController {
 
     private final RecruiterApplicationService recruiterApplicationService;
+
+    private final HiringDecisionService hiringDecisionService;
 
     @Operation(summary = "Applicants for one of your jobs, best CV match first")
     @GetMapping("/jobs/{jobId}/applications")
@@ -88,6 +94,51 @@ public class RecruiterApplicationController {
     ) {
         return ResponseEntity.ok(
                 recruiterApplicationService.compare(authentication.getName(), jobId)
+        );
+    }
+
+    // ========================================================
+    // Final hiring decision (V12)
+    //
+    // Saving and announcing are separate calls on purpose: choosing an
+    // option tells the candidate nothing until the recruiter publishes.
+    // ========================================================
+
+    @Operation(summary = "The hiring decision for one applicant, including the private draft")
+    @GetMapping("/applications/{applicationId}/hiring-decision")
+    public ResponseEntity<HiringDecisionDto> getHiringDecision(
+            @PathVariable Long applicationId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                hiringDecisionService.getForRecruiter(authentication.getName(), applicationId)
+        );
+    }
+
+    @Operation(summary = "Save the hiring decision privately; the candidate is not told")
+    @PostMapping("/applications/{applicationId}/hiring-decision")
+    public ResponseEntity<HiringDecisionDto> saveHiringDecision(
+            @PathVariable Long applicationId,
+            @Valid @RequestBody HiringDecisionRequestDto request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                hiringDecisionService.saveDraft(
+                        authentication.getName(),
+                        applicationId,
+                        request
+                )
+        );
+    }
+
+    @Operation(summary = "Announce the saved decision to the candidate and notify them")
+    @PostMapping("/applications/{applicationId}/hiring-decision/publish")
+    public ResponseEntity<HiringDecisionDto> publishHiringDecision(
+            @PathVariable Long applicationId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                hiringDecisionService.publish(authentication.getName(), applicationId)
         );
     }
 }

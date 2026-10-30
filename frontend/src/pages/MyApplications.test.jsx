@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import MyApplications from './MyApplications';
-import { applicationsAPI } from '../services/jobApplicationsApi';
+import { applicationsAPI, notificationsAPI } from '../services/jobApplicationsApi';
 
 // react-router-dom 7 reaches for the "react-router/dom" subpath
 // export, which react-scripts 5's Jest resolver cannot follow. The page
@@ -18,6 +18,7 @@ jest.mock('react-router-dom', () => ({
 jest.mock('../services/jobApplicationsApi', () => ({
   ...jest.requireActual('../services/jobApplicationsApi'),
   applicationsAPI: { mine: jest.fn() },
+  notificationsAPI: { mine: jest.fn(), markRead: jest.fn() },
 }));
 
 const base = {
@@ -47,8 +48,9 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-async function render(applications) {
+async function render(applications, notifications = []) {
   applicationsAPI.mine.mockResolvedValue(applications);
+  notificationsAPI.mine.mockResolvedValue(notifications);
 
   await act(async () => {
     root.render(<MyApplications />);
@@ -157,12 +159,161 @@ test('no applications shows an empty state rather than a blank page', async () =
   expect(container.textContent).toContain('You have not applied for any jobs yet.');
 });
 
+// ---- Final hiring result ---------------------------------------------
+
+const INTERVIEWED = {
+  ...base,
+  status: 'INTERVIEWED',
+  statusLabel: 'Interview completed',
+  interviewAvailable: false,
+  interviewResumable: false,
+  interviewCompletedAt: '2026-01-20T12:00:00',
+};
+
+test('an interviewed candidate with no announcement is told the recruiter is reviewing', async () => {
+  await render([{
+    ...INTERVIEWED,
+    resultAnnounced: false,
+    hiringDecision: 'PENDING',
+    hiringDecisionLabel: 'Awaiting recruiter decision',
+    selected: false,
+  }]);
+
+  expect(container.textContent).toContain('Awaiting recruiter decision');
+  expect(container.textContent).toContain('recruiter is reviewing your application');
+  // A draft must look exactly like no decision at all.
+  expect(container.textContent).not.toContain('Selected');
+  expect(container.textContent).not.toContain('Not selected');
+});
+
+test('a selected candidate is congratulated and shown the recruiter message', async () => {
+  await render([{
+    ...INTERVIEWED,
+    resultAnnounced: true,
+    hiringDecision: 'SELECTED',
+    hiringDecisionLabel: 'Selected',
+    selected: true,
+    recruiterFeedback: 'We were impressed by your system design answers.',
+    resultAnnouncedAt: '2026-02-01T10:00:00',
+  }]);
+
+  expect(container.textContent).toContain('you have been selected');
+  expect(container.textContent).toContain('will contact you regarding the next steps');
+  expect(container.textContent).toContain('We were impressed by your system design answers.');
+});
+
+test('a selected result does not claim an offer has been made', async () => {
+  await render([{
+    ...INTERVIEWED,
+    resultAnnounced: true,
+    hiringDecision: 'SELECTED',
+    hiringDecisionLabel: 'Selected',
+    selected: true,
+  }]);
+
+  const text = container.textContent.toLowerCase();
+
+  // Selection is not a contract, and must not read like one.
+  expect(text).not.toContain('offer letter');
+  expect(text).not.toContain('employment contract');
+  expect(text).not.toContain('you are hired');
+});
+
+test('a not-selected candidate is thanked, respectfully', async () => {
+  await render([{
+    ...INTERVIEWED,
+    resultAnnounced: true,
+    hiringDecision: 'NOT_SELECTED',
+    hiringDecisionLabel: 'Not selected',
+    selected: false,
+    recruiterFeedback: 'Please do apply again in future.',
+  }]);
+
+  expect(container.textContent).toContain('Thank you for your participation');
+  expect(container.textContent).toContain('wish you success in future opportunities');
+  expect(container.textContent).toContain('Please do apply again in future.');
+  expect(container.textContent).not.toContain('REJECTED');
+});
+
+test('the result never shows internal recruiter notes', async () => {
+  await render([{
+    ...INTERVIEWED,
+    resultAnnounced: true,
+    hiringDecision: 'NOT_SELECTED',
+    hiringDecisionLabel: 'Not selected',
+    selected: false,
+    recruiterFeedback: 'Thank you for attending.',
+    // The server never sends this field; if it somehow did, the page
+    // still has nowhere that renders it.
+    internalNotes: 'Weak on SQL, do not progress.',
+  }]);
+
+  expect(container.textContent).not.toContain('Weak on SQL');
+});
+
+test('an application still under review shows no final result section', async () => {
+  await render([{
+    ...base,
+    status: 'APPLIED',
+    statusLabel: 'Under review',
+    interviewAvailable: false,
+    interviewResumable: false,
+    interviewMessage: 'Your application is still under review.',
+    resultAnnounced: false,
+  }]);
+
+  expect(container.textContent).not.toContain('Final hiring decision');
+});
+
 test('a failed load is reported instead of showing an empty list', async () => {
   applicationsAPI.mine.mockRejectedValue(new Error('Service unavailable'));
+  notificationsAPI.mine.mockResolvedValue([]);
 
   await act(async () => {
     root.render(<MyApplications />);
   });
 
   expect(container.querySelector('[role="alert"]').textContent).toContain('Service unavailable');
+});
+
+// ---- Notifications ---------------------------------------------------
+
+test('an unread announcement is surfaced without giving away the outcome', async () => {
+  await render([INTERVIEWED], [{
+    id: 1,
+    type: 'HIRING_DECISION',
+    title: 'Your interview result is available',
+    message: 'The final hiring decision for your Backend Developer application has been announced.',
+    applicationId: 1,
+    read: false,
+  }]);
+
+  expect(container.textContent).toContain('Your interview result is available');
+  // The notification points at the result; it does not contain it.
+  expect(container.textContent).not.toContain('SELECTED');
+});
+
+test('an already-read notification is not shown again', async () => {
+  await render([INTERVIEWED], [{
+    id: 1,
+    type: 'HIRING_DECISION',
+    title: 'Your interview result is available',
+    message: 'Announced.',
+    applicationId: 1,
+    read: true,
+  }]);
+
+  expect(container.textContent).not.toContain('New for you');
+});
+
+test('a notifications outage still leaves the applications readable', async () => {
+  applicationsAPI.mine.mockResolvedValue([INTERVIEWED]);
+  notificationsAPI.mine.mockRejectedValue(new Error('down'));
+
+  await act(async () => {
+    root.render(<MyApplications />);
+  });
+
+  expect(container.textContent).toContain('Backend Developer');
+  expect(container.textContent).not.toContain('New for you');
 });

@@ -9,14 +9,18 @@ import com.aiinterview.dto.CvSnapshotDto;
 import com.aiinterview.dto.JobComparisonDto;
 import com.aiinterview.dto.SkillMatchDto;
 import com.aiinterview.entity.ApplicationStatus;
+import com.aiinterview.entity.HiringDecision;
+import com.aiinterview.entity.HiringDecisionValue;
 import com.aiinterview.entity.InterviewSession;
 import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.JobQuestion;
+import com.aiinterview.entity.PublicationStatus;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.BadRequestException;
 import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.ResourceNotFoundException;
+import com.aiinterview.repository.HiringDecisionRepository;
 import com.aiinterview.repository.InterviewSessionRepository;
 import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
@@ -36,6 +40,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +50,7 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
             LoggerFactory.getLogger(RecruiterApplicationServiceImpl.class);
 
     private final JobApplicationRepository jobApplicationRepository;
+    private final HiringDecisionRepository hiringDecisionRepository;
     private final JobPostingRepository jobPostingRepository;
     private final InterviewSessionRepository interviewSessionRepository;
     private final UserRepository userRepository;
@@ -181,10 +187,28 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
                 ? questionHeaders(job)
                 : List.of();
 
-        List<ComparisonCandidateDto> candidates = interviewSessionRepository
-                .findCompletedForRecruiterJob(jobId, recruiter.getId())
+        List<InterviewSession> completed = interviewSessionRepository
+                .findCompletedForRecruiterJob(jobId, recruiter.getId());
+
+        // Decisions for the whole column set in one query, keyed by
+        // application, rather than one lookup per candidate.
+        Map<Long, HiringDecision> decisions = hiringDecisionRepository
+                .findByApplicationIds(
+                        completed.stream()
+                                .map(s -> s.getJobApplication().getId())
+                                .toList()
+                )
                 .stream()
-                .map(this::toComparisonCandidate)
+                .collect(Collectors.toMap(
+                        d -> d.getJobApplication().getId(),
+                        d -> d
+                ));
+
+        List<ComparisonCandidateDto> candidates = completed.stream()
+                .map(session -> toComparisonCandidate(
+                        session,
+                        decisions.get(session.getJobApplication().getId())
+                ))
                 .toList();
 
         return JobComparisonDto.builder()
@@ -223,12 +247,33 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
         return headers;
     }
 
-    private ComparisonCandidateDto toComparisonCandidate(InterviewSession session) {
+    /**
+     * @param decision the recruiter's own decision, draft or published,
+     *                 or null when they have not started one. This is a
+     *                 recruiter-facing view, so a draft is shown here -
+     *                 it is the candidate's view that never sees one.
+     */
+    private ComparisonCandidateDto toComparisonCandidate(
+            InterviewSession session,
+            HiringDecision decision
+    ) {
 
         JobApplication application = session.getJobApplication();
         User candidate = application.getCandidate();
 
+        HiringDecisionValue value = decision == null
+                ? HiringDecisionValue.PENDING
+                : decision.getDecision();
+
+        PublicationStatus publication = decision == null
+                ? PublicationStatus.DRAFT
+                : decision.getPublicationStatus();
+
         return ComparisonCandidateDto.builder()
+                .hiringDecision(value.name())
+                .hiringDecisionLabel(value.getLabel())
+                .publicationStatus(publication.name())
+                .decisionPublished(publication.isPublished())
                 .applicationId(application.getId())
                 .candidateId(candidate.getId())
                 .candidateName(candidate.getName())
