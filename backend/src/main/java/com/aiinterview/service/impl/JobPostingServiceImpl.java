@@ -4,16 +4,17 @@ import com.aiinterview.dto.JobInviteDto;
 import com.aiinterview.dto.JobPostingDto;
 import com.aiinterview.dto.JobPostingRequestDto;
 import com.aiinterview.entity.InterviewSession;
+import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
-import com.aiinterview.entity.Role;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.BadRequestException;
-import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.UserRepository;
+import com.aiinterview.service.InterviewEligibilityService;
 import com.aiinterview.service.JobPostingService;
 import com.aiinterview.service.JobQuestionService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -82,8 +83,10 @@ public class JobPostingServiceImpl implements JobPostingService {
 
     private final JobPostingRepository jobPostingRepository;
     private final InterviewSessionRepository interviewSessionRepository;
+    private final JobApplicationRepository jobApplicationRepository;
     private final UserRepository userRepository;
     private final JobQuestionService jobQuestionService;
+    private final InterviewEligibilityService interviewEligibilityService;
 
     // ========================================================
     // Recruiter
@@ -147,11 +150,23 @@ public class JobPostingServiceImpl implements JobPostingService {
             );
         }
 
+        // Applications per job, so the jobs list can show how much
+        // reviewing is outstanding without a query per job.
+        Map<Long, long[]> applications = new HashMap<>();
+
+        for (Object[] row : jobApplicationRepository.countByJobForRecruiter(recruiter.getId())) {
+            applications.put(
+                    (Long) row[0],
+                    new long[]{toLong(row[1]), toLong(row[2]), toLong(row[3])}
+            );
+        }
+
         return jobPostingRepository.findByRecruiterIdOrderByCreatedAtDesc(recruiter.getId())
                 .stream()
                 .map(job -> {
                     long[] c = counts.getOrDefault(job.getId(), new long[]{0, 0});
-                    return JobPostingDto.from(job, c[0], c[1]);
+                    long[] a = applications.getOrDefault(job.getId(), new long[]{0, 0, 0});
+                    return JobPostingDto.from(job, c[0], c[1], a[0], a[1], a[2]);
                 })
                 .toList();
     }
@@ -183,16 +198,38 @@ public class JobPostingServiceImpl implements JobPostingService {
         User candidate = user(candidateEmail);
         JobPosting job = openJob(inviteCode);
 
+        // This candidate's own application, if they have one. What
+        // decides whether the page offers the application form, a
+        // status, or the interview itself.
+        JobApplication application = jobApplicationRepository
+                .findByJobPostingIdAndCandidateId(job.getId(), candidate.getId())
+                .orElse(null);
+
+        InterviewEligibilityService.InterviewAccess access = application == null
+                ? null
+                : interviewEligibilityService.describeAccess(application);
+
         return JobInviteDto.builder()
+                .jobId(job.getId())
                 .inviteCode(job.getInviteCode())
                 .title(job.getTitle())
                 .company(job.getCompany())
                 .jobField(job.getJobField())
                 .jobDescription(job.getJobDescription())
+                .requiredSkills(List.copyOf(job.getRequiredSkills()))
                 .recruiterName(job.getRecruiter().getName())
                 .alreadyCompleted(alreadyCompleted(candidate, job))
                 .interviewReady(job.isQuestionsApproved())
                 .questionCount(job.getQuestionCount())
+                .applicationId(application == null ? null : application.getId())
+                .applicationStatus(
+                        application == null ? null : application.getStatus().name()
+                )
+                .applicationStatusLabel(
+                        application == null ? null : application.getStatus().getLabel()
+                )
+                .interviewAvailable(access != null && access.available())
+                .interviewMessage(access == null ? null : access.message())
                 .build();
     }
 
@@ -219,19 +256,16 @@ public class JobPostingServiceImpl implements JobPostingService {
 
         User candidate = user(candidateEmail);
 
-        // Recruiters and administrators do not sit interviews; letting
-        // them would put their own rows into a recruiter's results.
-        if (candidate.getRole() != Role.CANDIDATE) {
-            throw new BadRequestException("Only candidate accounts can take a job interview.");
-        }
-
         JobPosting job = openJob(rawCode.asText());
 
-        if (alreadyCompleted(candidate, job)) {
-            throw new ConflictException(
-                    "You have already completed the interview for this job."
-            );
-        }
+        // Every condition for sitting this interview, checked server
+        // side from the database: a candidate account, their own
+        // application for this job, shortlisted, the job open, its
+        // questions approved, and the one attempt unused. An invite
+        // code is no longer enough on its own - it only identifies the
+        // job. This also covers the account type, which used to be
+        // checked here.
+        interviewEligibilityService.requireEligibleApplication(candidate, job);
 
         // The approved questions, in order. Refused (409) while the job
         // has none approved, so its interview shows as not ready.

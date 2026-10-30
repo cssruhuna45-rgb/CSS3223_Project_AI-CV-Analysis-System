@@ -40,6 +40,15 @@ public interface JobPostingService {
      * candidate is asked the same questions. A job whose questions are
      * not approved is refused as not ready. Without a code, any
      * {@code fixed_questions} the browser sent are removed.
+     *
+     * <p>Since V11 a valid code is not enough on its own: it identifies
+     * the job, and
+     * {@link InterviewEligibilityService#requireEligibleApplication}
+     * then decides whether this candidate may sit the interview - they
+     * need their own application for the job, shortlisted by the
+     * recruiter, with their one attempt unused. This is the only place
+     * a job interview can be started from, so there is no second route
+     * that skips the check.
      */
     JsonNode applyInvite(String candidateEmail, JsonNode startRequest);
 

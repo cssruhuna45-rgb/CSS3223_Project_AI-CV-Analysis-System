@@ -54,7 +54,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString(exclude = {"user", "resume", "jobPosting", "turns"})
+@ToString(exclude = {"user", "resume", "jobPosting", "jobApplication", "turns"})
 @EqualsAndHashCode(of = "id")
 public class InterviewSession {
 
@@ -113,6 +113,18 @@ public class InterviewSession {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_posting_id")
     private JobPosting jobPosting;
+
+    /**
+     * The application this interview is the attempt for (V11).
+     *
+     * <p>Null for a personal practice interview, and for job interviews
+     * taken through an invite code before applications existed. One
+     * attempt per application: a unique index enforces it, so a
+     * double-clicked start cannot give one candidate two goes.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_application_id")
+    private JobApplication jobApplication;
 
     @Column(name = "status", nullable = false, length = 32)
     @Builder.Default
