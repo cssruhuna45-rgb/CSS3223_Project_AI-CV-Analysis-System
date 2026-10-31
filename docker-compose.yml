@@ -21,8 +21,14 @@ services:
       POSTGRES_DB: ai_interview_db
     ports:
       # Published so psql and scripts/show-schema.sql still work from
-      # the host. Nothing else needs it.
-      - "5432:5432"
+      # the host - the other services reach this database over the
+      # compose network on 5432 regardless.
+      #
+      # The host side is overridable because 5432 is the default for
+      # every Postgres on the machine, so a second project holding it
+      # makes this one fail to start with "port is already allocated".
+      # Set POSTGRES_HOST_PORT in .env to publish somewhere else.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

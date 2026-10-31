@@ -1870,8 +1870,11 @@ def generate_question(
     # covers grading the previous answer as well as the attempts below.
     started = time.monotonic()
 
+    # >=, not >: on Windows the monotonic clock ticks every 15.6 ms, so
+    # a fast turn reads an elapsed time of exactly 0.0, and a budget of
+    # 0 has to count as already spent.
     def over_budget() -> bool:
-        return time.monotonic() - started > QUESTION_TIME_BUDGET_SECONDS
+        return time.monotonic() - started >= QUESTION_TIME_BUDGET_SECONDS
 
     # ========================================================
     # Normalize inputs

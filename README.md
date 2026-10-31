@@ -36,6 +36,69 @@ Two ways to run it. Docker is the short one; running the services by
 hand is what you want while actually writing code, because nothing
 reloads inside a container.
 
+### 0. Toolchain
+
+Only needed for Option B. Docker brings its own copies.
+
+| Tool | Version | Notes |
+|---|---|---|
+| JDK | **23** | The baseline everywhere: `backend/pom.xml`, both `backend/Dockerfile` stages and CI. Spring Boot 3.4 supports 17-23. |
+| Maven | 3.9+ | Or just use `./mvnw`, which pins the version for you. |
+| Node | 18+ | Frontend only. |
+| Python | 3.10+ | AI service only. |
+
+Check what you have:
+
+```bash
+java -version      # expect 23.x
+./mvnw -version    # "Java version:" must also say 23
+```
+
+`mvnw` uses `JAVA_HOME` first and only then whatever `java` is on the
+PATH, so those two can disagree. If the second command reports anything
+but 23, point `JAVA_HOME` at a 23 JDK rather than relying on the PATH:
+
+```bash
+export JAVA_HOME=/path/to/jdk-23            # Windows: setx JAVA_HOME "C:\Program Files\Java\jdk-23"
+```
+
+Building on a newer JDK is not a shortcut. The compiler is pinned to
+`release 23`, so a 24- or 25-only API fails the build here instead of
+inside the Java 23 runtime container - but a Lombok older than 1.18.40
+cannot even start under a JDK 25 compiler, which is why
+`lombok.version` has a floor. Both are commented in `backend/pom.xml`.
+
+### Backend build and test
+
+```bash
+cd backend
+./mvnw clean verify     # compile, run the unit tests, build the jar
+./mvnw spring-boot:run  # run it
+```
+
+`verify` is what CI runs. The tests are plain unit tests and need no
+database.
+
+To confirm the output really targets 23 - major version 67:
+
+```bash
+javap -v -p target/classes/com/aiinterview/AiInterviewApplication.class | grep major
+```
+
+The backend image on its own, without the rest of the stack. It
+compiles inside the container, so this needs no local JDK and is the
+closest thing to what CI does:
+
+```bash
+cd backend
+docker build --no-cache -t springboot-java23 .
+docker run --rm --entrypoint java springboot-java23 -version   # expect 23.x
+```
+
+Running that image by hand needs the database and the environment the
+compose file otherwise supplies, so for anything beyond checking it
+builds, use `docker compose up` from the project root instead.
+
 ### 1. Secrets
 
 Three values are needed, and none of them are in git.
