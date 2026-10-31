@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Briefcase, ShieldCheck, FileText, ArrowRight, CheckCircle } from 'lucide-react';
-import { jobsAPI, resumeAPI } from '../services/api';
+import { Briefcase, ShieldCheck, ArrowRight, CheckCircle, Clock } from 'lucide-react';
+import { jobsAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card } from '../components/ui';
 
@@ -10,9 +10,15 @@ function fieldName(id) {
 }
 
 // Where an invite link lands. The candidate reads the job and who will
-// see the result before anything is shared: starting the interview from
-// here is the consent, and nothing else they do on the platform is ever
-// shown to a recruiter.
+// see the result before anything is shared, and nothing else they do on
+// the platform is ever shown to a recruiter.
+//
+// The code no longer opens the interview. It opens the application: the
+// candidate applies with a chosen CV and explicit consent, the recruiter
+// shortlists or rejects, and only then does the interview become
+// available. This page routes to whichever of those steps they are on -
+// the server decides which that is, and refuses the interview start
+// itself if anything here is out of date.
 export default function JoinInterview({ user }) {
   const navigate = useNavigate();
   const { code: codeFromLink } = useParams();
@@ -22,27 +28,7 @@ export default function JoinInterview({ user }) {
   const [loading, setLoading] = useState(Boolean(codeFromLink));
   const [error, setError] = useState('');
 
-  const [hasCv, setHasCv] = useState(() => Boolean((sessionStorage.getItem('resumeText') || '').trim()));
-  const [cvName, setCvName] = useState('');
   const isCandidate = user?.role === 'candidate';
-
-  // A returning candidate's CV is stored, but this browser tab may not
-  // have it yet. Use their latest upload rather than asking for it again.
-  useEffect(() => {
-    if (hasCv || !isCandidate) return;
-    resumeAPI.getAll()
-      .then((resumes) => {
-        const latest = [...(resumes || [])]
-          .filter((r) => (r.extractedText || '').trim())
-          .sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0))[0];
-        if (!latest) return;
-        sessionStorage.setItem('resumeId', String(latest.id));
-        sessionStorage.setItem('resumeText', latest.extractedText);
-        setCvName(latest.originalFileName || '');
-        setHasCv(true);
-      })
-      .catch(() => { /* No saved CV to use; the page asks for an upload. */ });
-  }, []);
 
   const lookUp = async (value) => {
     const trimmed = (value || '').trim();
@@ -77,9 +63,9 @@ export default function JoinInterview({ user }) {
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' }}>
-      <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Join a job interview</h1>
+      <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Apply for a job</h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 'var(--lh-normal)' }}>
-        A recruiter gave you an invite code. Enter it to see the job before you start.
+        A recruiter gave you an invite code. Enter it to read the job before you apply.
       </p>
 
       {!job && (
@@ -113,53 +99,64 @@ export default function JoinInterview({ user }) {
             {job.jobDescription}
           </p>
 
-          {job.alreadyCompleted ? (
-            <p role="status" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', fontWeight: 600 }}>
-              <CheckCircle size={18} color="var(--success)" aria-hidden="true" />
-              You have already completed this interview. Each job allows one attempt.
-            </p>
-          ) : !isCandidate ? (
+          {!isCandidate ? (
             <p role="status" style={{ color: 'var(--text-secondary)' }}>
-              Job interviews are taken from a candidate account. Sign in as a candidate to join.
+              Job applications are made from a candidate account. Sign in as a candidate to apply.
             </p>
-          ) : (
+          ) : !job.applicationStatus ? (
+            // Not applied yet. The invite's first step is the
+            // application, where the CV is chosen and consent given.
             <>
-              <div style={{
-                display: 'flex', gap: 'var(--space-3)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)',
-                background: 'color-mix(in srgb, var(--accent) 8%, transparent)', marginBottom: 'var(--space-5)',
-              }}>
+              <div style={notice}>
                 <ShieldCheck size={20} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                 <div style={{ fontSize: 'var(--fs-sm)', lineHeight: 'var(--lh-normal)' }}>
-                  <strong>Your result for this interview is shared with {who}.</strong>{' '}
-                  They will see your name, email, answers and scores for this one interview,
-                  and how often you left the page or pasted text while answering.
-                  It is timed (exam mode) and can be taken once. Your practice interviews
-                  and anything else you do here stay private.
+                  <strong>Applying shares the CV you choose with {who}.</strong>{' '}
+                  You pick which CV on the next page and agree to share it before anything is sent.
+                  If they shortlist you, you can take this job's interview: timed, {job.questionCount} questions,
+                  one attempt, the same questions for every candidate. Your practice interviews and
+                  anything else you do here stay private.
                 </div>
               </div>
 
-              {hasCv ? (
-                <div>
-                  {cvName && (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-3)' }}>
-                      The questions will be tailored to your latest CV, {cvName}.
-                    </p>
-                  )}
-                  <Button size="lg" icon={<ArrowRight size={18} />} onClick={start}>
-                    Agree and start the interview
-                  </Button>
+              <Button size="lg" icon={<ArrowRight size={18} />} onClick={() => navigate(`/apply/${job.inviteCode}`)}>
+                Continue to apply
+              </Button>
+            </>
+          ) : job.interviewAvailable ? (
+            // Shortlisted, job ready, attempt unused.
+            <>
+              <div style={notice}>
+                <ShieldCheck size={20} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ fontSize: 'var(--fs-sm)', lineHeight: 'var(--lh-normal)' }}>
+                  <strong>You were shortlisted for this job.</strong>{' '}
+                  {who} will see your answers and scores for this interview, and how often you left
+                  the page or pasted text while answering. It is timed, has {job.questionCount} questions
+                  and can be taken once.
                 </div>
-              ) : (
-                <div>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-3)' }}>
-                    The questions are tailored to your CV, so upload it first. Then open this
-                    invite link again.
-                  </p>
-                  <Button variant="secondary" icon={<FileText size={16} />} onClick={() => navigate('/upload')}>
-                    Upload your CV
-                  </Button>
-                </div>
-              )}
+              </div>
+
+              <Button size="lg" icon={<ArrowRight size={18} />} onClick={start}>
+                Start the interview
+              </Button>
+            </>
+          ) : (
+            // Applied, but the interview is not open: still under
+            // review, not selected, already done, or not ready. The
+            // server supplies the wording.
+            <>
+              <p role="status" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                {job.applicationStatus === 'INTERVIEWED'
+                  ? <CheckCircle size={18} color="var(--success)" aria-hidden="true" />
+                  : <Clock size={18} color="var(--text-secondary)" aria-hidden="true" />}
+                <span>
+                  <strong>{job.applicationStatusLabel}.</strong>{' '}
+                  <span style={{ color: 'var(--text-secondary)' }}>{job.interviewMessage}</span>
+                </span>
+              </p>
+
+              <Button variant="secondary" onClick={() => navigate('/applications')}>
+                View my applications
+              </Button>
             </>
           )}
         </Card>
@@ -167,3 +164,12 @@ export default function JoinInterview({ user }) {
     </div>
   );
 }
+
+const notice = {
+  display: 'flex',
+  gap: 'var(--space-3)',
+  padding: 'var(--space-4)',
+  borderRadius: 'var(--radius-md)',
+  background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+  marginBottom: 'var(--space-5)',
+};

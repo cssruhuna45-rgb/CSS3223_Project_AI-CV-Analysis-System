@@ -15,10 +15,38 @@ WORKDIR /build
 # a rebuild does not re-download Maven Central.
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
-RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
+
+# Retry dropped downloads rather than failing the image.
+#
+# Maven Central cutting one connection short should not cost the whole
+# build - it did exactly that here, on mockito-core: "Premature end of
+# Content-Length delimited message body (expected: 707,680; received:
+# 442,368)". requestSentEnabled is the part that matters for a
+# truncated response: without it Maven will not retry a request it
+# already sent, which is precisely this case. The pip steps in
+# ai-service/Dockerfile carry the same protection for the same reason.
+ENV MAVEN_HTTP_OPTS="-Dmaven.wagon.http.retryHandler.count=5 \
+    -Dmaven.wagon.http.retryHandler.requestSentEnabled=true \
+    -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
+    -Dmaven.wagon.rto=60000"
+
+RUN chmod +x mvnw && ./mvnw -B -q $MAVEN_HTTP_OPTS dependency:go-offline
 
 COPY src/ src/
-RUN ./mvnw -B -q clean package -DskipTests
+
+# Fail the build if the jar did not come out whole. A full disk once
+# left a zero-byte app.jar in the image, which built and pushed
+# happily and then crash-looped at run time with "Invalid or corrupt
+# jarfile" - a confusing way to find out, and a long way from the
+# cause. Checking here turns that into a build failure instead.
+#
+# jar rather than unzip: it ships with the JDK that is already here,
+# so the check costs no extra package.
+RUN ./mvnw -B -q $MAVEN_HTTP_OPTS clean package -DskipTests \
+    && jarfile=$(ls target/*.jar | head -1) \
+    && test -s "$jarfile" \
+    && jar tf "$jarfile" > /dev/null \
+    && echo "built $(stat -c %s "$jarfile") byte jar"
 
 # ------------------------------------------------------------------
 # Runtime

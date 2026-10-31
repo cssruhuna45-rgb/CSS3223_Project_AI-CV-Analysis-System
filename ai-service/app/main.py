@@ -71,6 +71,8 @@ from app.interview.session_manager import (
     save_session,
     update_interview_state,
     update_weak_answer_streak,
+    is_fixed,
+    next_fixed_question,
 )
 
 
@@ -125,9 +127,13 @@ from app.resume.bullet_tuner import tune_bullet
 from app.skill_gap.schemas import (
     SkillGapRequest,
     SkillGapResponse,
+    SkillMatchRequest,
+    SkillMatchResponse,
 )
 
 from app.skill_gap.analyzer import analyze_skill_gap
+
+from app.skill_gap.matcher import match_candidate_to_job
 
 
 # ============================================================
@@ -139,6 +145,13 @@ from app.roadmap.schemas import (
     RoadmapResponse,
 )
 from app.roadmap.generator import generate_roadmap
+
+
+# ============================================================
+# Recruiter assessment (job question sets)
+# ============================================================
+
+from app.assessment.router import router as assessment_router
 
 
 
@@ -207,6 +220,13 @@ app.add_middleware(
         INTERNAL_API_KEY_HEADER,
     ],
 )
+
+
+# ============================================================
+# ROUTERS
+# ============================================================
+
+app.include_router(assessment_router)
 
 
 # ============================================================
@@ -747,6 +767,17 @@ def generate_interview_question_endpoint(
         # Existing session
         # ----------------------------------------------------
 
+        # A job interview asks its approved questions only; a new one
+        # generated here would let a candidate preview extra material.
+        if session is not None and is_fixed(session):
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "A job interview asks only its approved questions."
+                ),
+            )
+
         if session is not None:
 
             print(
@@ -904,6 +935,10 @@ def generate_interview_question_endpoint(
             reason=question["reason"],
         )
 
+    except HTTPException:
+
+        raise
+
     except ValueError as e:
 
         raise HTTPException(
@@ -981,6 +1016,14 @@ def start_interview_endpoint(
         )
 
     try:
+
+        # ====================================================
+        # JOB INTERVIEW: APPROVED QUESTIONS
+        # ====================================================
+
+        if req.fixed_questions:
+
+            return start_fixed_interview(req)
 
         # ====================================================
         # CREATE SESSION WITH SKILL GAP CONTEXT
@@ -1220,6 +1263,122 @@ def start_interview_endpoint(
 
 
 # ============================================================
+# JOB INTERVIEW (FIXED QUESTIONS)
+#
+# Spring sends a job's approved questions with the start request. The
+# session keeps them, and every response carries only the question
+# being asked now: never its key points, never the questions to come.
+# The CV and skill gap context are not used, so two candidates with
+# different CVs get the same questions in the same order.
+# ============================================================
+
+
+def fixed_question_response(
+    session_id: str,
+    fixed_question: dict,
+) -> InterviewQuestionResponse:
+
+    return InterviewQuestionResponse(
+        session_id=session_id,
+        question=fixed_question["question"],
+        category=fixed_question.get("topic") or "Interview question",
+        difficulty=fixed_question.get("difficulty") or "medium",
+        is_follow_up=False,
+        # The reason a practice question gives would hint at what the
+        # grader looks for, so a job question gives none.
+        reason="",
+    )
+
+
+def start_fixed_interview(
+    req: InterviewStartRequest,
+) -> InterviewStartResponse:
+
+    fixed = [q.model_dump() for q in req.fixed_questions]
+
+    positions = [q["position"] for q in fixed]
+
+    if len(set(positions)) != len(positions):
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fixed questions must have distinct positions.",
+        )
+
+    session = create_session(
+        job_description=req.job_description,
+        job_field=req.job_field or "",
+        fixed_questions=fixed,
+    )
+
+    first = next_fixed_question(session)
+
+    add_question(
+        session.session_id,
+        first["question"],
+        difficulty=first.get("difficulty") or "medium",
+        topic=first.get("topic") or "",
+    )
+
+    print(
+        "[InterviewStart] Job interview session "
+        f"{session.session_id}: {len(fixed)} approved question(s)"
+    )
+
+    return InterviewStartResponse(
+        session_id=session.session_id,
+        question=fixed_question_response(session.session_id, first),
+        total_questions=len(fixed),
+    )
+
+
+def answer_fixed_interview(
+    session,
+    answer: str,
+) -> InterviewAnswerResponse:
+
+    total = len(session.fixed_questions)
+
+    if len(session.answers) >= total:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Every question in this interview has been answered.",
+        )
+
+    session = add_answer(session.session_id, answer)
+
+    following = next_fixed_question(session)
+
+    if following is None:
+
+        print(
+            f"[InterviewAnswer] Job interview {session.session_id}: "
+            "all questions answered"
+        )
+
+        return InterviewAnswerResponse(
+            session_id=session.session_id,
+            question=None,
+            total_questions=total,
+            complete=True,
+        )
+
+    add_question(
+        session.session_id,
+        following["question"],
+        difficulty=following.get("difficulty") or "medium",
+        topic=following.get("topic") or "",
+    )
+
+    return InterviewAnswerResponse(
+        session_id=session.session_id,
+        question=fixed_question_response(session.session_id, following),
+        total_questions=total,
+    )
+
+
+# ============================================================
 # SUBMIT INTERVIEW ANSWER
 # ============================================================
 
@@ -1274,6 +1433,10 @@ def answer_interview_endpoint(
                     "Interview session is not active."
                 ),
             )
+
+        if is_fixed(session):
+
+            return answer_fixed_interview(session, req.answer)
 
         # ====================================================
         # CAPTURE CURRENT STATE
@@ -1834,6 +1997,31 @@ def interview_model_answer_endpoint(
         )
 
     # --------------------------------------------------------
+    # Not during a job interview
+    #
+    # An expected answer while the exam is running would hand the
+    # candidate the material they are being graded on. Spring refuses
+    # these first; this is the second check, on the live session.
+    # --------------------------------------------------------
+
+    if req.session_id:
+
+        try:
+            live = get_session(req.session_id)
+        except ValueError:
+            live = None
+
+        if live is not None and is_fixed(live) and live.status == "active":
+
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Expected answers are not available during a job "
+                    "interview."
+                ),
+            )
+
+    # --------------------------------------------------------
     # Job field
     #
     # Taken from the session when the caller did not send one, so
@@ -1953,10 +2141,24 @@ def finish_interview_endpoint(
         # candidate still reaches their scorecard.
         # ----------------------------------------------------
 
+        # A job interview is graded against the key points approved
+        # with each question, in the order they were asked.
+        fixed = finished_session.fixed_questions if is_fixed(finished_session) else None
+
         evaluation = evaluate_interview(
             questions=finished_session.questions,
             answers=finished_session.answers,
             job_field=finished_session.job_field,
+            key_points=(
+                [q.get("key_points") or [] for q in fixed]
+                if fixed is not None
+                else None
+            ),
+            question_ids=(
+                [q.get("question_id") for q in fixed]
+                if fixed is not None
+                else None
+            ),
         )
 
         finished_session.evaluation = evaluation
@@ -2102,6 +2304,57 @@ def tune_bullet_endpoint(
             ),
             detail=f"Bullet rewrite failed: {str(e)}",
         )
+
+
+# ============================================================
+# SKILL MATCH (one job's required skills)
+#
+# Deterministic set arithmetic, no model and no Gemini key needed.
+# Spring calls this once per application, when it is submitted, and
+# stores the result; opening an applicant list never comes back here.
+# ============================================================
+
+
+@app.post(
+    "/api/v1/skill-gap/match",
+    response_model=SkillMatchResponse,
+    tags=["Skill Gap Analysis"],
+)
+def match_skills_endpoint(
+    req: SkillMatchRequest,
+):
+    """
+    Score a candidate's stored CV skills against the skills a
+    recruiter put on their job.
+
+    The percentage is decision support. It must never be used to
+    shortlist or reject a candidate automatically.
+    """
+
+    try:
+
+        result = match_candidate_to_job(
+            required_skills=req.required_skills,
+            candidate_skills=req.candidate_skills,
+        )
+
+    except ValueError as e:
+
+        # A job with no usable required skills. Not a server fault:
+        # the job is not ready for applications yet.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    print(
+        "[SkillMatchAPI] "
+        f"{result['match_percentage']}% "
+        f"({len(result['matched_skills'])}"
+        f"/{result['required_skill_count']} required skills)"
+    )
+
+    return result
 
 
 # ============================================================

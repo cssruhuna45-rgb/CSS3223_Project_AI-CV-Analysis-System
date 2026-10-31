@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -67,6 +68,51 @@ public interface InterviewSessionRepository
             Long userId,
             Long jobPostingId,
             String status
+    );
+
+    /**
+     * Whether this user has a job interview that is still running -
+     * started or answered since {@code since}. Expected answers are
+     * refused while one is, so they cannot be read during the exam.
+     */
+    boolean existsByUserIdAndJobPostingIsNotNullAndStatusAndUpdatedAtAfter(
+            Long userId,
+            String status,
+            LocalDateTime since
+    );
+
+    /**
+     * The one interview attempt made for an application, whatever
+     * state it is in (V11).
+     *
+     * <p>At most one row can match: a unique index covers
+     * {@code job_application_id}. That is what makes a double-clicked
+     * start safe - the second request finds this attempt and resumes or
+     * is refused, instead of giving the candidate a second go.
+     */
+    Optional<InterviewSession> findByJobApplicationId(Long applicationId);
+
+    /**
+     * The completed attempts for one of a recruiter's jobs, with the
+     * candidate, the application and the transcript loaded: everything
+     * the comparison page reads.
+     *
+     * <p>Scoped by recruiter as well as job, so another recruiter's job
+     * id returns nothing rather than their candidates' answers. Only
+     * sessions that belong to an application appear, so an interview
+     * taken through an invite code before applications existed is not
+     * mixed into a comparison it was never part of.
+     */
+    @Query("SELECT DISTINCT s FROM InterviewSession s "
+            + "JOIN FETCH s.jobApplication a "
+            + "JOIN FETCH a.candidate "
+            + "WHERE s.jobPosting.id = :jobId "
+            + "AND s.jobPosting.recruiter.id = :recruiterId "
+            + "AND s.status = 'completed' "
+            + "ORDER BY s.completedAt ASC")
+    List<InterviewSession> findCompletedForRecruiterJob(
+            @Param("jobId") Long jobId,
+            @Param("recruiterId") Long recruiterId
     );
 
     /**

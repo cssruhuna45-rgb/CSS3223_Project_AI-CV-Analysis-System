@@ -35,9 +35,32 @@ public interface JobPostingService {
      * one, the code is checked and the job description, job field and
      * mode are replaced with the job's own, so a candidate cannot be
      * interviewed against an easier text while their result is filed
-     * under this job.
+     * under this job. The job's approved questions are added as
+     * {@code fixed_questions} and the CV fields are emptied, so every
+     * candidate is asked the same questions. A job whose questions are
+     * not approved is refused as not ready. Without a code, any
+     * {@code fixed_questions} the browser sent are removed.
+     *
+     * <p>Since V11 a valid code is not enough on its own: it identifies
+     * the job, and
+     * {@link InterviewEligibilityService#requireEligibleApplication}
+     * then decides whether this candidate may sit the interview - they
+     * need their own application for the job, shortlisted by the
+     * recruiter, with their one attempt unused. This is the only place
+     * a job interview can be started from, so there is no second route
+     * that skips the check.
      */
     JsonNode applyInvite(String candidateEmail, JsonNode startRequest);
+
+    /**
+     * Refuses an expected-answer request made while the user is sitting
+     * a job interview: for that interview's session, or for any while
+     * one of theirs is still running.
+     *
+     * @throws com.aiinterview.exception.UnauthorizedAccessException when
+     *         a job interview is in progress
+     */
+    void requireNoJobInterviewInProgress(String userEmail, JsonNode modelAnswerRequest);
 
     /** Normalised form of what a person typed, or empty if it cannot be a code. */
     Optional<String> normalizeCode(String raw);

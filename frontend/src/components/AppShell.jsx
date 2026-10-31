@@ -302,5 +302,7 @@ function pageTitleFor(pathname) {
   if (pathname.startsWith('/skill-gap')) return 'Skill Gap';
   if (pathname.startsWith('/interview')) return 'Interview';
   if (pathname.startsWith('/design-system')) return 'Design System';
+  // Reached from an invite link rather than the sidebar.
+  if (pathname.startsWith('/apply')) return 'Apply for a Job';
   return 'Workspace';
 }

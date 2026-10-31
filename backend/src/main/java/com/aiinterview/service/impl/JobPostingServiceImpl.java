@@ -4,17 +4,21 @@ import com.aiinterview.dto.JobInviteDto;
 import com.aiinterview.dto.JobPostingDto;
 import com.aiinterview.dto.JobPostingRequestDto;
 import com.aiinterview.entity.InterviewSession;
+import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
-import com.aiinterview.entity.Role;
 import com.aiinterview.entity.User;
 import com.aiinterview.exception.BadRequestException;
-import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.ResourceNotFoundException;
+import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.UserRepository;
+import com.aiinterview.service.InterviewEligibilityService;
 import com.aiinterview.service.JobPostingService;
+import com.aiinterview.service.JobQuestionService;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -23,6 +27,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,11 +59,34 @@ public class JobPostingServiceImpl implements JobPostingService {
     private static final String INVALID_CODE =
             "This invite code is not valid, or the job is no longer taking candidates.";
 
+    private static final String NO_ANSWERS_DURING_EXAM =
+            "Expected answers are not available while a job interview is in progress.";
+
+    /**
+     * How long an unfinished job interview keeps expected answers
+     * blocked after its last activity. Matches the AI service's idle
+     * session TTL (SESSION_IDLE_TTL_SECONDS, 6 hours): after that the
+     * interview cannot be continued anyway, and an abandoned one must
+     * not block practice for good.
+     */
+    private static final Duration JOB_INTERVIEW_IDLE_LIMIT = Duration.ofHours(6);
+
+    /** The AI service's start field for a job's approved questions. */
+    private static final String FIXED_QUESTIONS = "fixed_questions";
+
+    /** CV-derived start fields a job interview must not carry. */
+    private static final List<String> SKILL_GAP_FIELDS = List.of(
+            "matched_skills", "related_skills", "missing_skills", "additional_skills"
+    );
+
     private final SecureRandom random = new SecureRandom();
 
     private final JobPostingRepository jobPostingRepository;
     private final InterviewSessionRepository interviewSessionRepository;
+    private final JobApplicationRepository jobApplicationRepository;
     private final UserRepository userRepository;
+    private final JobQuestionService jobQuestionService;
+    private final InterviewEligibilityService interviewEligibilityService;
 
     // ========================================================
     // Recruiter
@@ -76,6 +106,16 @@ public class JobPostingServiceImpl implements JobPostingService {
 
         String company = request.getCompany() == null ? "" : request.getCompany().trim();
 
+        List<String> skills = JobAssessmentRules.normalizeSkills(request.getRequiredSkills());
+
+        if (skills.isEmpty()) {
+            throw new BadRequestException("List at least one required skill.");
+        }
+
+        if (!JobAssessmentRules.isValidQuestionCount(request.getQuestionCount())) {
+            throw new BadRequestException("Choose between 5 and 10 questions.");
+        }
+
         JobPosting job = JobPosting.builder()
                 .recruiter(recruiter)
                 .title(request.getTitle().trim())
@@ -84,6 +124,8 @@ public class JobPostingServiceImpl implements JobPostingService {
                 .jobDescription(request.getJobDescription().trim())
                 .inviteCode(newInviteCode())
                 .open(true)
+                .requiredSkills(new ArrayList<>(skills))
+                .questionCount(request.getQuestionCount())
                 .build();
 
         JobPosting saved = jobPostingRepository.save(job);
@@ -108,11 +150,23 @@ public class JobPostingServiceImpl implements JobPostingService {
             );
         }
 
+        // Applications per job, so the jobs list can show how much
+        // reviewing is outstanding without a query per job.
+        Map<Long, long[]> applications = new HashMap<>();
+
+        for (Object[] row : jobApplicationRepository.countByJobForRecruiter(recruiter.getId())) {
+            applications.put(
+                    (Long) row[0],
+                    new long[]{toLong(row[1]), toLong(row[2]), toLong(row[3])}
+            );
+        }
+
         return jobPostingRepository.findByRecruiterIdOrderByCreatedAtDesc(recruiter.getId())
                 .stream()
                 .map(job -> {
                     long[] c = counts.getOrDefault(job.getId(), new long[]{0, 0});
-                    return JobPostingDto.from(job, c[0], c[1]);
+                    long[] a = applications.getOrDefault(job.getId(), new long[]{0, 0, 0});
+                    return JobPostingDto.from(job, c[0], c[1], a[0], a[1], a[2]);
                 })
                 .toList();
     }
@@ -144,14 +198,38 @@ public class JobPostingServiceImpl implements JobPostingService {
         User candidate = user(candidateEmail);
         JobPosting job = openJob(inviteCode);
 
+        // This candidate's own application, if they have one. What
+        // decides whether the page offers the application form, a
+        // status, or the interview itself.
+        JobApplication application = jobApplicationRepository
+                .findByJobPostingIdAndCandidateId(job.getId(), candidate.getId())
+                .orElse(null);
+
+        InterviewEligibilityService.InterviewAccess access = application == null
+                ? null
+                : interviewEligibilityService.describeAccess(application);
+
         return JobInviteDto.builder()
+                .jobId(job.getId())
                 .inviteCode(job.getInviteCode())
                 .title(job.getTitle())
                 .company(job.getCompany())
                 .jobField(job.getJobField())
                 .jobDescription(job.getJobDescription())
+                .requiredSkills(List.copyOf(job.getRequiredSkills()))
                 .recruiterName(job.getRecruiter().getName())
                 .alreadyCompleted(alreadyCompleted(candidate, job))
+                .interviewReady(job.isQuestionsApproved())
+                .questionCount(job.getQuestionCount())
+                .applicationId(application == null ? null : application.getId())
+                .applicationStatus(
+                        application == null ? null : application.getStatus().name()
+                )
+                .applicationStatusLabel(
+                        application == null ? null : application.getStatus().getLabel()
+                )
+                .interviewAvailable(access != null && access.available())
+                .interviewMessage(access == null ? null : access.message())
                 .build();
     }
 
@@ -166,24 +244,32 @@ public class JobPostingServiceImpl implements JobPostingService {
         JsonNode rawCode = startRequest.get("invite_code");
 
         if (rawCode == null || rawCode.isNull() || rawCode.asText().isBlank()) {
+            // A fixed question set only ever comes from a job's approved
+            // questions, added below. One sent by the browser is dropped.
+            if (startRequest.has(FIXED_QUESTIONS)) {
+                ObjectNode practice = ((ObjectNode) startRequest).deepCopy();
+                practice.remove(FIXED_QUESTIONS);
+                return practice;
+            }
             return startRequest;
         }
 
         User candidate = user(candidateEmail);
 
-        // Recruiters and administrators do not sit interviews; letting
-        // them would put their own rows into a recruiter's results.
-        if (candidate.getRole() != Role.CANDIDATE) {
-            throw new BadRequestException("Only candidate accounts can take a job interview.");
-        }
-
         JobPosting job = openJob(rawCode.asText());
 
-        if (alreadyCompleted(candidate, job)) {
-            throw new ConflictException(
-                    "You have already completed the interview for this job."
-            );
-        }
+        // Every condition for sitting this interview, checked server
+        // side from the database: a candidate account, their own
+        // application for this job, shortlisted, the job open, its
+        // questions approved, and the one attempt unused. An invite
+        // code is no longer enough on its own - it only identifies the
+        // job. This also covers the account type, which used to be
+        // checked here.
+        interviewEligibilityService.requireEligibleApplication(candidate, job);
+
+        // The approved questions, in order. Refused (409) while the job
+        // has none approved, so its interview shows as not ready.
+        ArrayNode fixedQuestions = jobQuestionService.fixedQuestionsPayload(job);
 
         ObjectNode forwarded = ((ObjectNode) startRequest).deepCopy();
 
@@ -197,7 +283,45 @@ public class JobPostingServiceImpl implements JobPostingService {
         // rewritten after reading the model answer.
         forwarded.put("mode", InterviewSession.MODE_EXAM);
 
+        // Every candidate gets the same questions, so nothing from this
+        // candidate's CV goes to the AI service with them.
+        forwarded.set(FIXED_QUESTIONS, fixedQuestions);
+        forwarded.put("candidate_resume", "");
+
+        for (String field : SKILL_GAP_FIELDS) {
+            forwarded.putArray(field);
+        }
+
         return forwarded;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void requireNoJobInterviewInProgress(String userEmail, JsonNode modelAnswerRequest) {
+
+        JsonNode rawSession = modelAnswerRequest == null ? null : modelAnswerRequest.get("session_id");
+        String sessionId = rawSession == null || rawSession.isNull() ? "" : rawSession.asText().trim();
+
+        if (!sessionId.isEmpty()) {
+            boolean jobInterviewRunning = interviewSessionRepository.findBySessionId(sessionId)
+                    .filter(s -> s.getJobPosting() != null && !s.isCompleted())
+                    .isPresent();
+
+            if (jobInterviewRunning) {
+                throw new UnauthorizedAccessException(NO_ANSWERS_DURING_EXAM);
+            }
+        }
+
+        // Without a session id the request could still be for a question
+        // on screen in a job interview, so any running one blocks it.
+        User user = user(userEmail);
+
+        if (interviewSessionRepository.existsByUserIdAndJobPostingIsNotNullAndStatusAndUpdatedAtAfter(
+                user.getId(),
+                InterviewSession.STATUS_ACTIVE,
+                LocalDateTime.now().minus(JOB_INTERVIEW_IDLE_LIMIT))) {
+            throw new UnauthorizedAccessException(NO_ANSWERS_DURING_EXAM);
+        }
     }
 
     @Override

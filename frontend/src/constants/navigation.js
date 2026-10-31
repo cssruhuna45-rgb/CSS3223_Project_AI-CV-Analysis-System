@@ -5,13 +5,16 @@
 // and neither can offer a page the signed-in account is not allowed
 // to open.
 //
-// Every entry here is a route that already exists in App.jsx. Two
+// Every entry here is a route that already exists in App.jsx. Some
 // candidate routes are deliberately absent:
 //
 //   /skill-gap and /interview are reached through the StepBar once
 //   their prerequisites are met. Listing them as ordinary links would
 //   invite people to open an interview with no CV analysed behind it,
 //   which the page then has to refuse.
+//
+//   /apply/:code needs an invite code, so it is reached from the invite
+//   link or from Apply for a Job. A bare link to it could not work.
 //
 // Keep this in step with the route table in App.jsx and the guards in
 // constants/accounts.js.
@@ -26,6 +29,9 @@ import {
   Briefcase,
   ShieldCheck,
   Clock,
+  Send,
+  Users,
+  BarChart3,
 } from 'lucide-react';
 
 import { isApprovedRecruiter } from './accounts';
@@ -62,8 +68,14 @@ const CANDIDATE_NAV = [
     description: 'Completed interview evaluations',
   },
   {
+    path: '/applications',
+    label: 'My Applications',
+    icon: Send,
+    description: 'Jobs you applied for and what the recruiter decided',
+  },
+  {
     path: '/join',
-    label: 'Join Interview',
+    label: 'Apply for a Job',
     icon: Ticket,
     description: 'Open a recruiter invitation code',
   },
@@ -81,6 +93,18 @@ const RECRUITER_NAV = [
     label: 'Jobs',
     icon: Briefcase,
     description: 'Create jobs and copy invitation links',
+  },
+  {
+    path: '/applicants',
+    label: 'Applicants',
+    icon: Users,
+    description: 'Review who applied and shortlist or reject them',
+  },
+  {
+    path: '/comparison',
+    label: 'Compare Results',
+    icon: BarChart3,
+    description: 'Completed assessments for one job, side by side',
   },
 ];
 

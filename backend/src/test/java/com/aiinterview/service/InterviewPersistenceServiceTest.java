@@ -5,7 +5,10 @@ import com.aiinterview.entity.InterviewTurn;
 import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
+import com.aiinterview.entity.ApplicationStatus;
+import com.aiinterview.entity.JobApplication;
 import com.aiinterview.repository.InterviewSessionRepository;
+import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
@@ -63,6 +66,9 @@ class InterviewPersistenceServiceTest {
     @Mock
     private JobPostingRepository jobPostingRepository;
 
+    @Mock
+    private JobApplicationRepository jobApplicationRepository;
+
     private InterviewPersistenceServiceImpl persistenceService;
 
     private User user;
@@ -77,6 +83,7 @@ class InterviewPersistenceServiceTest {
                 userRepository,
                 resumeRepository,
                 jobPostingRepository,
+                jobApplicationRepository,
                 objectMapper
         );
 
@@ -612,6 +619,33 @@ class InterviewPersistenceServiceTest {
     }
 
     @Test
+    @DisplayName("A job interview's last answer (question: null) adds no empty turn")
+    void lastJobAnswerAddsNoTurn() {
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordAnswer(
+                EMAIL,
+                json("""
+                        {"session_id": "sess-abc123", "answer": "The last answer."}
+                        """),
+                json("""
+                        {"session_id": "sess-abc123", "question": null,
+                         "total_questions": 1, "complete": true}
+                        """)
+        );
+
+        InterviewSession saved = captureSaved();
+
+        assertEquals(1, saved.getTurns().size());
+        assertEquals("The last answer.", saved.getTurns().get(0).getAnswer());
+        assertEquals(1, saved.getQuestionCount());
+    }
+
+    @Test
     @DisplayName("An interview that was never stored is skipped, not created mid-flight")
     void answerForUnknownSessionIsSkipped() {
 
@@ -652,5 +686,162 @@ class InterviewPersistenceServiceTest {
                 .build());
 
         return session;
+    }
+
+    // ========================================================
+    // Applications (V11)
+    //
+    // An attempt belongs to the candidate's application for the job,
+    // and finishing it moves that application to INTERVIEWED.
+    // ========================================================
+
+    @Test
+    @DisplayName("a job interview is linked to the candidate's own application")
+    void recordStartLinksApplication() {
+
+        JobPosting job = JobPosting.builder().id(5L).inviteCode("ABCD-EF23").build();
+
+        JobApplication application = JobApplication.builder()
+                .id(77L)
+                .jobPosting(job)
+                .candidate(user)
+                .status(ApplicationStatus.SHORTLISTED)
+                .build();
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        when(jobPostingRepository.findByInviteCode("ABCD-EF23"))
+                .thenReturn(Optional.of(job));
+
+        // Resolved from (job, candidate); the request never names it.
+        when(jobApplicationRepository.findByJobPostingIdAndCandidateId(5L, 7L))
+                .thenReturn(Optional.of(application));
+
+        persistenceService.recordStart(
+                EMAIL,
+                json("""
+                        {"job_description": "Backend engineer", "invite_code": "ABCD-EF23", "mode": "exam"}
+                        """),
+                json("""
+                        {"session_id": "sess-abc123", "question": {"question": "Q1"}}
+                        """)
+        );
+
+        assertEquals(application, captureSaved().getJobApplication());
+    }
+
+    @Test
+    @DisplayName("a practice interview has no application behind it")
+    void practiceHasNoApplication() {
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        persistenceService.recordStart(
+                EMAIL,
+                json("""
+                        {"job_description": "Backend engineer", "mode": "practice"}
+                        """),
+                json("""
+                        {"session_id": "sess-abc123", "question": {"question": "Q1"}}
+                        """)
+        );
+
+        assertNull(captureSaved().getJobApplication());
+    }
+
+    @Test
+    @DisplayName("finishing a job interview marks the application interviewed")
+    void recordFinishMarksApplicationInterviewed() {
+
+        JobApplication application = JobApplication.builder()
+                .id(77L)
+                .candidate(user)
+                .status(ApplicationStatus.SHORTLISTED)
+                .build();
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+        session.setJobApplication(application);
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordFinish(
+                EMAIL,
+                json("{\"session_id\": \"sess-abc123\"}"),
+                json("""
+                        {"session_id": "sess-abc123", "status": "completed",
+                         "overall_score": 71, "evaluated": true}
+                        """)
+        );
+
+        assertEquals(ApplicationStatus.INTERVIEWED, application.getStatus());
+        assertNotNull(application.getInterviewCompletedAt());
+        verify(jobApplicationRepository).save(application);
+    }
+
+    @Test
+    @DisplayName("a repeated finish does not touch the application again")
+    void repeatedFinishIsIdempotentForTheApplication() {
+
+        JobApplication application = JobApplication.builder()
+                .id(77L)
+                .candidate(user)
+                .status(ApplicationStatus.INTERVIEWED)
+                .build();
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+        session.setStatus(InterviewSession.STATUS_COMPLETED);
+        session.setJobApplication(application);
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordFinish(
+                EMAIL,
+                json("{\"session_id\": \"sess-abc123\"}"),
+                json("""
+                        {"session_id": "sess-abc123", "status": "completed",
+                         "overall_score": 71, "evaluated": true}
+                        """)
+        );
+
+        // The already-completed guard returned before anything was
+        // written, so neither row was saved a second time.
+        verify(interviewSessionRepository, never()).save(any(InterviewSession.class));
+        verify(jobApplicationRepository, never()).save(any(JobApplication.class));
+    }
+
+    @Test
+    @DisplayName("a rejected application is not overwritten by a finishing interview")
+    void rejectedApplicationIsLeftAlone() {
+
+        JobApplication application = JobApplication.builder()
+                .id(77L)
+                .candidate(user)
+                .status(ApplicationStatus.REJECTED)
+                .build();
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+        session.setJobApplication(application);
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        persistenceService.recordFinish(
+                EMAIL,
+                json("{\"session_id\": \"sess-abc123\"}"),
+                json("""
+                        {"session_id": "sess-abc123", "status": "completed",
+                         "overall_score": 71, "evaluated": true}
+                        """)
+        );
+
+        // The result is still kept - it is the candidate's work - but
+        // the recruiter's decision stands.
+        assertEquals(ApplicationStatus.REJECTED, application.getStatus());
+        assertEquals(InterviewSession.STATUS_COMPLETED, captureSaved().getStatus());
+        verify(jobApplicationRepository, never()).save(any(JobApplication.class));
     }
 }
