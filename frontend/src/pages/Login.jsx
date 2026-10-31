@@ -1,6 +1,6 @@
 import { useToast } from '../components/ToastProvider';
 import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import { authAPI } from '../services/api';
@@ -82,6 +82,8 @@ export default function Login({ onLogin }) {
                 </button>
               </div>
             </div>
+
+            <Link to="/forgot-password" state={{ email: form.email }} style={{ color: 'var(--accent-cyan)', alignSelf: 'flex-end', fontSize: 'var(--fs-sm)' }}>Forgot password?</Link>
 
             {error && (
               <div style={{

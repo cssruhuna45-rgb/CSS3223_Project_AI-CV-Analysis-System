@@ -10,6 +10,7 @@ import Landing from './pages/Landing';
 import Home from './pages/Home';
 import CandidateHome from './pages/CandidateHome';
 import Login from './pages/Login';
+import PasswordRecovery from './pages/PasswordRecovery';
 import Register from './pages/Register';
 import CVUpload from './pages/CVUpload';
 import InterviewRoom from './pages/InterviewRoom';
@@ -152,6 +153,8 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
+            <Route path="/forgot-password" element={<PasswordRecovery key="forgot" />} />
+            <Route path="/reset-password" element={<PasswordRecovery key="reset" reset onReset={() => setUser(null)} />} />
             <Route path="/register" element={<Register onLogin={setUser} />} />
             {/* Two candidate entry points. /home is the branded front
                 door; /dashboard is the workspace that carries the live

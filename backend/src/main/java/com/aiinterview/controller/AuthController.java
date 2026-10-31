@@ -19,6 +19,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.aiinterview.service.PasswordRecoveryService passwordRecovery;
+
+    @PostMapping("/forgot-password")
+    public java.util.Map<String, String> forgotPassword(
+            @Valid @RequestBody com.aiinterview.dto.ForgotPasswordRequest request) {
+        passwordRecovery.requestReset(request.email());
+        return java.util.Map.of("message", "If an active account exists for that email, a password reset link will be sent. Check your inbox and spam folder.");
+    }
+
+    @PostMapping("/reset-password")
+    public java.util.Map<String, String> resetPassword(
+            @Valid @RequestBody com.aiinterview.dto.ResetPasswordRequest request) {
+        passwordRecovery.reset(request.token(), request.password());
+        return java.util.Map.of("message", "Your password has been reset. Sign in with your new password.");
+    }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
