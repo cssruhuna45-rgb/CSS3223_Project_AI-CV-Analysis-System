@@ -21,7 +21,7 @@ class PasswordResetSessionTest {
         var users = mock(UserRepository.class);
         var account = User.builder().email("person@example.com").password("hash").build();
         when(users.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
-        when(details.loadUserByUsername(account.getEmail())).thenReturn(
+        when(details.toUserDetails(account)).thenReturn(
                 org.springframework.security.core.userdetails.User.withUsername(account.getEmail())
                         .password("hash").roles("CANDIDATE").build());
         var filter = new JwtAuthenticationFilter(jwt, details, users);
@@ -37,6 +37,10 @@ class PasswordResetSessionTest {
             request.addHeader("Authorization", "Bearer " + jwt.generateToken(account.getEmail(), 1L));
             filter.doFilter(request, new MockHttpServletResponse(), (req, res) -> {});
             assertNotNull(SecurityContextHolder.getContext().getAuthentication());
+
+            // One database read per request, not two.
+            verify(users, times(2)).findByEmail(account.getEmail());
+            verify(details, never()).loadUserByUsername(any());
         } finally {
             SecurityContextHolder.clearContext();
         }

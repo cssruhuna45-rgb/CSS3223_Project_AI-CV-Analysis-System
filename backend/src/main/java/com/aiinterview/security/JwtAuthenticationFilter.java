@@ -42,8 +42,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             userEmail = jwtService.extractUsername(jwt);
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                // One read of the account serves both the authorities
+                // and the active / password-changed checks below.
                 var account = users.findByEmail(userEmail).orElse(null);
+                UserDetails userDetails = account == null ? null : this.userDetailsService.toUserDetails(account);
                 var issuedAt = jwtService.extractClaim(jwt, io.jsonwebtoken.Claims::getIssuedAt);
                 var issuedAtMillis = jwtService.extractClaim(jwt, claims -> claims.get("issuedAtMillis", Long.class));
                 var issuedInstant = issuedAtMillis != null ? java.time.Instant.ofEpochMilli(issuedAtMillis)
