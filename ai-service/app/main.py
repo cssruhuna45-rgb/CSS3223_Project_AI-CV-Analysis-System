@@ -53,6 +53,8 @@ from app.interview.schemas import (
     InterviewAnswerResponse,
     InterviewFinishRequest,
     InterviewFinishResponse,
+    InterviewResumeRequest,
+    InterviewResumeResponse,
     ModelAnswerRequest,
     ModelAnswerResponse,
 )
@@ -73,6 +75,7 @@ from app.interview.session_manager import (
     update_weak_answer_streak,
     is_fixed,
     next_fixed_question,
+    restore_fixed_session,
 )
 
 
@@ -1376,6 +1379,119 @@ def answer_fixed_interview(
         question=fixed_question_response(session.session_id, following),
         total_questions=total,
     )
+
+
+# ============================================================
+# RESUME A JOB INTERVIEW
+#
+# A reload used to end a job interview for good: the page kept the
+# session only in memory, and starting again was refused because the
+# one attempt was already under way. Spring now calls this instead,
+# after checking the session belongs to the candidate.
+#
+# The live session is used when it is still in the store. When it has
+# expired it is rebuilt from what Spring sent, which is enough because
+# a job interview's questions are fixed. Either way the response
+# carries only the question on screen, as start and answer do.
+# ============================================================
+
+
+@app.post(
+    "/api/v1/interview/resume",
+    response_model=InterviewResumeResponse,
+    tags=["Interview Session"],
+)
+def resume_interview_endpoint(
+    req: InterviewResumeRequest,
+):
+    """
+    Continue a job interview where the candidate left it.
+    """
+
+    try:
+
+        restored = False
+
+        try:
+            session = get_session(req.session_id)
+        except ValueError:
+            session = None
+
+        if session is None:
+
+            session = restore_fixed_session(
+                session_id=req.session_id,
+                job_description=req.job_description,
+                job_field=req.job_field or "",
+                fixed_questions=[q.model_dump() for q in req.fixed_questions],
+                answers=req.answers,
+            )
+
+            restored = True
+
+        elif not is_fixed(session):
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only a job interview can be resumed.",
+            )
+
+        # A live session is trusted over Spring's answers: it is what
+        # the interview is graded from, and Spring's copy can only lag
+        # behind it, never run ahead.
+        current = (
+            None
+            if session.status == "completed"
+            else next_fixed_question(session)
+        )
+
+        print(
+            f"[InterviewResume] Session {session.session_id}: "
+            f"{len(session.answers)} of {len(session.fixed_questions)} "
+            f"answered{' (restored)' if restored else ''}"
+        )
+
+        return InterviewResumeResponse(
+            session_id=session.session_id,
+            question=(
+                None
+                if current is None
+                else fixed_question_response(session.session_id, current)
+            ),
+            answered=len(session.answers),
+            total_questions=len(session.fixed_questions),
+            # Also true for a session already graded here but not yet
+            # recorded by Spring: the page calls finish, which returns
+            # the cached scorecard, and Spring records it then.
+            complete=current is None,
+            restored=restored,
+        )
+
+    except HTTPException:
+
+        raise
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except Exception as e:
+
+        print(
+            f"[InterviewResume] Error: {e}"
+        )
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=(
+                f"Interview resume failed: {str(e)}"
+            ),
+        )
 
 
 # ============================================================

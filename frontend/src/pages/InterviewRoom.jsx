@@ -1,6 +1,6 @@
 import { useToast } from '../components/ToastProvider';
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Mic,
   MicOff,
@@ -98,20 +98,29 @@ const getStoredJson = (key) => {
 export default function InterviewRoom() {
   const notify = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // ==========================================================
   // STATE
   // ==========================================================
 
+  // A job interview to continue rather than start: ?resume=<session>.
+  // Put in the address once a job interview starts, so a reload comes
+  // back to it, and used by My applications' Resume button. Read once.
+  const [resumeId] = useState(
+    () => new URLSearchParams(location.search).get('resume')
+  );
+
   // Set by the join page when the candidate accepted a recruiter's
   // invite code: { code, title, company, jobField }. Read once, so it
-  // survives being cleared from sessionStorage after the start.
-  const [jobInvite] = useState(() => getStoredJson('jobInvite'));
+  // survives being cleared from sessionStorage after the start. A
+  // resumed interview fills in the title and company from the server.
+  const [jobInvite, setJobInvite] = useState(() => (resumeId ? null : getStoredJson('jobInvite')));
 
   // 'practice' or 'exam'. Null until the candidate chooses; the
   // interview does not start before that. A job interview is always an
   // exam - the server enforces it - so there is no choice to make.
-  const [mode, setMode] = useState(() => (getStoredJson('jobInvite') ? 'exam' : null));
+  const [mode, setMode] = useState(() => (resumeId || getStoredJson('jobInvite') ? 'exam' : null));
   const [pendingMode, setPendingMode] = useState('practice');
   const isExam = mode === 'exam';
 
@@ -476,6 +485,16 @@ export default function InterviewRoom() {
         // job and shown to its recruiter.
         sessionStorage.removeItem('jobInvite');
 
+        // A job interview has one attempt, so a reload must come back
+        // to this one. The address carries it rather than storage, so
+        // opening the interview page afresh still starts a practice.
+        if (jobInvite) {
+          navigate(
+            `/interview?resume=${encodeURIComponent(newSessionId)}`,
+            { replace: true }
+          );
+        }
+
         // Store session ID
         sessionStorage.setItem(
           'sessionId',
@@ -513,7 +532,66 @@ export default function InterviewRoom() {
       }
     };
 
-    startInterview();
+    // A job interview already under way. The server sends back the
+    // question the candidate was on; a fresh start would be refused,
+    // because the one attempt is already in use.
+    const resumeInterview = async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        const data = await interviewAPI.resume(resumeId);
+
+        console.log(
+          '[Frontend] Resume response:',
+          data
+        );
+
+        setSessionId(data.session_id);
+        setJobInvite({ title: data.job_title, company: data.company });
+
+        if (Number.isInteger(data?.total_questions) && data.total_questions > 0) {
+          setTotalQuestions(data.total_questions);
+        }
+
+        setQIndex(data.answered || 0);
+
+        // Every answer is in; only the grading was interrupted.
+        if (data.complete) {
+          await finishAndShowScorecard(data.session_id);
+          return;
+        }
+
+        // The reload took the candidate off the page, so it is counted
+        // with this answer as switching tab would be. The question's
+        // clock starts again, and the recruiter can see why.
+        integrityRef.current.leftPage = 1;
+
+        setQuestion(data?.question?.question || '');
+
+      } catch (err) {
+        console.error(
+          '[Frontend] Resume interview error:',
+          err
+        );
+
+        setIsFinishing(false);
+
+        setError(
+          err?.message ||
+          'Could not resume the interview.'
+        );
+
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (resumeId) {
+      resumeInterview();
+    } else {
+      startInterview();
+    }
 
   // Runs once a mode is chosen; the ref keeps a re-render from
   // starting a second interview.
@@ -1095,6 +1173,42 @@ export default function InterviewRoom() {
     integrityRef.current.pastedChars += pasted.length;
   };
 
+  // Grades the interview and opens its scorecard. Called after the
+  // last answer, and by a resumed job interview whose answers were all
+  // in before the reload. Failures go to the caller.
+  const finishAndShowScorecard = async (id) => {
+    setIsFinishing(true);
+    setFinishStep(2);
+
+    // Finish interview and grade with AI RAG
+    const finishData =
+      await interviewAPI.finish(
+        id
+      );
+
+    console.log(
+      '[Frontend] Interview finished successfully:',
+      finishData
+    );
+
+    setFinishStep(3);
+
+    // Store session ID and result in sessionStorage as fallback
+    sessionStorage.setItem('sessionId', id);
+    sessionStorage.setItem('interviewResult', JSON.stringify(finishData));
+
+    setFinishStep(4);
+
+    // Redirect with session ID param in URL so the scorecard is permanent
+    setTimeout(() => {
+      notify(finishData.evaluated === false || finishData.evaluation_error
+        ? 'Interview submitted, but evaluation could not be completed.'
+        : 'Interview completed—your results are ready.',
+        finishData.evaluated === false || finishData.evaluation_error ? 'warning' : 'success');
+      navigate(`/scorecard?session=${encodeURIComponent(id)}`);
+    }, 600);
+  };
+
   // override: the text to send instead of the answer box, used when the
   // exam clock runs out. Callers pass nothing, never a click event.
   const handleSubmit = async (override) => {
@@ -1173,35 +1287,7 @@ export default function InterviewRoom() {
         );
         resetIntegrity();
 
-        setFinishStep(2);
-
-        // Finish interview and grade with AI RAG
-        const finishData =
-          await interviewAPI.finish(
-            sessionId
-          );
-
-        console.log(
-          '[Frontend] Interview finished successfully:',
-          finishData
-        );
-
-        setFinishStep(3);
-
-        // Store session ID and result in sessionStorage as fallback
-        sessionStorage.setItem('sessionId', sessionId);
-        sessionStorage.setItem('interviewResult', JSON.stringify(finishData));
-
-        setFinishStep(4);
-
-        // Redirect with session ID param in URL so the scorecard is permanent
-        setTimeout(() => {
-          notify(finishData.evaluated === false || finishData.evaluation_error
-            ? 'Interview submitted, but evaluation could not be completed.'
-            : 'Interview completed—your results are ready.',
-            finishData.evaluated === false || finishData.evaluation_error ? 'warning' : 'success');
-          navigate(`/scorecard?session=${encodeURIComponent(sessionId)}`);
-        }, 600);
+        await finishAndShowScorecard(sessionId);
 
         return;
       }
@@ -1332,6 +1418,22 @@ export default function InterviewRoom() {
       window.removeEventListener('focus', cameBack);
     };
   }, [examQuestionOnScreen]);
+
+  // A reload no longer loses a job interview, but it still loses the
+  // answer being typed, so the browser asks before leaving.
+  const jobQuestionOnScreen = Boolean(jobInvite) && examQuestionOnScreen;
+
+  useEffect(() => {
+    if (!jobQuestionOnScreen) return undefined;
+
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [jobQuestionOnScreen]);
 
   // Submit: in practice, show the expected answer first; in an exam,
   // send the answer and move straight on.

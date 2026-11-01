@@ -149,6 +149,68 @@ class InterviewAnswerResponse(BaseModel):
     )
 
 
+# ------------------------------------------------------------
+# Resuming a job interview
+#
+# Sent by Spring when a candidate comes back to a job interview after
+# a reload. Spring adds the job's approved questions and the answers it
+# stored, so a session that has expired from the store can be rebuilt
+# exactly as it was. The browser never supplies any of this.
+# ------------------------------------------------------------
+
+class InterviewResumeRequest(BaseModel):
+    session_id: str = Field(
+        ...,
+        min_length=1,
+        description="The interview to continue.",
+    )
+
+    job_description: str = Field(
+        ...,
+        min_length=20,
+        description="The job's own description.",
+    )
+
+    job_field: Optional[str] = Field(
+        default="",
+        description="The job's field.",
+    )
+
+    fixed_questions: List[FixedQuestion] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="The job's approved questions. Set by Spring only.",
+    )
+
+    answers: List[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="The answers Spring stored, in the order they were given.",
+    )
+
+
+class InterviewResumeResponse(BaseModel):
+    session_id: str
+
+    # Null once every question is answered: the page goes on to finish.
+    question: Optional[InterviewQuestionResponse] = None
+
+    answered: int = Field(
+        ...,
+        description="How many questions have been answered already.",
+    )
+
+    total_questions: int
+
+    complete: bool = False
+
+    restored: bool = Field(
+        default=False,
+        description="True when the session had expired and was rebuilt.",
+    )
+
+
 class ModelAnswerRequest(BaseModel):
     session_id: Optional[str] = Field(
         default="",

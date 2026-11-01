@@ -465,6 +465,64 @@ def _create_fixed_session(
     return session
 
 
+def restore_fixed_session(
+    session_id: str,
+    job_description: str,
+    job_field: str,
+    fixed_questions: List[dict],
+    answers: List[str],
+) -> InterviewSession:
+    """
+    Rebuilds a job interview that is no longer in the store.
+
+    Sessions expire after hours idle, and Redis keeps nothing on disk,
+    so a restart loses them too. A job interview can still be put back
+    exactly as it was: its questions are approved and can no longer
+    change, and Spring kept every answer. The session gets its old id,
+    so Spring's record and the scorecard stay attached to it.
+
+    A practice interview cannot be rebuilt this way - its questions
+    were generated one at a time and are not repeatable.
+    """
+
+    ordered = sorted(
+        fixed_questions,
+        key=lambda q: q.get("position", 0),
+    )
+
+    if len(answers) > len(ordered):
+        raise ValueError(
+            "More answers were sent than this interview has questions."
+        )
+
+    # The questions asked so far: one per answer, plus the one on
+    # screen when the candidate left, unless they had answered them all.
+    asked = ordered[:min(len(answers) + 1, len(ordered))]
+
+    session = InterviewSession(
+        session_id=session_id,
+        job_description=job_description,
+        job_field=job_field,
+        mode=MODE_FIXED,
+        fixed_questions=ordered,
+        questions=[q["question"] for q in asked],
+        answers=list(answers),
+        current_question_number=len(asked) + 1,
+        status="active",
+        current_difficulty=asked[-1].get("difficulty") or "medium",
+        current_topic=asked[-1].get("topic") or "",
+    )
+
+    save_session(session)
+
+    print(
+        f"[InterviewSession] Restored job interview session "
+        f"{session_id} at {len(answers)} of {len(ordered)} answer(s)"
+    )
+
+    return session
+
+
 def next_fixed_question(
     session: InterviewSession,
 ) -> dict | None:

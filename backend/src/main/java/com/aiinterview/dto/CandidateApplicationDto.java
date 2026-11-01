@@ -71,6 +71,13 @@ public class CandidateApplicationDto {
     private boolean interviewResumable;
 
     /**
+     * The attempt to continue when {@code interviewResumable} is true,
+     * otherwise null. The candidate's own session, so nothing is given
+     * away; the resume endpoint checks ownership again anyway.
+     */
+    private String interviewSessionId;
+
+    /**
      * Why the interview cannot be started yet, in words meant for the
      * candidate - "Your application is under review", "The interview
      * is not ready yet". Null when it can be started.
