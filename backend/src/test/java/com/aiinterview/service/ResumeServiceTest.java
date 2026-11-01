@@ -2,10 +2,14 @@ package com.aiinterview.service;
 
 import com.aiinterview.dto.ResumeResponseDto;
 import com.aiinterview.entity.Resume;
+import com.aiinterview.entity.ResumeAnalysis;
 import com.aiinterview.entity.User;
+import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.InvalidFileException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.exception.UnauthorizedAccessException;
+import com.aiinterview.repository.JobApplicationRepository;
+import com.aiinterview.repository.ResumeAnalysisRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.impl.ResumeServiceImpl;
@@ -42,6 +46,12 @@ class ResumeServiceTest {
 
     @Mock
     private PdfTextExtractionService pdfTextExtractionService;
+
+    @Mock
+    private ResumeAnalysisRepository resumeAnalysisRepository;
+
+    @Mock
+    private JobApplicationRepository jobApplicationRepository;
 
     @InjectMocks
     private ResumeServiceImpl resumeService;
@@ -120,6 +130,58 @@ class ResumeServiceTest {
 
         verify(fileStorageService, never()).storeFile(any(), anyString());
         verify(resumeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should reject a non-PDF file renamed to .pdf")
+    void testRejectRenamedNonPdf() {
+        MockMultipartFile renamed = new MockMultipartFile(
+                "file",
+                "cv.pdf",
+                "application/pdf",
+                "MZ this is really an executable".getBytes()
+        );
+
+        assertThrows(InvalidFileException.class, () ->
+            resumeService.uploadResume(renamed, "alice@example.com")
+        );
+
+        verify(fileStorageService, never()).storeFile(any(), anyString());
+        verify(resumeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should delete the analysis before the resume, then the file")
+    void testDeleteAnalysedResume() {
+        ResumeAnalysis analysis = ResumeAnalysis.builder().id(500L).resume(resumeUser1).build();
+
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user1));
+        when(resumeRepository.findById(100L)).thenReturn(Optional.of(resumeUser1));
+        when(jobApplicationRepository.existsBySubmittedResumeId(100L)).thenReturn(false);
+        when(resumeAnalysisRepository.findByResumeId(100L)).thenReturn(Optional.of(analysis));
+
+        resumeService.deleteResume(100L, "alice@example.com");
+
+        var order = inOrder(resumeAnalysisRepository, resumeRepository, fileStorageService);
+        order.verify(resumeAnalysisRepository).delete(analysis);
+        order.verify(resumeRepository).delete(resumeUser1);
+        order.verify(resumeRepository).flush();
+        order.verify(fileStorageService).deleteFile("uploads/resumes/uuid_alice_resume.pdf");
+    }
+
+    @Test
+    @DisplayName("Should refuse to delete a resume sent with a job application")
+    void testCannotDeleteSubmittedResume() {
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user1));
+        when(resumeRepository.findById(100L)).thenReturn(Optional.of(resumeUser1));
+        when(jobApplicationRepository.existsBySubmittedResumeId(100L)).thenReturn(true);
+
+        assertThrows(ConflictException.class, () ->
+            resumeService.deleteResume(100L, "alice@example.com")
+        );
+
+        verify(resumeRepository, never()).delete(any());
+        verify(fileStorageService, never()).deleteFile(anyString());
     }
 
     @Test

@@ -26,6 +26,7 @@ import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.JobQuestionService;
+import com.aiinterview.service.NotificationService;
 import com.aiinterview.service.RecruiterApplicationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,6 +57,7 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
     private final UserRepository userRepository;
     private final JobQuestionService jobQuestionService;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     // ========================================================
     // Reviewing
@@ -160,6 +162,14 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
         application.setDecidedBy(recruiter);
 
         jobApplicationRepository.save(application);
+
+        // Shortlisting is what opens the interview, so the candidate is
+        // told rather than left to notice on their own. A rejection is
+        // not announced here; the candidate reads it under My
+        // Applications.
+        if (decision == ApplicationStatus.SHORTLISTED) {
+            notificationService.notifyShortlisted(application);
+        }
 
         log.info(
                 "Recruiter {} set application {} to {}",
