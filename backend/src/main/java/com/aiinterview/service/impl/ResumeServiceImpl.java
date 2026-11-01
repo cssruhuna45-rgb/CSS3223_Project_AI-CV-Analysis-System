@@ -3,9 +3,12 @@ package com.aiinterview.service.impl;
 import com.aiinterview.dto.ResumeResponseDto;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
+import com.aiinterview.exception.ConflictException;
 import com.aiinterview.exception.InvalidFileException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.exception.UnauthorizedAccessException;
+import com.aiinterview.repository.JobApplicationRepository;
+import com.aiinterview.repository.ResumeAnalysisRepository;
 import com.aiinterview.repository.ResumeRepository;
 import com.aiinterview.repository.UserRepository;
 import com.aiinterview.service.FileStorageService;
@@ -17,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -30,6 +36,8 @@ public class ResumeServiceImpl implements ResumeService {
         private final UserRepository userRepository;
         private final FileStorageService fileStorageService;
         private final PdfTextExtractionService pdfTextExtractionService;
+        private final ResumeAnalysisRepository resumeAnalysisRepository;
+        private final JobApplicationRepository jobApplicationRepository;
 
     @Override
     @Transactional
@@ -50,6 +58,15 @@ public class ResumeServiceImpl implements ResumeService {
 
             throw new InvalidFileException(
                     "Invalid file format. Only PDF files (.pdf) are allowed.");
+        }
+
+        // The name and Content-Type above both come from the browser, so
+        // a renamed file passes them. A real PDF says so in its first
+        // bytes; check that before anything is written to disk.
+        if (!hasPdfHeader(file)) {
+
+            throw new InvalidFileException(
+                    "This file is not a valid PDF. Please upload a PDF document.");
         }
 
         // 3. Find user
@@ -171,12 +188,45 @@ public class ResumeServiceImpl implements ResumeService {
                     "You do not have permission to delete this resume.");
         }
 
+        // A CV sent with a job application is what the recruiter is
+        // reviewing, and the database refuses to drop it (V11, ON
+        // DELETE RESTRICT). Say so instead of failing with a 500.
+        if (jobApplicationRepository.existsBySubmittedResumeId(resume.getId())) {
+
+            throw new ConflictException(
+                    "This CV was submitted with a job application, so it cannot be deleted.");
+        }
+
+        // The analysis row points at the resume with no ON DELETE
+        // CASCADE, so it has to go first.
+        resumeAnalysisRepository.findByResumeId(resume.getId())
+                .ifPresent(resumeAnalysisRepository::delete);
+
+        // Delete database record. Flushed now so a database failure
+        // stops us before the file is gone.
+        resumeRepository.delete(resume);
+        resumeRepository.flush();
+
         // Delete physical file
         fileStorageService.deleteFile(
                 resume.getFilePath());
+    }
 
-        // Delete database record
-        resumeRepository.delete(resume);
+    /**
+     * Whether the upload starts like a PDF. The specification lets
+     * "%PDF-" sit anywhere in the first 1024 bytes, so look that far.
+     */
+    private boolean hasPdfHeader(MultipartFile file) {
+
+        try (InputStream in = file.getInputStream()) {
+
+            String head = new String(in.readNBytes(1024), StandardCharsets.ISO_8859_1);
+
+            return head.contains("%PDF-");
+
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /**

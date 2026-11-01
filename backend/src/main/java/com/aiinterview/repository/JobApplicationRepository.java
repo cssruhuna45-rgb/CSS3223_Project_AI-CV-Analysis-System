@@ -30,6 +30,12 @@ public interface JobApplicationRepository
     boolean existsByJobPostingIdAndCandidateId(Long jobPostingId, Long candidateId);
 
     /**
+     * Whether a CV was sent with any application. Such a CV cannot be
+     * deleted (V11 restricts it), so the delete is refused up front.
+     */
+    boolean existsBySubmittedResumeId(Long resumeId);
+
+    /**
      * The candidate's own applications, newest first, with the job and
      * its recruiter already loaded - the status page shows the job
      * title and company on every row.
