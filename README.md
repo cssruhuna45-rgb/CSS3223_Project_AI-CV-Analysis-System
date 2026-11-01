@@ -152,6 +152,9 @@ Notes:
 
 - Port 8000 is deliberately not published. Only the backend talks to the
   AI service, over the compose network, with the internal key.
+- Password reset emails go to the bundled Mailpit catcher unless the
+  `MAIL_` settings in `.env` point at a real SMTP provider. Read them at
+  http://localhost:8025.
 - Flyway runs the migrations on backend startup, so the database sets
   itself up.
 - The frontend's API address is compiled into the JavaScript bundle. It

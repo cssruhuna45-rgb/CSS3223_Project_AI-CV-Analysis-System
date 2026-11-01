@@ -119,7 +119,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      MAIL_HOST: ${MAIL_HOST:-host.docker.internal}
+      # Blank in .env means the local Mailpit catcher below.
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
       MAIL_PORT: ${MAIL_PORT:-1025}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -136,6 +137,26 @@ services:
         # Waiting for healthy means the backend never starts against an
         # AI service that is still loading its embedding model.
         condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  # ------------------------------------------------------------------
+  # 4b. Mailpit: a local SMTP catcher
+  #
+  # Password reset emails land here instead of a real inbox, so the
+  # flow works out of the box. Read them at http://localhost:8025.
+  # Only the web page is published, and only on this machine; the
+  # SMTP port stays on the compose network. Set MAIL_HOST and friends
+  # in .env to send through a real provider instead.
+  # ------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    container_name: interview_mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+    expose:
+      - "1025"
 
   # ------------------------------------------------------------------
   # 5. React frontend
