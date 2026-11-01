@@ -2,6 +2,7 @@ package com.aiinterview.service;
 
 import com.aiinterview.dto.NotificationDto;
 import com.aiinterview.entity.HiringDecision;
+import com.aiinterview.entity.JobApplication;
 
 import java.util.List;
 
@@ -30,6 +31,16 @@ public interface NotificationService {
      * endpoint, where ownership is checked again.
      */
     void notifyHiringDecisionPublished(HiringDecision decision);
+
+    /**
+     * Tells a candidate a recruiter shortlisted them, which is the
+     * moment their interview for the job opens up. Without this they
+     * only find out by reopening My Applications.
+     *
+     * <p>Idempotent in the same way as a published decision: one
+     * notification per application, however often it is called.
+     */
+    void notifyShortlisted(JobApplication application);
 
     /** The signed-in user's own notifications, newest first. */
     List<NotificationDto> listMine(String userEmail);

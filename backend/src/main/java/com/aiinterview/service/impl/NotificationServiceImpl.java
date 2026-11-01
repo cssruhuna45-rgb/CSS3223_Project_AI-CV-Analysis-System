@@ -28,6 +28,8 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static final String DECISION_TITLE = "Your interview result is available";
 
+    private static final String SHORTLISTED_TITLE = "You have been shortlisted";
+
     private final NotificationRepository notificationRepository;
 
     private final UserRepository userRepository;
@@ -42,48 +44,74 @@ public class NotificationServiceImpl implements NotificationService {
 
         JobApplication application = decision.getJobApplication();
 
-        // A replayed publish must not tell the candidate twice. Checked
+        // Says a result exists, not what it is. The outcome is read
+        // from the application, where ownership is checked again.
+        notifyOnce(
+                application,
+                Notification.TYPE_HIRING_DECISION,
+                DECISION_TITLE,
+                "The final hiring decision for your " + application.getJobPosting().getTitle()
+                        + " application has been announced. Open your applications to see it."
+        );
+    }
+
+    @Override
+    @Transactional
+    public void notifyShortlisted(JobApplication application) {
+
+        notifyOnce(
+                application,
+                Notification.TYPE_SHORTLISTED,
+                SHORTLISTED_TITLE,
+                "The recruiter shortlisted you for " + application.getJobPosting().getTitle()
+                        + ". Open your applications to start the interview."
+        );
+    }
+
+    /**
+     * Saves one notification of {@code type} for the application's
+     * candidate, unless there already is one.
+     */
+    private void notifyOnce(JobApplication application, String type, String title, String message) {
+
+        // A replayed request must not tell the candidate twice. Checked
         // here, and guaranteed by a unique index on (application, type)
         // for the case where two requests race past this check.
-        if (notificationRepository.existsByJobApplicationIdAndType(
-                application.getId(), Notification.TYPE_HIRING_DECISION)) {
+        if (notificationRepository.existsByJobApplicationIdAndType(application.getId(), type)) {
 
             log.debug(
-                    "Application {} already has a hiring decision notification",
-                    application.getId()
+                    "Application {} already has a {} notification",
+                    application.getId(),
+                    type
             );
             return;
         }
 
-        String jobTitle = application.getJobPosting().getTitle();
-
         Notification notification = Notification.builder()
                 .recipient(application.getCandidate())
-                .type(Notification.TYPE_HIRING_DECISION)
-                .title(DECISION_TITLE)
-                // Says a result exists, not what it is. The outcome is
-                // read from the application, where ownership is
-                // checked again.
-                .message("The final hiring decision for your " + jobTitle
-                        + " application has been announced. Open your applications to see it.")
+                .type(type)
+                .title(title)
+                .message(message)
                 .jobApplication(application)
                 .build();
 
         try {
             notificationRepository.save(notification);
         } catch (DataIntegrityViolationException e) {
-            // Two publishes raced each other; the unique index kept the
+            // Two requests raced each other; the unique index kept the
             // second notification out, which is exactly its job.
             log.info(
-                    "Duplicate hiring decision notification for application {} was refused",
+                    "Duplicate {} notification for application {} was refused",
+                    type,
                     application.getId()
             );
             return;
         }
 
         log.info(
-                "Notified candidate {} that application {} has a decision",
+                "Sent candidate {} a {} notification for application {}",
                 application.getCandidate().getId(),
+                type,
                 application.getId()
         );
     }

@@ -84,6 +84,9 @@ class RecruiterApplicationServiceTest {
     @Mock
     private JobQuestionService jobQuestionService;
 
+    @Mock
+    private NotificationService notificationService;
+
     private RecruiterApplicationServiceImpl service;
 
     private User rita;
@@ -102,7 +105,8 @@ class RecruiterApplicationServiceTest {
                 interviewSessionRepository,
                 userRepository,
                 jobQuestionService,
-                objectMapper
+                objectMapper,
+                notificationService
         );
 
         rita = User.builder().id(10L).name("Rita").email(RITA).role(Role.RECRUITER).build();
@@ -229,12 +233,21 @@ class RecruiterApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("shortlisting tells the candidate their interview is open")
+    void shortlistNotifiesTheCandidate() {
+        service.decide(RITA, 77L, decision(ApplicationStatus.SHORTLISTED));
+
+        verify(notificationService).notifyShortlisted(application);
+    }
+
+    @Test
     @DisplayName("rejecting records the decision too")
     void rejectRecordsDecision() {
         service.decide(RITA, 77L, decision(ApplicationStatus.REJECTED));
 
         assertEquals(ApplicationStatus.REJECTED, application.getStatus());
         assertNotNull(application.getDecidedAt());
+        verify(notificationService, never()).notifyShortlisted(any());
     }
 
     @Test
@@ -275,6 +288,7 @@ class RecruiterApplicationServiceTest {
         // The original decision time stands; it was not re-stamped.
         assertEquals(decidedAt, application.getDecidedAt());
         verify(jobApplicationRepository, never()).save(any());
+        verify(notificationService, never()).notifyShortlisted(any());
     }
 
     @Test

@@ -169,6 +169,30 @@ class NotificationServiceTest {
         service.notifyHiringDecisionPublished(decision);
     }
 
+    @Test
+    @DisplayName("shortlisting notifies the candidate and names the job")
+    void shortlistingNotifiesTheCandidate() {
+        service.notifyShortlisted(application);
+
+        Notification saved = captureSaved();
+
+        assertEquals(cara, saved.getRecipient());
+        assertEquals(Notification.TYPE_SHORTLISTED, saved.getType());
+        assertEquals(application, saved.getJobApplication());
+        assertTrue(saved.getMessage().contains("Backend Developer"));
+    }
+
+    @Test
+    @DisplayName("a shortlisting is announced only once")
+    void shortlistNotificationIsIdempotent() {
+        when(notificationRepository.existsByJobApplicationIdAndType(
+                77L, Notification.TYPE_SHORTLISTED)).thenReturn(true);
+
+        service.notifyShortlisted(application);
+
+        verify(notificationRepository, never()).save(any());
+    }
+
     // ---- Reading -----------------------------------------------------
 
     @Test

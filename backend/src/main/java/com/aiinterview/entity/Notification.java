@@ -56,6 +56,9 @@ public class Notification {
     /** A recruiter announced a hiring decision. */
     public static final String TYPE_HIRING_DECISION = "HIRING_DECISION";
 
+    /** A recruiter shortlisted the candidate, so the interview opens up. */
+    public static final String TYPE_SHORTLISTED = "SHORTLISTED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
