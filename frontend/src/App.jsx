@@ -5,6 +5,7 @@ import './index.css';
 import Navbar from './components/Navbar';
 import AppShell, { BLEED_ROUTES } from './components/AppShell';
 import Footer from './components/Footer';
+import RouteErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider, useToast } from './components/ToastProvider';
 import Landing from './pages/Landing';
 import Home from './pages/Home';
@@ -154,6 +155,7 @@ function AppContent() {
         </a>
 
         <Chrome user={user} onLogout={handleLogout}>
+          <RouteErrorBoundary>
           <Routes>
             <Route path="/" element={<Landing user={user} />} />
             <Route path="/login" element={<Login onLogin={setUser} />} />
@@ -187,6 +189,7 @@ function AppContent() {
             <Route path="/design-system" element={<DesignSystem />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </RouteErrorBoundary>
         </Chrome>
       </div>
     </BrowserRouter>
