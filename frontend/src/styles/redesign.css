@@ -649,3 +649,61 @@ textarea.input { resize: vertical; }
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
+
+/* Extracted-profile sections on the CV page.
+   One surface treatment for all of them, with a thin accent rule at the
+   top. They were colour-coded by category - skills green, experience
+   amber - which spends the status palette on decoration: a skill is not
+   a success and a job is not a warning. Reserving green and amber for
+   things that actually mean good or needs-attention is what lets them
+   still read as meaningful on the scorecard. */
+.profile-section {
+  border-top: 3px solid var(--section-accent, var(--accent)) !important;
+  background: var(--bg-surface) !important;
+  border-right: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-left: 1px solid var(--border) !important;
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.profile-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.profile-section-title svg { color: var(--section-accent, var(--accent)); flex: none; }
+
+/* Chips for a plain list of extracted terms. Neutral: the colour said
+   nothing the text was not already saying. */
+.profile-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.profile-chip {
+  padding: 6px 12px;
+  font-size: var(--fs-sm);
+  border-radius: var(--radius-pill);
+  background: var(--bg-card2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* One extracted record: a role, a qualification, a project. */
+.profile-entries { display: flex; flex-direction: column; gap: 12px; }
+
+.profile-entry {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+}

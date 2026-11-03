@@ -861,10 +861,12 @@ export default function CVUpload() {
             <div id="panel-profile" role="tabpanel" aria-labelledby="tab-profile" className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Candidate Summary */}
               {analysis.summary && (
-                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <FileText size={18} color="var(--accent)" />
-                    <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Executive Summary</h3>
+                <div className="card profile-section" style={{ '--section-accent': 'var(--accent)' }}>
+                  <div className="profile-section-head">
+                    <h3 className="profile-section-title">
+                      <FileText size={18} aria-hidden="true" />
+                      Executive summary
+                    </h3>
                   </div>
                   <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.7, color: 'var(--text-primary)', margin: 0 }}>
                     {analysis.summary}
@@ -874,38 +876,19 @@ export default function CVUpload() {
 
               {/* Technical Skills */}
               {analysis.skills && analysis.skills.length > 0 && (
-                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--success)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Sparkles size={18} color="var(--success)" />
-                      <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--success)', margin: 0 }}>Technical Skills</h3>
-                    </div>
-                    <span
-                      className="badge"
-                      style={{
-                        background: 'color-mix(in srgb, var(--success) 12%, transparent)',
-                        color: 'var(--success)',
-                        border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)',
-                      }}
-                    >
-                      {analysis.skills.length} Extracted
+                <div className="card profile-section" style={{ '--section-accent': 'var(--success)' }}>
+                  <div className="profile-section-head">
+                    <h3 className="profile-section-title">
+                      <Sparkles size={18} aria-hidden="true" />
+                      Technical skills
+                    </h3>
+                    <span className="badge badge-neutral">
+                      {analysis.skills.length} extracted
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div className="profile-chips">
                     {analysis.skills.map((s, idx) => (
-                      <span
-                        key={idx}
-                        className="badge"
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: 'var(--fs-sm)',
-                          background: 'color-mix(in srgb, var(--success) 10%, transparent)',
-                          color: 'var(--success)',
-                          border: '1px solid color-mix(in srgb, var(--success) 28%, transparent)',
-                        }}
-                      >
-                        {s}
-                      </span>
+                      <span key={idx} className="profile-chip">{s}</span>
                     ))}
                   </div>
                 </div>
@@ -915,22 +898,16 @@ export default function CVUpload() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
                 {/* Experience */}
                 {analysis.experience && analysis.experience.length > 0 && (
-                  <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--warning)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                      <Briefcase size={18} color="var(--warning)" />
-                      <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--warning)', margin: 0 }}>Work Experience</h3>
+                  <div className="card profile-section" style={{ '--section-accent': 'var(--warning)' }}>
+                    <div className="profile-section-head">
+                      <h3 className="profile-section-title">
+                        <Briefcase size={18} aria-hidden="true" />
+                        Work experience
+                      </h3>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div className="profile-entries">
                       {analysis.experience.map((exp, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            padding: '12px 14px',
-                            borderRadius: 10,
-                            background: 'color-mix(in srgb, var(--warning) 7%, transparent)',
-                            border: '1px solid color-mix(in srgb, var(--warning) 22%, transparent)',
-                          }}
-                        >
+                        <div key={idx} className="profile-entry">
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                             <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>
                               {exp.role || 'Role'}
@@ -957,22 +934,16 @@ export default function CVUpload() {
 
                 {/* Education */}
                 {analysis.education && analysis.education.length > 0 && (
-                  <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                      <GraduationCap size={18} color="var(--accent)" />
-                      <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Education</h3>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div className="card profile-section" style={{ '--section-accent': 'var(--accent)' }}>
+                    <div className="profile-section-head">
+                    <h3 className="profile-section-title">
+                      <GraduationCap size={18} aria-hidden="true" />
+                      Education
+                    </h3>
+                  </div>
+                    <div className="profile-entries">
                       {analysis.education.map((edu, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            padding: '12px 14px',
-                            borderRadius: 10,
-                            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
-                            border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
-                          }}
-                        >
+                        <div key={idx} className="profile-entry">
                           <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>
                             {edu.degree || 'Degree'} {edu.field ? `in ${edu.field}` : ''}
                           </div>
@@ -993,23 +964,17 @@ export default function CVUpload() {
 
               {/* Projects */}
               {analysis.projects && analysis.projects.length > 0 && (
-                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                    <FolderGit2 size={18} color="var(--accent)" />
-                    <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Projects</h3>
+                <div className="card profile-section" style={{ '--section-accent': 'var(--accent)' }}>
+                  <div className="profile-section-head">
+                    <h3 className="profile-section-title">
+                      <FolderGit2 size={18} aria-hidden="true" />
+                      Projects
+                    </h3>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
                     {analysis.projects.map((proj, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: '14px',
-                          borderRadius: 10,
-                          background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
-                          border: '1px solid color-mix(in srgb, var(--accent) 22%, transparent)',
-                        }}
-                      >
-                        <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>
+                      <div key={idx} className="profile-entry">
+                        <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
                           {proj.name}
                         </div>
                         {proj.description && (
@@ -1044,10 +1009,12 @@ export default function CVUpload() {
 
               {/* Certifications */}
               {analysis.certifications && analysis.certifications.length > 0 && (
-                <div className="card" style={{ background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)', border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)', borderTop: '3px solid var(--accent)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <Award size={18} color="var(--accent)" />
-                    <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--accent)', margin: 0 }}>Certifications</h3>
+                <div className="card profile-section" style={{ '--section-accent': 'var(--accent)' }}>
+                  <div className="profile-section-head">
+                    <h3 className="profile-section-title">
+                      <Award size={18} aria-hidden="true" />
+                      Certifications
+                    </h3>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {analysis.certifications.map((cert, idx) => (
