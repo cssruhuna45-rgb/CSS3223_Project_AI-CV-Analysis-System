@@ -4,6 +4,21 @@ import { act } from 'react-dom/test-utils';
 import RecruiterApplicants from './RecruiterApplicants';
 import { recruiterAPI } from '../services/api';
 import { applicantsAPI } from '../services/jobApplicationsApi';
+import { ApiError } from '../services/http';
+
+// A refusal as the shared request handler delivers it: a business rule
+// the server spelled out for the user.
+const refused = (message, status = 409) => new ApiError({
+  status, code: status === 400 ? 'BAD_REQUEST' : status === 404 ? 'NOT_FOUND' : 'CONFLICT',
+  message, serverMessage: message,
+});
+
+// A failure with technical detail that must never reach the page.
+const broken = () => new ApiError({
+  status: 500, code: 'INTERNAL_ERROR',
+  message: 'Something went wrong on our side. Please try again in a moment.',
+});
+
 
 // react-router-dom 7's "react-router/dom" subpath export is not
 // resolvable by react-scripts 5's Jest. The page uses navigation and
@@ -239,7 +254,7 @@ test('cancelling a rejection sends nothing', async () => {
 });
 
 test('a refused decision is reported and the row is left alone', async () => {
-  applicantsAPI.decide.mockRejectedValue(new Error('This applicant has already been rejected.'));
+  applicantsAPI.decide.mockRejectedValue(refused('This applicant has already been rejected.'));
 
   await render([APPLICANT]);
   await click(button('Shortlist'));
@@ -263,13 +278,14 @@ test('a job with no applicants shows an empty state', async () => {
 });
 
 test('a failed load is reported', async () => {
-  applicantsAPI.list.mockRejectedValue(new Error('Service unavailable'));
+  applicantsAPI.list.mockRejectedValue(broken());
 
   await act(async () => {
     root.render(<RecruiterApplicants />);
   });
 
-  expect(container.querySelector('[role="alert"]').textContent).toContain('Service unavailable');
+  expect(container.querySelector('[role="alert"]').textContent)
+    .toContain("We couldn't load the applicants for this job.");
 });
 
 test('the page never offers to decide for the recruiter', async () => {

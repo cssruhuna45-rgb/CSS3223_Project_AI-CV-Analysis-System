@@ -19,6 +19,16 @@ import {
   Loader,
 } from 'lucide-react';
 import { resumeAPI, aiResumeAPI } from '../services/api';
+import { isApiError, userMessage } from '../services/http';
+
+// Matches spring.servlet.multipart.max-file-size in application.yml.
+const MAX_UPLOAD_MB = 10;
+
+const UNREADABLE_PDF =
+  "We couldn't read this PDF. Try exporting your CV as a new PDF, or upload a clearer copy.";
+
+const REVIEW_FAILED =
+  "We couldn't review how your CV is written right now. Your analysis is still available.";
 import CVFeedback from '../components/CVFeedback';
 import BulletTuner from '../components/BulletTuner';
 import StepBar from '../components/StepBar';
@@ -31,7 +41,11 @@ export default function CVUpload() {
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // { text, retry }: retry is offered only where trying again can help.
+  const [problem, setProblem] = useState(null);
+  const setError = (text, retry = null) => setProblem(text ? { text, retry } : null);
+  const error = problem?.text || '';
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [analysis, setAnalysis] = useState(null);
   const [review, setReview] = useState(null);
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -84,7 +98,7 @@ export default function CVUpload() {
         setReview(cvReview);
       } catch (err) {
         console.error('[CVUpload] CV review failed:', err);
-        if (!cancelled) setReviewError(err.message || 'Could not review the CV.');
+        if (!cancelled) setReviewError(userMessage(err, REVIEW_FAILED));
       } finally {
         if (!cancelled) setReviewLoading(false);
       }
@@ -98,11 +112,22 @@ export default function CVUpload() {
         applyAnalysis(stored);
         runReview();
       } catch (err) {
-        // A 404 is expected when the upload's analysis did not finish.
-        console.warn('[CVUpload] No stored analysis, re-analysing:', err.message);
+        // Only a 404 means the upload's analysis never finished. Any
+        // other failure is loading trouble, and the CV is still there.
+        const missing = isApiError(err) && err.status === 404;
+        if (!missing) {
+          console.warn('[CVUpload] Could not load the stored analysis:', err);
+          if (!cancelled) {
+            setError(
+              userMessage(err, "We couldn't load your CV analysis. Please try again."),
+              () => setRestoreAttempt((n) => n + 1),
+            );
+          }
+          return;
+        }
         if (!resumeText) {
           if (!cancelled) {
-            setError('That CV could not be loaded. Please upload it again.');
+            setError("This CV doesn't have a saved analysis yet. Upload it again to analyse it.");
           }
           return;
         }
@@ -114,7 +139,10 @@ export default function CVUpload() {
         } catch (analyseErr) {
           console.error('[CVUpload] Re-analysis failed:', analyseErr);
           if (!cancelled) {
-            setError(analyseErr.message || 'Could not load your saved CV.');
+            setError(
+              userMessage(analyseErr, "We couldn't analyse your CV right now. Please try again."),
+              () => setRestoreAttempt((n) => n + 1),
+            );
           }
         }
       } finally {
@@ -123,18 +151,22 @@ export default function CVUpload() {
     })();
 
     return () => { cancelled = true; };
-  }, []);
+  }, [restoreAttempt]);
 
   const handleFile = (f) => {
     if (!f) return;
-    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) {
+    if (!(f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))) {
+      setError('Only PDF files are accepted. Save your CV as a PDF and try again.');
+    } else if (f.size === 0) {
+      setError('This file is empty. Choose a PDF that contains your CV.');
+    } else if (f.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      setError(`This file is too large. Upload a PDF smaller than ${MAX_UPLOAD_MB} MB.`);
+    } else {
       setFile(f);
       setError('');
       setAnalysis(null);
       setReview(null);
       sessionStorage.removeItem('cvReview');
-    } else {
-      setError('Only PDF files are supported. Please upload a valid PDF resume.');
     }
   };
 
@@ -148,21 +180,40 @@ export default function CVUpload() {
 
   const handleAnalyze = async () => {
     if (!file) {
-      setError('Please select a PDF resume file first.');
+      setError('Choose a PDF of your CV first.');
       return;
     }
 
     setLoading(true);
     setError('');
 
+    // 1. Upload to backend (Spring Boot). Its own step, so a failure
+    //    here is told apart from one in the analysis afterwards.
+    let resumeData;
     try {
-      // 1. Upload to backend (Spring Boot)
-      const resumeData = await resumeAPI.upload(file);
+      resumeData = await resumeAPI.upload(file);
+    } catch (err) {
+      console.error('[CVUpload] Upload failed:', err);
+      setError(
+        userMessage(err, "We couldn't upload your CV. Please try again.", {
+          // No answer from the server: the upload may still have worked.
+          uncertain: "We couldn't confirm your CV was uploaded. Check the CVs on your home page before uploading it again.",
+        }),
+        // A rejected file (wrong type, too large) will not upload on a retry.
+        isApiError(err) && err.status === 400 ? null : handleAnalyze,
+      );
+      setLoading(false);
+      return;
+    }
+
+    try {
       const resumeId = resumeData?.id || Date.now();
       const resumeText = resumeData?.extractedText || '';
 
       if (!resumeText || resumeText.trim().length === 0) {
-        throw new Error('Could not extract text from the uploaded PDF. Please verify the document is not an empty or scanned image PDF.');
+        // Text extraction, OCR included, found nothing to read.
+        setError(UNREADABLE_PDF);
+        return;
       }
 
       // 2. The analysis. Spring already ran it during the upload and
@@ -202,13 +253,16 @@ export default function CVUpload() {
         setReview(cvReview);
       } catch (reviewErr) {
         console.error('CV review error:', reviewErr);
-        setReviewError(reviewErr.message || 'Could not review the CV.');
+        setReviewError(userMessage(reviewErr, REVIEW_FAILED));
       } finally {
         setReviewLoading(false);
       }
     } catch (err) {
       console.error('Analysis error:', err);
-      setError(err.message || 'We could not analyze your resume right now. Please verify the backend and AI service are running, then try again.');
+      setError(
+        userMessage(err, "Your CV was uploaded, but we couldn't analyse it right now. Please try again."),
+        handleAnalyze,
+      );
     } finally {
       setLoading(false);
     }
@@ -389,7 +443,7 @@ export default function CVUpload() {
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-xs)', color: 'var(--text-sub)' }}>
                   <span>Supported format: PDF only</span>
                   <span>•</span>
-                  <span>Max size: 10MB</span>
+                  <span>Max size: {MAX_UPLOAD_MB} MB</span>
                 </div>
               </div>
             )}
@@ -410,16 +464,20 @@ export default function CVUpload() {
                 marginTop: 18,
               }}
             >
-              <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} />
-              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>{error}</p>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={handleAnalyze}
-                style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }}
-              >
-                Retry
-              </button>
+              <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} aria-hidden="true" />
+              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>
+                <span className="sr-only">Error: </span>{error}
+              </p>
+              {problem?.retry && (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={problem.retry}
+                  style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }}
+                >
+                  Try again
+                </button>
+              )}
             </div>
           )}
 

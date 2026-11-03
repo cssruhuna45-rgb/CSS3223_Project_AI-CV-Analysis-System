@@ -115,10 +115,12 @@ test('an empty list says nothing has been published yet', async () => {
 });
 
 test('a failed load is reported', async () => {
-  publicJobsAPI.list.mockRejectedValue(new Error('Public jobs could not be loaded.'));
+  // A raw error's text never reaches the page; the page's own wording does.
+  publicJobsAPI.list.mockRejectedValue(new Error('TypeError: Failed to fetch'));
 
   await render();
 
-  expect(container.querySelector('[role="alert"]').textContent)
-    .toContain('Public jobs could not be loaded.');
+  const alert = container.querySelector('[role="alert"]').textContent;
+  expect(alert).toContain("We couldn't load public jobs. Please try again.");
+  expect(alert).not.toContain('Failed to fetch');
 });

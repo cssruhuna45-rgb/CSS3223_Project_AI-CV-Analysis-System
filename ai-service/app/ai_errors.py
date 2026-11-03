@@ -72,8 +72,84 @@ def is_rate_limit_error(exc: Exception) -> bool:
     return bool(_MESSAGE_PATTERN.search(str(exc)))
 
 
-RATE_LIMIT_DETAIL = (
-    "The AI service has hit Gemini's rate limit or daily free-tier "
-    "quota. Please wait a minute and try again, or use an API key "
-    "with a higher quota."
+# ============================================================
+# Errors for the user
+#
+# Spring forwards an error to the browser only when its detail is
+# {"code": ..., "message": ...} with a code it knows. A plain-string
+# detail - which may be exception text - is logged by Spring and
+# replaced, and main.py's handler also replaces it here. So anything
+# meant for the user is raised with public_error(), and nothing else
+# ever reaches a page.
+# ============================================================
+
+RATE_LIMIT_MESSAGE = (
+    "The AI service is busy right now. Please wait a moment and try again."
 )
+
+DAILY_LIMIT_MESSAGE = (
+    "The AI service has reached today's usage limit. Please try again later."
+)
+
+UNAVAILABLE_MESSAGE = (
+    "The AI service is temporarily unavailable. Please try again in a few minutes."
+)
+
+FAILED_MESSAGE = (
+    "The AI service couldn't complete this request. Please try again."
+)
+
+# Kept for callers that still import it; the wording no longer talks
+# about API keys or promises a recovery time.
+RATE_LIMIT_DETAIL = RATE_LIMIT_MESSAGE
+
+# Gemini names the exhausted quota in the error, e.g.
+# "GenerateRequestsPerDayPerProjectPerModel-FreeTier". A per-minute
+# quota is throttling and clears quickly; a per-day one does not.
+_DAILY_PATTERN = re.compile(r"per[ _-]?day|daily", re.IGNORECASE)
+
+
+def is_daily_limit(exc: Exception) -> bool:
+    return bool(_DAILY_PATTERN.search(str(exc)))
+
+
+def public_error(status_code: int, code: str, message: str):
+    """
+    An HTTPException whose message is shown to the user as it stands.
+    Only for plain-English text written here, never for str(exc).
+    """
+
+    from fastapi import HTTPException
+
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message},
+    )
+
+
+def rate_limit_error(exc: Exception):
+    """429 for a Gemini rate limit, telling a daily quota apart."""
+
+    if is_daily_limit(exc):
+        return public_error(429, "AI_DAILY_LIMIT", DAILY_LIMIT_MESSAGE)
+
+    return public_error(429, "AI_RATE_LIMITED", RATE_LIMIT_MESSAGE)
+
+
+def unavailable_error(status_code: int = 500):
+    """The service cannot work at all - no model key, say. Nothing the
+    user did, and nothing they can fix; the cause is in the log."""
+
+    return public_error(status_code, "AI_UNAVAILABLE", UNAVAILABLE_MESSAGE)
+
+
+def failed_error(message: str = FAILED_MESSAGE, status_code: int = 500):
+    """An AI step that failed this time and may work on a retry."""
+
+    return public_error(status_code, "AI_FAILED", message)
+
+
+def bad_request(message: str, status_code: int = 400):
+    """A request the user can correct, explained in plain English."""
+
+    return public_error(status_code, "AI_BAD_REQUEST", message)

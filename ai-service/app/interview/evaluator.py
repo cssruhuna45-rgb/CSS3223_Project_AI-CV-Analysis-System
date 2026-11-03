@@ -544,6 +544,18 @@ def normalize_evaluation(
     }
 
 
+# Shown on the scorecard when grading did not run. The exception itself
+# is only printed to the log.
+NOT_SCORED_NO_ANSWERS = (
+    "This interview wasn't scored because no answers were recorded."
+)
+
+NOT_SCORED_FAILED = (
+    "We couldn't score this interview. Your answers were received, "
+    "but the scoring step didn't finish."
+)
+
+
 def empty_evaluation(
     questions: List[str],
     answers: List[str],
@@ -635,7 +647,7 @@ def evaluate_interview(
         return finish(empty_evaluation(
             questions,
             answers,
-            "No questions were answered.",
+            NOT_SCORED_NO_ANSWERS,
         ))
 
     transcript, references = build_transcript(questions, answers, key_points)
@@ -644,7 +656,7 @@ def evaluate_interview(
         return finish(empty_evaluation(
             questions,
             answers,
-            "The transcript was empty.",
+            NOT_SCORED_NO_ANSWERS,
         ))
 
     try:
@@ -686,5 +698,5 @@ def evaluate_interview(
         return finish(empty_evaluation(
             questions,
             answers,
-            f"Scoring failed: {exc}",
+            NOT_SCORED_FAILED,
         ))

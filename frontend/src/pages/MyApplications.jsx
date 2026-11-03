@@ -8,6 +8,7 @@ import {
   applicationsAPI, notificationsAPI, statusTone,
 } from '../services/jobApplicationsApi';
 import { Button, Card, Badge, SectionHeader } from '../components/ui';
+import { userMessage } from '../services/http';
 
 /**
  * The candidate's own applications and where each one has got to.
@@ -28,28 +29,41 @@ export default function MyApplications() {
   const [unread, setUnread] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Applications from an earlier load stay on screen when a refresh
+  // fails, marked as possibly out of date rather than wiped.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [notificationsError, setNotificationsError] = useState('');
 
   const load = () => {
     setLoading(true);
     setError('');
+    setNotificationsError('');
 
     applicationsAPI.mine()
-      .then(setApplications)
-      .catch((err) => setError(err.message || 'Your applications could not be loaded.'))
+      .then((list) => { setApplications(list); setLoadedOnce(true); })
+      .catch((err) => setError(userMessage(err, "We couldn't load your applications. Please try again.")))
       .finally(() => setLoading(false));
 
-    // Best effort: a notifications outage must not stop the
-    // applications themselves from being readable.
+    // Separate from the applications: a notifications outage must not
+    // stop them being readable, but it is reported, not hidden.
     notificationsAPI.mine()
       .then((all) => setUnread((all || []).filter((n) => !n.read)))
-      .catch(() => setUnread([]));
+      .catch((err) => {
+        console.error('[MyApplications] Could not load notifications:', err);
+        setNotificationsError(userMessage(err, "We couldn't load your notifications. Your applications are still shown below."));
+      });
   };
 
   useEffect(load, []);
 
   const dismiss = (notificationId) => {
+    const dismissed = unread.find((n) => n.id === notificationId);
     setUnread((current) => current.filter((n) => n.id !== notificationId));
-    notificationsAPI.markRead(notificationId).catch(() => { /* already gone */ });
+    notificationsAPI.markRead(notificationId).catch((err) => {
+      // Put it back: it is still unread on the server.
+      if (dismissed) setUnread((current) => (current.some((n) => n.id === notificationId) ? current : [dismissed, ...current]));
+      setNotificationsError(userMessage(err, "We couldn't mark that notification as read. Please try again."));
+    });
   };
 
   // The interview is still started through the invite code, which is
@@ -87,11 +101,23 @@ export default function MyApplications() {
       </div>
 
       {error && (
-        <Card as="section" padding="md">
-          <p role="alert" style={{ display: 'flex', gap: 'var(--space-2)', color: 'var(--danger)' }}>
-            <AlertCircle size={18} aria-hidden="true" /> {error}
-          </p>
+        <Card as="section" padding="md" style={{ marginBottom: 'var(--space-5)' }}>
+          <div role="alert" style={{ display: 'flex', gap: 'var(--space-2)', color: 'var(--danger)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <AlertCircle size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ flex: 1 }}>
+              <span className="sr-only">Error: </span>{error}
+              {loadedOnce && applications.length > 0 && ' The list below is from your last successful load and may be out of date.'}
+            </p>
+            <Button size="sm" variant="secondary" onClick={load} loading={loading}>Try again</Button>
+          </div>
         </Card>
+      )}
+
+      {notificationsError && (
+        <p role="alert" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start', color: 'var(--danger)', marginBottom: 'var(--space-4)', fontSize: 'var(--fs-sm)' }}>
+          <AlertCircle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+          <span><span className="sr-only">Error: </span>{notificationsError}</span>
+        </p>
       )}
 
       {/* Unread announcements, so a published result is not missed

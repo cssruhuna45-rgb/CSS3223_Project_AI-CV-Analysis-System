@@ -185,6 +185,16 @@ def clean_list(value: Any, limit: int = MAX_KEY_POINTS) -> List[str]:
     return items[:limit]
 
 
+# What the candidate sees when no example answer could be written. The
+# exception itself is only printed to the log.
+NOT_GENERATED = (
+    "We couldn't create an example answer for this question. "
+    "You can continue with the interview."
+)
+
+NO_QUESTION = "There is no question to show an example answer for."
+
+
 def empty_result(error: str = "") -> Dict[str, Any]:
 
     return {
@@ -217,7 +227,7 @@ def generate_model_answer(
     question = (question or "").strip()
 
     if not question:
-        return empty_result("No question was provided.")
+        return empty_result(NO_QUESTION)
 
     candidate_answer = (candidate_answer or "").strip()
 
@@ -262,14 +272,12 @@ def generate_model_answer(
 
     except Exception as exc:
         print(f"[ModelAnswer] Generation failed: {exc}")
-        return empty_result(str(exc))
+        return empty_result(NOT_GENERATED)
 
     model_answer = str(parsed.get("model_answer") or "").strip()
 
     if not model_answer:
-        return empty_result(
-            "The model did not return an answer for this question."
-        )
+        return empty_result(NOT_GENERATED)
 
     return {
         "model_answer": model_answer,

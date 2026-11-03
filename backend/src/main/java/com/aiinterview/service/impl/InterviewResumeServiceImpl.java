@@ -56,10 +56,10 @@ public class InterviewResumeServiceImpl implements InterviewResumeService {
     public JsonNode resume(String userEmail, String sessionId) {
 
         User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEmail));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
 
         InterviewSession session = interviewSessionRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + sessionId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that interview."));
 
         // The session id travels through the browser, so it is never
         // enough on its own to continue somebody else's interview.

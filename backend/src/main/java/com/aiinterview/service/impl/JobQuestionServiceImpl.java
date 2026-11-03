@@ -2,6 +2,7 @@ package com.aiinterview.service.impl;
 
 import com.aiinterview.dto.JobAssessmentDto;
 import com.aiinterview.dto.JobQuestionDto;
+import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
 import com.aiinterview.entity.JobPosting;
@@ -150,7 +151,22 @@ public class JobQuestionServiceImpl implements JobQuestionService {
     }
 
     @Override
-    public JobAssessmentDto regenerate(String recruiterEmail, Long jobId, Long questionId) {
+    public JobAssessmentDto regenerate(String recruiterEmail, Long jobId, Long questionId,
+                                       JobQuestionRegenerateRequestDto wanted) {
+
+        // The recruiter's choice for this slot; null when not given.
+        String wantedDifficulty = wanted == null || wanted.getDifficulty() == null
+                ? null
+                : wanted.getDifficulty().trim().toLowerCase(Locale.ROOT);
+        String wantedTopic = wanted == null ? null : clean(wanted.getTopic());
+
+        if (wantedDifficulty != null && !JobQuestion.DIFFICULTIES.contains(wantedDifficulty)) {
+            throw new BadRequestException("Difficulty must be easy, medium or hard.");
+        }
+
+        if (wantedTopic != null && wantedTopic.length() > JobAssessmentRules.MAX_TOPIC_LENGTH) {
+            throw new BadRequestException("Keep the topic under " + JobAssessmentRules.MAX_TOPIC_LENGTH + " characters.");
+        }
 
         ObjectNode request = transactions.execute(status -> {
             JobPosting job = ownedJob(recruiterEmail, jobId);
@@ -166,7 +182,16 @@ public class JobQuestionServiceImpl implements JobQuestionService {
                 avoid.add(q.getQuestionText());
             }
 
-            return generationRequest(job, 1, avoid);
+            ObjectNode body = generationRequest(job, 1, avoid);
+
+            if (wantedDifficulty != null) {
+                body.put("difficulty", wantedDifficulty);
+            }
+            if (wantedTopic != null) {
+                body.put("topic", wantedTopic);
+            }
+
+            return body;
         });
 
         List<JobQuestion> drafted = draftedQuestions(aiServiceClient.post(GENERATE_PATH, request));
@@ -176,6 +201,16 @@ public class JobQuestionServiceImpl implements JobQuestionService {
         }
 
         JobQuestion replacement = drafted.get(0);
+
+        // The AI service only returns questions at the requested level;
+        // checked again here, so a mismatch is an error, not a wrong label.
+        if (wantedDifficulty != null && !wantedDifficulty.equals(replacement.getDifficulty())) {
+            throw noQuestions();
+        }
+
+        if (wantedTopic != null) {
+            replacement.setTopic(wantedTopic);
+        }
 
         return transactions.execute(status -> {
             JobPosting job = ownedJob(recruiterEmail, jobId);
@@ -445,14 +480,14 @@ public class JobQuestionServiceImpl implements JobQuestionService {
     }
 
     private static AiServiceException noQuestions() {
-        return new AiServiceException(
-                "The AI service did not return any usable questions. Please try again.", 502, null);
+        return AiServiceException.userFacing(
+                "We couldn't write usable questions this time. Please try again.", 502);
     }
 
     private JobQuestion questionOf(JobPosting job, Long questionId) {
         return jobQuestionRepository.findById(questionId)
                 .filter(q -> q.getJobPosting().getId().equals(job.getId()))
-                .orElseThrow(() -> new ResourceNotFoundException("No question with id " + questionId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that question. Reload the questions and try again."));
     }
 
     private static void requireDraft(JobPosting job) {
@@ -477,12 +512,12 @@ public class JobQuestionServiceImpl implements JobQuestionService {
      */
     private JobPosting ownedJob(User recruiter, Long jobId) {
         return jobPostingRepository.findByIdAndRecruiterId(jobId, recruiter.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("No job with id " + jobId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that job."));
     }
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 
     /** Trimmed with inner whitespace collapsed; null when empty. */

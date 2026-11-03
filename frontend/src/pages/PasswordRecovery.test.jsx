@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { act, Simulate } from 'react-dom/test-utils';
 import PasswordRecovery from './PasswordRecovery';
 import { authAPI } from '../services/api';
+import { ApiError } from '../services/http';
 
 let mockLocation;
 jest.mock('react-router-dom', () => ({
@@ -52,7 +53,11 @@ test('missing token provides a way to request another link', () => {
   expect(container.querySelector('a[href="/forgot-password"]')).not.toBeNull();
 });
 test('expired token error stays visible', async () => {
-  authAPI.resetPassword.mockRejectedValue(new Error('This reset link is invalid or expired.'));
+  authAPI.resetPassword.mockRejectedValue(new ApiError({
+    status: 400, code: 'BAD_REQUEST',
+    message: 'This reset link is invalid or expired. Request a new link.',
+    serverMessage: 'This reset link is invalid or expired. Request a new link.',
+  }));
   render(true);
   change('#new-password', 'new-password');
   change('#confirm-password', 'new-password');

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Briefcase, Calendar, ChevronDown, ChevronUp, Globe, Search, Send } from 'lucide-react';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { publicJobsAPI } from '../services/publicJobsApi';
+import { userMessage } from '../services/http';
 import { Badge, Button, Card, SectionHeader } from './ui';
 
 function fieldName(id) {
@@ -46,7 +47,7 @@ export default function PublicJobs() {
 
     publicJobsAPI.list()
       .then((list) => { if (!cancelled) setJobs(list || []); })
-      .catch((err) => { if (!cancelled) setError(err.message || 'Public jobs could not be loaded.'); })
+      .catch((err) => { if (!cancelled) setError(userMessage(err, "We couldn't load public jobs. Please try again.")); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };

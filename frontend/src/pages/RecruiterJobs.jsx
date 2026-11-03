@@ -8,6 +8,19 @@ import { Badge, Button, Card, SectionHeader } from '../components/ui';
 import JobQuestionEditor from '../components/JobQuestionEditor';
 import PublishJobDialog from '../components/PublishJobDialog';
 import { jobPublicationAPI } from '../services/publicJobsApi';
+import { userMessage } from '../services/http';
+import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
+
+// Server field name -> input id, so its validation message lands beside
+// the right input.
+const JOB_FIELD_IDS = {
+  title: 'job-title',
+  company: 'job-company',
+  jobField: 'job-field',
+  jobDescription: 'job-description',
+  requiredSkills: 'job-skills',
+  questionCount: 'job-count',
+};
 
 const EMPTY_FORM = { title: '', company: '', jobField: '', jobDescription: '', requiredSkills: '', questionCount: 5 };
 
@@ -50,7 +63,7 @@ export default function RecruiterJobs() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState('');
+  const formErrors = useFormErrors('job', Object.keys(JOB_FIELD_IDS), { ids: JOB_FIELD_IDS });
 
   const [copiedId, setCopiedId] = useState(null);
   const [questionsFor, setQuestionsFor] = useState(null);
@@ -67,16 +80,19 @@ export default function RecruiterJobs() {
         // Nothing to manage yet: open the form straight away.
         if (list.length === 0) setShowForm(true);
       })
-      .catch((err) => setError(err.message || 'Could not load your jobs.'))
+      .catch((err) => setError(userMessage(err, "We couldn't load your jobs. Please try again.")))
       .finally(() => setLoading(false));
   }, []);
 
-  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const update = (key) => (e) => {
+    formErrors.clearField(key);
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+  };
 
   const create = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setFormError('');
+    formErrors.clear();
     try {
       const job = await recruiterAPI.createJob({
         ...form,
@@ -92,7 +108,9 @@ export default function RecruiterJobs() {
       // Saved as a draft; ask whether to make it public as well.
       setPublishPrompt(job);
     } catch (err) {
-      setFormError(err.message || 'The job was not created. Please try again.');
+      formErrors.report(err, "We couldn't create the job. Please try again.", {
+        uncertain: "We couldn't confirm the job was created. Reload the page to check before creating it again.",
+      });
     } finally {
       setSaving(false);
     }
@@ -120,7 +138,9 @@ export default function RecruiterJobs() {
         ? { ...updated, interviewCount: j.interviewCount, completedCount: j.completedCount }
         : j)));
     } catch (err) {
-      setError(err.message || 'That change was not saved. Please try again.');
+      setError(userMessage(err, "We couldn't update this job. Please try again.", {
+        uncertain: "We couldn't confirm the change was saved. Reload the page to check before trying again.",
+      }));
     } finally {
       setBusyId(null);
     }
@@ -138,7 +158,9 @@ export default function RecruiterJobs() {
         ? { ...j, publicationStatus: updated.publicationStatus, publishedAt: updated.publishedAt, archived: updated.archived }
         : j)));
     } catch (err) {
-      setError(err.message || 'That change was not saved. Please try again.');
+      setError(userMessage(err, "We couldn't update this job. Please try again.", {
+        uncertain: "We couldn't confirm the change was saved. Reload the page to check before trying again.",
+      }));
     } finally {
       setPublishingId(null);
     }
@@ -167,57 +189,61 @@ export default function RecruiterJobs() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
               <div>
                 <label className="label" htmlFor="job-title">Job title</label>
-                <input id="job-title" className="input" required maxLength={150}
+                <input className="input" required maxLength={150} {...formErrors.fieldProps('title')}
                   placeholder="e.g. Java Backend Intern" value={form.title} onChange={update('title')} />
+                <FieldError errors={formErrors} field="title" />
               </div>
               <div>
                 <label className="label" htmlFor="job-company">Company (optional)</label>
-                <input id="job-company" className="input" maxLength={150}
+                <input className="input" maxLength={150} {...formErrors.fieldProps('company')}
                   placeholder="Shown to candidates before they join" value={form.company} onChange={update('company')} />
+                <FieldError errors={formErrors} field="company" />
               </div>
             </div>
 
             <div>
               <label className="label" htmlFor="job-field">Job field</label>
-              <select id="job-field" className="input" required value={form.jobField} onChange={update('jobField')}>
+              <select className="input" required value={form.jobField} onChange={update('jobField')} {...formErrors.fieldProps('jobField')}>
                 <option value="">Choose a field</option>
                 {PREDEFINED_JOB_FIELDS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
+              <FieldError errors={formErrors} field="jobField" />
             </div>
 
             <div>
               <label className="label" htmlFor="job-description">Job description</label>
-              <textarea id="job-description" className="input" required minLength={20} maxLength={8000} rows={6}
-                aria-describedby="job-description-hint"
+              <textarea className="input" required minLength={20} maxLength={8000} rows={6}
+                {...formErrors.fieldProps('jobDescription', 'job-description-hint')}
                 placeholder="What the role involves and the skills it needs. Every candidate is interviewed against this text."
                 value={form.jobDescription} onChange={update('jobDescription')} style={{ resize: 'vertical' }} />
               <span id="job-description-hint" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
                 At least 20 characters. The questions are written from this, so be specific.
               </span>
+              <FieldError errors={formErrors} field="jobDescription" />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
               <div>
                 <label className="label" htmlFor="job-skills">Required skills</label>
-                <input id="job-skills" className="input" required
-                  aria-describedby="job-skills-hint"
+                <input className="input" required
+                  {...formErrors.fieldProps('requiredSkills', 'job-skills-hint')}
                   placeholder="e.g. Spring Boot, PostgreSQL, REST APIs"
                   value={form.requiredSkills} onChange={update('requiredSkills')} />
                 <span id="job-skills-hint" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
                   Separate with commas. Each question tests one of these.
                 </span>
+                <FieldError errors={formErrors} field="requiredSkills" />
               </div>
               <div>
                 <label className="label" htmlFor="job-count">Questions per candidate</label>
-                <select id="job-count" className="input" value={form.questionCount} onChange={update('questionCount')}>
+                <select className="input" value={form.questionCount} onChange={update('questionCount')} {...formErrors.fieldProps('questionCount')}>
                   {[5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
+                <FieldError errors={formErrors} field="questionCount" />
               </div>
             </div>
 
-            {formError && (
-              <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{formError}</p>
-            )}
+            <FormAlert id="job-alert" message={formErrors.message} />
 
             <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
               <Button type="submit" loading={saving}>Create job</Button>

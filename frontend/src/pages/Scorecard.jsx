@@ -31,6 +31,7 @@ import LearningRoadmap from '../components/LearningRoadmap';
 import { interviewAPI } from '../services/api';
 import { CodeText } from '../components/ui';
 import { printDate, printPage } from '../utils/print';
+import { userMessage } from '../services/http';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_LIGHT = 'var(--accent)';
@@ -93,22 +94,41 @@ function formatDate(iso) {
 }
 
 // Shown when no interview is found and history is completely empty
-function EmptyState({ navigate, title, message }) {
+function EmptyState({ navigate, title, message, onRetry, alert = false }) {
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
-      <AlertTriangle size={40} color={AMBER} style={{ marginBottom: 16 }} />
+    <div role={alert ? 'alert' : undefined} style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
+      <AlertTriangle size={40} color={AMBER} style={{ marginBottom: 16 }} aria-hidden="true" />
       <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 10 }}>{title}</h1>
       <p style={{ color: TEXT, fontSize: 'var(--fs-base)', lineHeight: 1.6, marginBottom: 28 }}>{message}</p>
-      <button
-        className="btn btn-primary"
-        style={{ justifyContent: 'center', padding: '12px 24px' }}
-        onClick={() => navigate('/upload')}
-      >
-        <RotateCcw size={15} /> Start an interview
-      </button>
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {onRetry && (
+          <button type="button" className="btn btn-primary" style={{ justifyContent: 'center', padding: '12px 24px' }} onClick={onRetry}>
+            Try again
+          </button>
+        )}
+        <button
+          type="button"
+          className={onRetry ? 'btn btn-outline' : 'btn btn-primary'}
+          style={{ justifyContent: 'center', padding: '12px 24px' }}
+          onClick={() => navigate('/upload')}
+        >
+          <RotateCcw size={15} /> Start an interview
+        </button>
+      </div>
     </div>
   );
 }
+
+/**
+ * True when grading did not run for this interview. Its scores are
+ * then placeholders, never a real result of zero.
+ */
+export const gradingUnavailable = (result) => Boolean(result) && result.evaluated === false;
+
+// Fixed wording: a stored evaluation_error may hold technical text from
+// before it was cleaned up, so it is never shown.
+export const NOT_SCORED_MESSAGE =
+  "We couldn't score this interview. Your answers were received, but the scoring step didn't finish, so no score is shown.";
 
 export default function Scorecard() {
   const notify = useToast();
@@ -140,6 +160,9 @@ export default function Scorecard() {
   // History archive state when no session is selected
   const [historyList, setHistoryList] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => setAttempt((n) => n + 1);
 
   // Model answer accordion expanded states
   const [expandedAnswers, setExpandedAnswers] = useState(new Set());
@@ -153,12 +176,17 @@ export default function Scorecard() {
     if (!sessionId) {
       if (!result) {
         setHistoryLoading(true);
+        setHistoryError('');
         interviewAPI
           .history()
           .then((items) => {
             if (!cancelled) setHistoryList(items || []);
           })
-          .catch((err) => console.error('[Scorecard] Could not load history:', err))
+          .catch((err) => {
+            console.error('[Scorecard] Could not load history:', err);
+            // Not "no interviews yet": the list could not be read.
+            if (!cancelled) setHistoryError(userMessage(err, "We couldn't load your past interviews. Please try again."));
+          })
           .finally(() => {
             if (!cancelled) setHistoryLoading(false);
           });
@@ -189,7 +217,7 @@ export default function Scorecard() {
       })
       .catch((err) => {
         console.error('[Scorecard] Could not load that interview:', err);
-        if (!cancelled) setLoadError(err.message || 'Could not load that interview.');
+        if (!cancelled) setLoadError(userMessage(err, "We couldn't load that interview. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -198,7 +226,7 @@ export default function Scorecard() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId]); // ONLY depend on sessionId to prevent infinite re-render loop
+  }, [sessionId, attempt]); // not on result, which would refetch in a loop
 
   const toggleModelAnswer = (qNum) => {
     setExpandedAnswers((prev) => {
@@ -249,14 +277,27 @@ export default function Scorecard() {
     return (
       <EmptyState
         navigate={navigate}
-        title="Could not open that interview"
+        title="We couldn't open that interview"
         message={loadError}
+        onRetry={retry}
+        alert
       />
     );
   }
 
   // If no result is loaded, but past interviews exist in the database, show the Archive Selector!
   if (!result) {
+    if (historyError) {
+      return (
+        <EmptyState
+          navigate={navigate}
+          title="We couldn't load your interviews"
+          message={historyError}
+          onRetry={retry}
+          alert
+        />
+      );
+    }
     if (historyList.length > 0) {
       return (
         <div style={{ maxWidth: 840, margin: '0 auto', padding: '40px 24px' }}>
@@ -281,8 +322,9 @@ export default function Scorecard() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {historyList.map((it, idx) => {
-              const score = it.score ?? 0;
-              const tone = score >= 75 ? GREEN : score >= 50 ? AMBER : ROSE;
+              // No score (grading did not run) is neutral, not a red zero.
+              const score = it.score;
+              const tone = score == null ? MUTED : score >= 75 ? GREEN : score >= 50 ? AMBER : ROSE;
               return (
                 <div
                   key={it.sessionId || idx}
@@ -370,15 +412,12 @@ export default function Scorecard() {
   }
 
   // Grading failed upstream
-  if (result.evaluated === false) {
+  if (gradingUnavailable(result)) {
     return (
       <EmptyState
         navigate={navigate}
         title="We couldn't score this interview"
-        message={
-          result.evaluation_error ||
-          'The AI service could not grade your answers. Your answers were not lost — please try again.'
-        }
+        message={NOT_SCORED_MESSAGE}
       />
     );
   }

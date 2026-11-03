@@ -66,10 +66,14 @@ public class PasswordRecoveryService {
         users.save(user);
     }
 
+    static final String PASSWORD_TOO_LONG = "This password is too long. Try a shorter password.";
+
     @Transactional
     public void reset(String token, String password) {
         if (password.getBytes(StandardCharsets.UTF_8).length > 72)
-            throw new BadRequestException("Password must be at most 72 UTF-8 bytes.");
+            // bcrypt reads at most 72 bytes; a longer password is refused
+            // rather than silently cut short.
+            throw new BadRequestException(PASSWORD_TOO_LONG);
         var user = users.lockByPasswordResetHash(hash(token))
                 .orElseThrow(PasswordRecoveryService::invalidLink);
         var now = Instant.now();

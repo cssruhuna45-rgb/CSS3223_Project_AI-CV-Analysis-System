@@ -3,6 +3,21 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import MyApplications from './MyApplications';
 import { applicationsAPI, notificationsAPI } from '../services/jobApplicationsApi';
+import { ApiError } from '../services/http';
+
+// A refusal as the shared request handler delivers it: a business rule
+// the server spelled out for the user.
+const refused = (message, status = 409) => new ApiError({
+  status, code: status === 400 ? 'BAD_REQUEST' : status === 404 ? 'NOT_FOUND' : 'CONFLICT',
+  message, serverMessage: message,
+});
+
+// A failure with technical detail that must never reach the page.
+const broken = () => new ApiError({
+  status: 500, code: 'INTERNAL_ERROR',
+  message: 'Something went wrong on our side. Please try again in a moment.',
+});
+
 
 // react-router-dom 7 reaches for the "react-router/dom" subpath
 // export, which react-scripts 5's Jest resolver cannot follow. The page
@@ -308,14 +323,17 @@ test('an application still under review shows no final result section', async ()
 });
 
 test('a failed load is reported instead of showing an empty list', async () => {
-  applicationsAPI.mine.mockRejectedValue(new Error('Service unavailable'));
+  applicationsAPI.mine.mockRejectedValue(broken());
   notificationsAPI.mine.mockResolvedValue([]);
 
   await act(async () => {
     root.render(<MyApplications />);
   });
 
-  expect(container.querySelector('[role="alert"]').textContent).toContain('Service unavailable');
+  const alert = container.querySelector('[role="alert"]');
+  expect(alert.textContent).toContain("We couldn't load your applications.");
+  expect(container.textContent).not.toContain('You have not applied for any jobs yet.');
+  expect([...alert.querySelectorAll('button')].map((b) => b.textContent)).toContain('Try again');
 });
 
 // ---- Notifications ---------------------------------------------------
@@ -350,7 +368,7 @@ test('an already-read notification is not shown again', async () => {
 
 test('a notifications outage still leaves the applications readable', async () => {
   applicationsAPI.mine.mockResolvedValue([INTERVIEWED]);
-  notificationsAPI.mine.mockRejectedValue(new Error('down'));
+  notificationsAPI.mine.mockRejectedValue(broken());
 
   await act(async () => {
     root.render(<MyApplications />);
@@ -358,4 +376,7 @@ test('a notifications outage still leaves the applications readable', async () =
 
   expect(container.textContent).toContain('Backend Developer');
   expect(container.textContent).not.toContain('New for you');
+  // Reported rather than hidden.
+  expect(container.querySelector('[role="alert"]').textContent)
+    .toContain("We couldn't load your notifications.");
 });

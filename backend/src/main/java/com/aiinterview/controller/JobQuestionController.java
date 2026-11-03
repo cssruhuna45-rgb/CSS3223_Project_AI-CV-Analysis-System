@@ -1,6 +1,7 @@
 package com.aiinterview.controller;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
 import com.aiinterview.dto.JobQuestionsSaveRequestDto;
 import com.aiinterview.service.JobQuestionService;
@@ -65,14 +66,18 @@ public class JobQuestionController {
         return ResponseEntity.ok(jobQuestionService.generate(authentication.getName(), jobId));
     }
 
-    @Operation(summary = "Replace one draft question with a newly generated one")
+    @Operation(summary = "Replace one draft question with a newly generated one, "
+            + "optionally at a chosen difficulty and topic")
     @PostMapping("/questions/{questionId}/regenerate")
     public ResponseEntity<JobAssessmentDto> regenerate(
             @PathVariable Long jobId,
             @PathVariable Long questionId,
+            @Valid @RequestBody(required = false) JobQuestionRegenerateRequestDto request,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(jobQuestionService.regenerate(authentication.getName(), jobId, questionId));
+        return ResponseEntity.ok(
+                jobQuestionService.regenerate(authentication.getName(), jobId, questionId, request)
+        );
     }
 
     @Operation(summary = "Save the edited draft, in the order given")

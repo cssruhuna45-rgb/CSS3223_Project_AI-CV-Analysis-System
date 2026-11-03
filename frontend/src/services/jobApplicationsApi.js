@@ -1,4 +1,5 @@
-import { SPRING, authHeaders, handleResponse } from './api';
+import { SPRING, authHeaders } from './api';
+import { request } from './http';
 
 // ============================================================
 // JOB APPLICATIONS
@@ -37,22 +38,22 @@ export const applicationsAPI = {
   // submittedCvFileName, appliedAt, decidedAt, interviewCompletedAt,
   // interviewAvailable, interviewResumable, interviewMessage }.
   apply: (jobId, { resumeId, consentGranted, inviteCode }) =>
-    fetch(`${SPRING}/api/v1/jobs/${id(jobId)}/applications`, {
+    request(`${SPRING}/api/v1/jobs/${id(jobId)}/applications`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ resumeId, consentGranted, inviteCode }),
-    }).then(handleResponse),
+    }),
 
   // The candidate's own applications, newest first.
   mine: () =>
-    fetch(candidateBase, {
+    request(candidateBase, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   get: (applicationId) =>
-    fetch(`${candidateBase}/${id(applicationId)}`, {
+    request(`${candidateBase}/${id(applicationId)}`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -72,34 +73,34 @@ export const applicantsAPI = {
   // match.matchPercentage may be null, which means "not available" -
   // not 0%.
   list: (jobId) =>
-    fetch(`${recruiterBase}/jobs/${id(jobId)}/applications`, {
+    request(`${recruiterBase}/jobs/${id(jobId)}/applications`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // One applicant with the CV analysis they applied with:
   // { summary, jobId, jobTitle, requiredSkills, cvSnapshot,
   //   decisionOpen, consentVersion }.
   get: (applicationId) =>
-    fetch(`${recruiterBase}/applications/${id(applicationId)}`, {
+    request(`${recruiterBase}/applications/${id(applicationId)}`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // decision is 'SHORTLISTED' or 'REJECTED'. The server refuses
   // anything else, refuses reversing a decision already made, and
   // treats re-sending the same decision as a no-op.
   decide: (applicationId, decision) =>
-    fetch(`${recruiterBase}/applications/${id(applicationId)}/decision`, {
+    request(`${recruiterBase}/applications/${id(applicationId)}/decision`, {
       method: 'PATCH',
       headers: authHeaders(),
       body: JSON.stringify({ decision }),
-    }).then(handleResponse),
+    }),
 
   // Completed assessments for one job, side by side:
   // { jobId, jobTitle, company, questions: [...], candidates: [...] }.
   comparison: (jobId) =>
-    fetch(`${recruiterBase}/jobs/${id(jobId)}/comparison`, {
+    request(`${recruiterBase}/jobs/${id(jobId)}/comparison`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // ---- Final hiring decision ----
   //
@@ -111,27 +112,27 @@ export const applicantsAPI = {
   //   decidedByName, decidedAt, publishedAt }.
   // internalNotes is recruiter-only and never reaches the candidate.
   getDecision: (applicationId) =>
-    fetch(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision`, {
+    request(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // decision is 'SELECTED', 'NOT_SELECTED' or 'PENDING'. Saves a
   // private draft; the candidate is told nothing.
   saveDecision: (applicationId, { decision, candidateFeedback, internalNotes }) =>
-    fetch(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision`, {
+    request(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ decision, candidateFeedback, internalNotes }),
-    }).then(handleResponse),
+    }),
 
   // Announces the saved decision and notifies the candidate.
   // Idempotent: a repeated call returns the decision unchanged and
   // creates no second notification.
   publishDecision: (applicationId) =>
-    fetch(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision/publish`, {
+    request(`${recruiterBase}/applications/${id(applicationId)}/hiring-decision/publish`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -144,20 +145,20 @@ export const notificationsAPI = {
 
   // [{ id, type, title, message, applicationId, read, createdAt }]
   mine: () =>
-    fetch(`${SPRING}/api/v1/notifications`, {
+    request(`${SPRING}/api/v1/notifications`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   unreadCount: () =>
-    fetch(`${SPRING}/api/v1/notifications/unread-count`, {
+    request(`${SPRING}/api/v1/notifications/unread-count`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   markRead: (notificationId) =>
-    fetch(`${SPRING}/api/v1/notifications/${id(notificationId)}/read`, {
+    request(`${SPRING}/api/v1/notifications/${id(notificationId)}/read`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 

@@ -5,11 +5,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.util.unit.DataSize;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,25 +21,67 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
+/**
+ * Every error response: a stable {@code code} the frontend switches on
+ * and a {@code message} written for the user.
+ *
+ * <p>Messages from this application's own exceptions (BadRequest,
+ * Conflict, NotFound and so on) are written for the user where they
+ * are thrown and are passed through. Anything unexpected - and every
+ * failure inside the AI service - is logged here with its detail and
+ * answered with fixed wording, so exception text, addresses and stack
+ * traces never reach a browser.
+ */
 @RestControllerAdvice
-@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    static final String SERVER_ERROR =
+            "Something went wrong on our side. Please try again in a moment.";
+
+    static final String AI_UNAVAILABLE =
+            "The AI service is temporarily unavailable. Please try again in a few minutes.";
+
+    static final String AI_FAILED =
+            "The AI service couldn't complete this request. Please try again.";
+
+    static final String AI_INVALID =
+            "Some of the information sent to the AI service was not valid. Please check it and try again.";
+
+    /**
+     * Codes the AI service may send in {"detail": {"code", "message"}}
+     * whose message is written for the user. Any other detail is
+     * logged and replaced.
+     */
+    private static final Set<String> PUBLIC_AI_CODES = Set.of(
+            "AI_BAD_REQUEST", "AI_RATE_LIMITED", "AI_DAILY_LIMIT",
+            "AI_UNAVAILABLE", "AI_FAILED", "NOT_FOUND", "CONFLICT", "FORBIDDEN"
+    );
 
     private final ObjectMapper objectMapper;
 
+    private final String maxUploadSize;
+
+    public GlobalExceptionHandler(
+            ObjectMapper objectMapper,
+            @Value("${spring.servlet.multipart.max-file-size:10MB}") DataSize maxUploadSize
+    ) {
+        this.objectMapper = objectMapper;
+        this.maxUploadSize = maxUploadSize.toMegabytes() + " MB";
+    }
+
+    // ------------------------------------------------------------------
+    // Application exceptions: messages written for the user
+    // ------------------------------------------------------------------
+
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateEmail(DuplicateEmailException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error(HttpStatus.CONFLICT.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        return respond(HttpStatus.CONFLICT, "DUPLICATE_EMAIL", ex.getMessage(), request);
     }
 
     /**
@@ -46,40 +91,19 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.TOO_MANY_REQUESTS.value())
-                .error(HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
-                .body(error);
+                .body(body(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", ex.getMessage(), request));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return respond(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), request);
     }
 
     @ExceptionHandler(UnauthorizedAccessException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccess(UnauthorizedAccessException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.FORBIDDEN.value())
-                .error(HttpStatus.FORBIDDEN.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        return respond(HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage(), request);
     }
 
     /**
@@ -89,83 +113,46 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        return respond(HttpStatus.BAD_REQUEST, "BAD_REQUEST", ex.getMessage(), request);
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error(HttpStatus.CONFLICT.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        return respond(HttpStatus.CONFLICT, "CONFLICT", ex.getMessage(), request);
     }
 
     @ExceptionHandler(InvalidFileException.class)
     public ResponseEntity<ErrorResponse> handleInvalidFile(InvalidFileException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        return respond(HttpStatus.BAD_REQUEST, "INVALID_FILE", ex.getMessage(), request);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxSizeException(MaxUploadSizeExceededException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message("File size exceeds maximum allowable limit of 10MB.")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        return respond(HttpStatus.BAD_REQUEST, "FILE_TOO_LARGE",
+                "This file is too large. Upload a PDF smaller than " + maxUploadSize + ".", request);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
-                .message("Invalid email or password")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        return respond(HttpStatus.UNAUTHORIZED, "AUTH_INVALID_CREDENTIALS",
+                "The email or password is incorrect. Please try again.", request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
-        Map<String, String> errors = new HashMap<>();
+        Map<String, String> errors = new LinkedHashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            if (error instanceof FieldError fieldError) {
+                // The first message per field: the one the form shows.
+                errors.putIfAbsent(fieldError.getField(), error.getDefaultMessage());
+            }
         });
 
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message("Validation failed for input fields")
-                .fieldErrors(errors)
-                .path(request.getRequestURI())
-                .build();
+        ErrorResponse response = body(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED",
+                "Please correct the highlighted fields and try again.", request);
+        response.setFieldErrors(errors);
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
@@ -178,33 +165,24 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.FORBIDDEN.value())
-                .error(HttpStatus.FORBIDDEN.getReasonPhrase())
-                .message("You do not have permission to access this resource.")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        return respond(HttpStatus.FORBIDDEN, "FORBIDDEN", "You don't have permission to do that.", request);
     }
 
     @ExceptionHandler(JwtException.class)
     public ResponseEntity<ErrorResponse> handleJwtException(JwtException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
-                .message("Invalid or expired JWT token")
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        return respond(HttpStatus.UNAUTHORIZED, "SESSION_EXPIRED",
+                "Your session has expired. Please sign in again.", request);
     }
+
+    // ------------------------------------------------------------------
+    // AI service
+    // ------------------------------------------------------------------
 
     @ExceptionHandler(AiServiceException.class)
     public ResponseEntity<ErrorResponse> handleAiServiceException(AiServiceException ex, HttpServletRequest request) {
 
         // A 4xx from the AI service is normally the caller's fault (bad
-        // payload, unknown session), so it is passed through as-is.
+        // payload, unknown session), so its status is passed through.
         //
         // 401/403 are the one exception: those come from the internal
         // X-Internal-Api-Key check between this backend and the AI
@@ -223,69 +201,112 @@ public class GlobalExceptionHandler {
             status = HttpStatus.valueOf(downstreamStatus);
         }
 
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(status.value())
-                .error(status.getReasonPhrase())
-                .message(extractDetail(ex))
-                .path(request.getRequestURI())
-                .build();
+        String code;
+        String message;
 
-        return ResponseEntity.status(status).body(error);
+        JsonNode publicError = publicDetail(ex.getDownstreamBody());
+
+        if (ex.isUserFacing()) {
+            code = "AI_FAILED";
+            message = ex.getMessage();
+        } else if (publicError != null) {
+            code = publicError.get("code").asText();
+            message = publicError.get("message").asText();
+        } else if (downstreamStatus == 0 || downstreamStatus == 401 || downstreamStatus == 403
+                || downstreamStatus == 502 || downstreamStatus == 503 || downstreamStatus == 504) {
+            // Unreachable, timed out, or misconfigured between the two
+            // services: nothing the user did, and nothing they can fix.
+            code = "AI_UNAVAILABLE";
+            message = AI_UNAVAILABLE;
+        } else if (downstreamStatus == 429) {
+            code = "AI_RATE_LIMITED";
+            message = "The AI service is busy right now. Please wait a moment and try again.";
+        } else if (status.is4xxClientError()) {
+            code = "AI_INVALID_REQUEST";
+            message = AI_INVALID;
+        } else {
+            code = "AI_FAILED";
+            message = AI_FAILED;
+        }
+
+        // The full story stays in the log, never in the response.
+        log.warn("AI service call failed for {} {}: downstream status {}, {}; body: {}",
+                request.getMethod(), request.getRequestURI(), downstreamStatus,
+                ex.getMessage(), truncate(ex.getDownstreamBody()));
+
+        return respond(status, code, message, request);
     }
 
     /**
-     * FastAPI reports errors as {"detail": "..."}. Surfacing that text
-     * keeps the message useful for the frontend; otherwise fall back to
-     * the exception's own message.
+     * The AI service's {"detail": {"code", "message"}} when the code is
+     * one it uses for messages written for the user; null otherwise -
+     * a plain-text detail may be exception text and is never forwarded.
      */
-    private String extractDetail(AiServiceException ex) {
-
-        String body = ex.getDownstreamBody();
+    private JsonNode publicDetail(String body) {
 
         if (body == null || body.isBlank()) {
-            return ex.getMessage();
+            return null;
         }
 
         try {
             JsonNode detail = objectMapper.readTree(body).get("detail");
 
-            if (detail != null && !detail.isNull()) {
-                return detail.isTextual() ? detail.asText() : detail.toString();
+            if (detail != null && detail.isObject()
+                    && detail.path("code").isTextual() && detail.path("message").isTextual()
+                    && PUBLIC_AI_CODES.contains(detail.get("code").asText())
+                    && !detail.get("message").asText().isBlank()) {
+                return detail;
             }
         } catch (Exception ignored) {
-            // Non-JSON body; fall through to the generic message.
+            // Non-JSON body: logged by the caller, never shown.
         }
 
-        return ex.getMessage();
+        return null;
     }
+
+    // ------------------------------------------------------------------
+    // Everything else
+    // ------------------------------------------------------------------
 
     /**
      * An unknown URL is a 404, not a server error. Without this the
-     * catch-all below turns every typo into a 500, which hides real
-     * failures and leaks handler internals in the message.
+     * catch-all below turns every typo into a 500.
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                .message("No endpoint " + request.getMethod() + " " + request.getRequestURI())
-                .path(request.getRequestURI())
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return respond(HttpStatus.NOT_FOUND, "NOT_FOUND",
+                "We couldn't find what you were looking for.", request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
+        log.error("Unhandled error for {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return respond(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", SERVER_ERROR, request);
+    }
+
+    // ------------------------------------------------------------------
+
+    private ResponseEntity<ErrorResponse> respond(
+            HttpStatus status, String code, String message, HttpServletRequest request) {
+        return ResponseEntity.status(status).body(body(status, code, message, request));
+    }
+
+    private static ErrorResponse body(
+            HttpStatus status, String code, String message, HttpServletRequest request) {
+        return ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                .message("An unexpected error occurred: " + ex.getMessage())
+                .status(status.value())
+                .error(status.getReasonPhrase())
+                .code(code)
+                .message(message)
                 .path(request.getRequestURI())
                 .build();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+    private static String truncate(String value) {
+        if (value == null) {
+            return "(none)";
+        }
+        return value.length() <= 500 ? value : value.substring(0, 500) + "...";
     }
 }

@@ -1,4 +1,5 @@
-import { SPRING, authHeaders, handleResponse } from './api';
+import { SPRING, authHeaders } from './api';
+import { request } from './http';
 
 // ============================================================
 // PUBLIC JOBS
@@ -27,17 +28,17 @@ export const publicJobsAPI = {
   // included: [{ id, title, company, jobField, jobDescription,
   // requiredSkills, publishedAt, open }]. No invite codes.
   list: () =>
-    fetch(`${SPRING}/api/v1/jobs/public`, {
+    request(`${SPRING}/api/v1/jobs/public`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // One published job, shaped like jobsAPI.preview's answer but without
   // the invite code, plus the candidate's own application if any.
   // A job that is not published is "not found".
   get: (jobId) =>
-    fetch(`${SPRING}/api/v1/jobs/public/${id(jobId)}`, {
+    request(`${SPRING}/api/v1/jobs/public/${id(jobId)}`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -47,10 +48,10 @@ export const publicJobsAPI = {
 // recruiter's own jobs: another's id is "not found". Returns the job
 // without its counts, like closing one does.
 const changeJob = (change) => (jobId) =>
-  fetch(`${SPRING}/api/v1/recruiter/jobs/${id(jobId)}/${change}`, {
+  request(`${SPRING}/api/v1/recruiter/jobs/${id(jobId)}/${change}`, {
     method: 'POST',
     headers: authHeaders(),
-  }).then(handleResponse);
+  });
 
 export const jobPublicationAPI = {
   publish: changeJob('publish'),

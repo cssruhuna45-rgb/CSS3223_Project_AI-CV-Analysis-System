@@ -84,7 +84,9 @@ class PasswordRecoveryServiceTest {
     }
 
     @Test void rejectsPasswordsExceedingBcryptByteLimit() {
-        assertThrows(BadRequestException.class, () -> service.reset("token", "é".repeat(40)));
+        var refused = assertThrows(BadRequestException.class, () -> service.reset("token", "é".repeat(40)));
+        // The 72-byte rule stands; the message is plain words, not bytes.
+        assertEquals("This password is too long. Try a shorter password.", refused.getMessage());
         verifyNoInteractions(users, encoder);
     }
 }

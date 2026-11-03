@@ -53,13 +53,13 @@ public class ResumeAnalysisController {
         // 3. Find user
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: " + userEmail
+                        "We couldn't find your account. Please sign in again."
                 ));
 
         // 4. Find resume
         Resume resume = resumeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Resume not found with id: " + id
+                        "We couldn't find that CV. It may have been deleted."
                 ));
 
         // 5. Check ownership
@@ -73,7 +73,7 @@ public class ResumeAnalysisController {
         ResumeAnalysis analysis = resumeAnalysisRepository
                 .findByResumeId(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Resume analysis not found for resume id: " + id
+                        "This CV doesn't have a saved analysis yet."
                 ));
 
         // 7. Convert entity to DTO, in the same shape the AI service

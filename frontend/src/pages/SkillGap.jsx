@@ -22,6 +22,7 @@ import {
 import { skillGapAPI } from '../services/api';
 import StepBar from '../components/StepBar';
 import { PREDEFINED_JOB_FIELDS, getJobFieldName } from '../constants/jobFields';
+import { userMessage } from '../services/http';
 
 // Map candidate skills to their target required canonical concept for clear display
 const RELATED_SKILL_MAP = {
@@ -96,10 +97,7 @@ export default function SkillGap() {
       );
     } catch (err) {
       console.error('Skill gap analysis error:', err);
-      setError(
-        err.message ||
-          'Could not calculate skill gap analysis. Please ensure the backend and AI service are running, then retry.'
-      );
+      setError(userMessage(err, "We couldn't compare your CV with this job field right now. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -292,7 +290,7 @@ export default function SkillGap() {
 
       {/* Error Message */}
       {error && (
-        <div style={{
+        <div role="alert" style={{
           display: 'flex',
           gap: 12,
           alignItems: 'center',
@@ -302,14 +300,17 @@ export default function SkillGap() {
           padding: '14px 18px',
           marginBottom: 24,
         }}>
-          <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} />
-          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>{error}</p>
+          <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} aria-hidden="true" />
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>
+            <span className="sr-only">Error: </span>{error}
+          </p>
           <button
+            type="button"
             className="btn btn-outline"
             onClick={() => runSkillGapAnalysis(currentField)}
             style={{ fontSize: 'var(--fs-xs)', padding: '6px 14px' }}
           >
-            Retry
+            Try again
           </button>
         </div>
       )}

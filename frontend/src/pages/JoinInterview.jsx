@@ -5,6 +5,7 @@ import { jobsAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card } from '../components/ui';
 import PublicJobs from '../components/PublicJobs';
+import { userMessage } from '../services/http';
 
 function fieldName(id) {
   return PREDEFINED_JOB_FIELDS.find((f) => f.id === id)?.name || id;
@@ -40,7 +41,7 @@ export default function JoinInterview({ user }) {
     try {
       setJob(await jobsAPI.preview(trimmed));
     } catch (err) {
-      setError(err.message || 'That code could not be checked. Please try again.');
+      setError(userMessage(err, "We couldn't check that code. Please try again."));
     } finally {
       setLoading(false);
     }
