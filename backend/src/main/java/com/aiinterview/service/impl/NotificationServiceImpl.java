@@ -150,7 +150,7 @@ public class NotificationServiceImpl implements NotificationService {
         Notification notification = notificationRepository
                 .findByIdAndRecipientId(notificationId, user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No notification with id " + notificationId
+                        "We couldn't find that notification."
                 ));
 
         // Opening it again keeps the time it was first read.
@@ -164,6 +164,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 }

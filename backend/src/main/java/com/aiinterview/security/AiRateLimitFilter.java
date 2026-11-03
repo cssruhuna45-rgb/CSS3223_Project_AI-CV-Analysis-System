@@ -112,6 +112,7 @@ public class AiRateLimitFilter extends OncePerRequestFilter {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.TOO_MANY_REQUESTS.value())
                 .error(HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase())
+                .code("RATE_LIMITED")
                 .message(e.getMessage())
                 .path(request.getRequestURI())
                 .build();

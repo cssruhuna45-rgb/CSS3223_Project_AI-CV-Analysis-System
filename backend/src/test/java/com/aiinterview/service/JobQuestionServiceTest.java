@@ -1,6 +1,7 @@
 package com.aiinterview.service;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
 import com.aiinterview.entity.JobPosting;
@@ -258,16 +259,63 @@ class JobQuestionServiceTest {
         when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
                 {"How would you tune a slow PostgreSQL query plan?", "medium"}}));
 
-        JobAssessmentDto result = service.regenerate(RITA, 5L, target.getId());
+        JobAssessmentDto result = service.regenerate(RITA, 5L, target.getId(), null);
 
         ArgumentCaptor<JsonNode> sent = ArgumentCaptor.forClass(JsonNode.class);
         verify(aiServiceClient).post(anyString(), sent.capture());
         assertEquals(1, sent.getValue().get("question_count").asInt());
         assertEquals(5, sent.getValue().get("existing_questions").size());
+        assertFalse(sent.getValue().has("difficulty"));
+        assertFalse(sent.getValue().has("topic"));
 
         assertEquals("How would you tune a slow PostgreSQL query plan?", result.getQuestions().get(2).getQuestion());
         assertEquals(GOOD[0][0], result.getQuestions().get(0).getQuestion());
         assertEquals(5, result.getQuestions().size());
+    }
+
+    @Test
+    @DisplayName("regenerating at a chosen difficulty and topic sends both and keeps the recruiter's topic")
+    void regenerateWithDifficultyAndTopic() {
+        storeGoodSet();
+        JobQuestion target = stored.get(0);
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
+                {"How would you choose an isolation level for a payments table?", "hard"}}));
+
+        JobAssessmentDto result = service.regenerate(RITA, 5L, target.getId(),
+                JobQuestionRegenerateRequestDto.builder().difficulty("HARD").topic("  Transaction  isolation ").build());
+
+        ArgumentCaptor<JsonNode> sent = ArgumentCaptor.forClass(JsonNode.class);
+        verify(aiServiceClient).post(anyString(), sent.capture());
+        assertEquals("hard", sent.getValue().get("difficulty").asText());
+        assertEquals("Transaction isolation", sent.getValue().get("topic").asText());
+
+        var replaced = result.getQuestions().get(0);
+        assertEquals("How would you choose an isolation level for a payments table?", replaced.getQuestion());
+        assertEquals("hard", replaced.getDifficulty());
+        assertEquals("Transaction isolation", replaced.getTopic());
+    }
+
+    @Test
+    @DisplayName("a replacement at the wrong difficulty is refused, leaving the question as it was")
+    void regenerateWrongDifficultyRefused() {
+        storeGoodSet();
+        JobQuestion target = stored.get(0);
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
+                {"What does a primary key guarantee in a relational table?", "easy"}}));
+
+        assertThrows(RuntimeException.class, () -> service.regenerate(RITA, 5L, target.getId(),
+                JobQuestionRegenerateRequestDto.builder().difficulty("hard").build()));
+        assertEquals(GOOD[0][0], target.getQuestionText());
+    }
+
+    @Test
+    @DisplayName("an unknown difficulty is refused before the AI is called")
+    void regenerateBadDifficulty() {
+        storeGoodSet();
+
+        assertThrows(BadRequestException.class, () -> service.regenerate(RITA, 5L, stored.get(0).getId(),
+                JobQuestionRegenerateRequestDto.builder().difficulty("extreme").build()));
+        verify(aiServiceClient, never()).post(anyString(), any());
     }
 
     // ---- Editing ------------------------------------------------------
@@ -396,7 +444,7 @@ class JobQuestionServiceTest {
         job.setQuestionsApprovedAt(LocalDateTime.now());
 
         assertThrows(ConflictException.class, () -> service.generate(RITA, 5L));
-        assertThrows(ConflictException.class, () -> service.regenerate(RITA, 5L, stored.get(0).getId()));
+        assertThrows(ConflictException.class, () -> service.regenerate(RITA, 5L, stored.get(0).getId(), null));
         assertThrows(ConflictException.class, () -> service.saveDraft(RITA, 5L, List.of()));
         assertThrows(ConflictException.class, () -> service.approve(RITA, 5L));
         assertThrows(ConflictException.class, () -> service.updateSettings(RITA, 5L,

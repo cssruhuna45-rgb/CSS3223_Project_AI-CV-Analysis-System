@@ -4,6 +4,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import { authAPI } from '../services/api';
+import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
+
+// The server's rule (RegisterRequest): at least 6 characters, and no
+// more than bcrypt's 72 bytes.
+const MIN_PASSWORD = 6;
+const MAX_PASSWORD_BYTES = 72;
+
+// UTF-8 length without TextEncoder, which older test environments lack.
+const utf8Length = (text) => encodeURIComponent(text).replace(/%[0-9A-F]{2}/gi, 'x').length;
 import { homePathFor, toStoredUser } from '../constants/accounts';
 
 export default function Register({ onLogin }) {
@@ -13,12 +22,20 @@ export default function Register({ onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'candidate' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const errors = useFormErrors('register', ['name', 'email', 'password']);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    errors.clear();
+    if (form.password.length < MIN_PASSWORD) {
+      errors.setField('password', `Use at least ${MIN_PASSWORD} characters.`);
+      return;
+    }
+    if (utf8Length(form.password) > MAX_PASSWORD_BYTES) {
+      errors.setField('password', 'This password is too long. Try a shorter password.');
+      return;
+    }
     setLoading(true);
-    setError('');
     try {
       const data = await authAPI.register(form.name, form.email, form.password, form.role);
       // Trust the role the server stored, not the one the form asked
@@ -42,7 +59,7 @@ export default function Register({ onLogin }) {
         { replace: true }
       );
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
+      errors.report(err, "We couldn't create your account. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -104,49 +121,46 @@ export default function Register({ onLogin }) {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label className="label">Full Name</label>
+              <label className="label" htmlFor={errors.inputId('name')}>Full Name</label>
               <div style={{ position: 'relative' }}>
                 <User size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input className="input" placeholder="John Doe" style={{ paddingLeft: 42 }}
-                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+                  {...errors.fieldProps('name')} autoComplete="name"
+                  value={form.name} onChange={e => { errors.clearField('name'); setForm(f => ({ ...f, name: e.target.value })); }} required />
               </div>
+              <FieldError errors={errors} field="name" />
             </div>
             <div>
-              <label className="label">Email address</label>
+              <label className="label" htmlFor={errors.inputId('email')}>Email address</label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input className="input" type="email" placeholder="you@example.com" style={{ paddingLeft: 42 }}
-                  value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+                  {...errors.fieldProps('email')} autoComplete="email"
+                  value={form.email} onChange={e => { errors.clearField('email'); setForm(f => ({ ...f, email: e.target.value })); }} required />
               </div>
+              <FieldError errors={errors} field="email" />
             </div>
             <div>
-              <label className="label">Password</label>
+              <label className="label" htmlFor={errors.inputId('password')}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input className="input" type={showPass ? 'text' : 'password'} placeholder="Min. 8 characters"
+                <input className="input" type={showPass ? 'text' : 'password'} placeholder="At least 6 characters"
                   style={{ paddingLeft: 42, paddingRight: 42 }}
-                  value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+                  {...errors.fieldProps('password', 'register-password-hint')} autoComplete="new-password"
+                  value={form.password} onChange={e => { errors.clearField('password'); setForm(f => ({ ...f, password: e.target.value })); }} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
                   aria-label="Show password" aria-pressed={showPass}
                   style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <p id="register-password-hint" style={{ marginTop: 6, fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+                At least 6 characters.
+              </p>
+              <FieldError errors={errors} field="password" />
             </div>
 
-            {error && (
-              <div style={{
-                background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
-                borderRadius: 10,
-                padding: '12px 14px',
-                fontSize: 'var(--fs-sm)',
-                color: 'var(--danger)',
-                animation: 'fadeIn 0.3s ease',
-              }}>
-                {error}
-              </div>
-            )}
+            <FormAlert id="register-alert" message={errors.message} />
 
             <button className="btn btn-primary" type="submit" disabled={loading}
               style={{

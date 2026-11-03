@@ -215,7 +215,7 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
 
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found: " + userEmail
+                        "We couldn't find your account. Please sign in again."
                 ));
 
         return interviewSessionRepository
@@ -235,13 +235,13 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
 
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found: " + userEmail
+                        "We couldn't find your account. Please sign in again."
                 ));
 
         InterviewSession session = interviewSessionRepository
                 .findBySessionId(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Interview not found: " + sessionId
+                        "We couldn't find that interview."
                 ));
 
         // Session ids are UUIDs, so this is not guessable - but "not

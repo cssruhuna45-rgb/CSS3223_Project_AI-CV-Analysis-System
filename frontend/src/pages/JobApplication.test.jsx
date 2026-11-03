@@ -4,6 +4,21 @@ import { act, Simulate } from 'react-dom/test-utils';
 import JobApplication from './JobApplication';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { applicationsAPI } from '../services/jobApplicationsApi';
+import { ApiError } from '../services/http';
+
+// A refusal as the shared request handler delivers it: a business rule
+// the server spelled out for the user.
+const refused = (message, status = 409) => new ApiError({
+  status, code: status === 400 ? 'BAD_REQUEST' : status === 404 ? 'NOT_FOUND' : 'CONFLICT',
+  message, serverMessage: message,
+});
+
+// A failure with technical detail that must never reach the page.
+const broken = () => new ApiError({
+  status: 500, code: 'INTERNAL_ERROR',
+  message: 'Something went wrong on our side. Please try again in a moment.',
+});
+
 
 // react-router-dom 7's "react-router/dom" subpath export is not
 // resolvable by react-scripts 5's Jest, so the three things this page
@@ -175,7 +190,7 @@ test('a successful application reports that it is under review', async () => {
 });
 
 test('a rejected submission shows the server message and stays on the form', async () => {
-  applicationsAPI.apply.mockRejectedValue(new Error('You have already applied for this job.'));
+  applicationsAPI.apply.mockRejectedValue(refused('You have already applied for this job.'));
 
   await render();
   await tickConsent();
@@ -210,8 +225,20 @@ test('a job whose questions are not approved can still be applied for', async ()
   expect(applyButton()).not.toBeUndefined();
 });
 
+test('a failed CV list is reported, not shown as having no CV', async () => {
+  resumeAPI.getAll.mockRejectedValue(broken());
+
+  await render();
+
+  const alert = container.querySelector('[role="alert"]');
+  expect(alert.textContent).toContain("We couldn't load your CVs.");
+  expect(container.textContent).not.toContain('You have no analysed CV to apply with yet.');
+  // The job itself still loaded.
+  expect(container.textContent).toContain('Backend Developer');
+});
+
 test('an invalid invite code is reported', async () => {
-  jobsAPI.preview.mockRejectedValue(new Error('This invite code is not valid.'));
+  jobsAPI.preview.mockRejectedValue(refused('This invite code is not valid.', 404));
 
   await act(async () => {
     root.render(<JobApplication />);

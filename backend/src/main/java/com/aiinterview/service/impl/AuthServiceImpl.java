@@ -7,6 +7,7 @@ import com.aiinterview.dto.UserDto;
 import com.aiinterview.entity.ApprovalStatus;
 import com.aiinterview.entity.Role;
 import com.aiinterview.entity.User;
+import com.aiinterview.exception.BadRequestException;
 import com.aiinterview.exception.DuplicateEmailException;
 import com.aiinterview.exception.ResourceNotFoundException;
 import com.aiinterview.repository.UserRepository;
@@ -30,7 +31,14 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail().toLowerCase().trim())) {
-            throw new DuplicateEmailException("User with email '" + request.getEmail() + "' already exists.");
+            throw new DuplicateEmailException(
+                    "An account with this email already exists. Sign in instead, or reset your password if you've forgotten it.");
+        }
+
+        // bcrypt reads at most 72 bytes. Without this the encoder throws
+        // and the user sees a server error instead of a reason.
+        if (request.getPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) {
+            throw new BadRequestException("This password is too long. Try a shorter password.");
         }
 
         Role role = Role.fromWireValue(request.getRole());
@@ -94,6 +102,6 @@ public class AuthServiceImpl implements AuthService {
     public UserDto currentUser(String email) {
         return userRepository.findByEmail(email)
                 .map(UserDto::from)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 }

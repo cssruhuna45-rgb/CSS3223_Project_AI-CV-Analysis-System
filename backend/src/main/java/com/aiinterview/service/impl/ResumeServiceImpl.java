@@ -72,7 +72,7 @@ public class ResumeServiceImpl implements ResumeService {
         // 3. Find user
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: " + userEmail));
+                        "We couldn't find your account. Please sign in again."));
 
         // 4. Generate unique stored filename
         String storedFileName = UUID.randomUUID() + "_" + originalFilename;
@@ -129,8 +129,7 @@ public class ResumeServiceImpl implements ResumeService {
 
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: "
-                                + userEmail));
+                        "We couldn't find your account. Please sign in again."));
 
         return resumeRepository
                 .findByUserIdOrderByUploadedAtDesc(user.getId())
@@ -147,12 +146,11 @@ public class ResumeServiceImpl implements ResumeService {
 
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: "
-                                + userEmail));
+                        "We couldn't find your account. Please sign in again."));
 
         Resume resume = resumeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Resume not found with id: " + id));
+                        "We couldn't find that CV. It may have been deleted."));
 
         // Check ownership
         if (!resume.getUser().getId()
@@ -173,12 +171,11 @@ public class ResumeServiceImpl implements ResumeService {
 
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: "
-                                + userEmail));
+                        "We couldn't find your account. Please sign in again."));
 
         Resume resume = resumeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Resume not found with id: " + id));
+                        "We couldn't find that CV. It may have been deleted."));
 
         // Check ownership
         if (!resume.getUser().getId()

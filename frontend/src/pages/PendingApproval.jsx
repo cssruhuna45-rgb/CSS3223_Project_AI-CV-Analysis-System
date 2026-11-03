@@ -5,6 +5,7 @@ import { Clock, XCircle, RefreshCw } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { homePathFor, toStoredUser } from '../constants/accounts';
 import { Button, Card } from '../components/ui';
+import { userMessage } from '../services/http';
 
 // Where a recruiter waits until an administrator has approved the
 // account. The dashboard shows other people's results, so it stays
@@ -35,7 +36,7 @@ export default function PendingApproval({ user, onUserChange }) {
           : 'Your account is still awaiting approval.', 'info');
       }
     } catch (err) {
-      setError(err.message || 'Could not check right now. Please try again.');
+      setError(userMessage(err, "We couldn't check your approval status right now. Please try again."));
     } finally {
       setChecking(false);
     }

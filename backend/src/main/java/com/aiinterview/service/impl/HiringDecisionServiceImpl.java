@@ -204,7 +204,7 @@ public class HiringDecisionServiceImpl implements HiringDecisionService {
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .filter(a -> a.getCandidate().getId().equals(candidate.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No application with id " + applicationId
+                        "We couldn't find that application."
                 ));
 
         // Only published rows are loaded at all. A draft is not
@@ -266,7 +266,7 @@ public class HiringDecisionServiceImpl implements HiringDecisionService {
         return jobApplicationRepository
                 .findByIdForRecruiter(applicationId, recruiter.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No application with id " + applicationId
+                        "We couldn't find that application."
                 ));
     }
 
@@ -319,6 +319,6 @@ public class HiringDecisionServiceImpl implements HiringDecisionService {
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 }

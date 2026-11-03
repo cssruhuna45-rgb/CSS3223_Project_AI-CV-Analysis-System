@@ -43,14 +43,17 @@ export default function ModelAnswer({ data, loading, error }) {
           border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
         }}
       >
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        {/* The example answer is fetched before the candidate's answer is
+            sent, so nothing here may claim their answer was recorded. */}
+        <div role="status" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <AlertCircle
             size={16}
             color={GAP}
+            aria-hidden="true"
             style={{ flexShrink: 0, marginTop: 2 }}
           />
           <span style={{ color: 'var(--warning)', fontSize: 'var(--fs-sm)', lineHeight: 1.6 }}>
-            Expected answer unavailable: {error}. Your answer was still securely recorded.
+            {error}
           </span>
         </div>
       </div>
