@@ -72,6 +72,11 @@ export default function RecruiterJobs() {
   // The job just created, while the recruiter decides whether to publish it.
   const [publishPrompt, setPublishPrompt] = useState(null);
   const [publishingId, setPublishingId] = useState(null);
+  // Archived jobs are kept out of the working list; this shows them
+  // on their own so one can still be found and unarchived.
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedCount = jobs.filter((job) => job.archived).length;
+  const shownJobs = jobs.filter((job) => job.archived === showArchived);
 
   useEffect(() => {
     recruiterAPI.jobs()
@@ -259,11 +264,33 @@ export default function RecruiterJobs() {
         <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-4)' }}>{error}</p>
       )}
 
+      {!loading && jobs.length > 0 && (
+        <div role="group" aria-label="Which jobs to show"
+          style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <Button size="sm" variant={showArchived ? 'ghost' : 'secondary'}
+            aria-pressed={!showArchived} onClick={() => setShowArchived(false)}>
+            Active ({jobs.length - archivedCount})
+          </Button>
+          <Button size="sm" variant={showArchived ? 'secondary' : 'ghost'}
+            icon={<Archive size={14} />}
+            aria-pressed={showArchived} onClick={() => setShowArchived(true)}>
+            Archived ({archivedCount})
+          </Button>
+        </div>
+      )}
+
       {loading ? (
         <p style={{ color: 'var(--text-secondary)' }}>Loading your jobs{'…'}</p>
       ) : (
         <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-          {jobs.map((job) => (
+          {jobs.length > 0 && shownJobs.length === 0 && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+              {showArchived
+                ? 'No archived jobs. A job you archive is kept here with all its applications and results.'
+                : 'Every job is archived. Open Archived to bring one back.'}
+            </p>
+          )}
+          {shownJobs.map((job) => (
             <Card key={job.id} as="article" padding="md" aria-labelledby={`job-${job.id}-title`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0 }}>
