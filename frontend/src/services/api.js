@@ -14,11 +14,23 @@ export const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-export async function handleResponse(res) {
+/**
+ * Turns a fetch Response into data, or throws with something worth
+ * showing the user.
+ *
+ * credentialRequest marks a call that carries credentials instead of a
+ * session - signing in, registering, or using a password-reset link. A
+ * 401 from one of those means the credentials were refused, and there
+ * is no session to have expired: the server's own wording ("Invalid
+ * email or password") is passed through by the generic branch below.
+ * Everywhere else a 401 really does mean the stored token is no longer
+ * any good, which is handled as before.
+ */
+export async function handleResponse(res, { credentialRequest = false } = {}) {
   if (!res.ok) {
     // 401: no valid session (missing, expired or tampered token). The
     // stored login is useless, so it is cleared and the user signs in.
-    if (res.status === 401) {
+    if (res.status === 401 && !credentialRequest) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login') {
@@ -35,6 +47,19 @@ export async function handleResponse(res) {
     if (res.status === 403) {
       const denied = await res.json().catch(() => ({}));
       throw new Error(denied.message || 'You do not have permission to do that.');
+    }
+
+    // 502/503/504 come from nginx, not from Spring: the proxy is up but
+    // the backend behind it is not answering. In development that is
+    // almost always the twenty seconds it takes to boot after a
+    // restart, and the body is an nginx HTML page, so the generic
+    // branch below could only ever produce "Request failed (502 Bad
+    // Gateway)" - true, and of no use to anyone.
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error(
+        'The server is not responding yet. It may still be starting up '
+        + '- please wait a few seconds and try again.'
+      );
     }
 
     const err = await res.json().catch(() => ({}));
@@ -63,14 +88,14 @@ export const authAPI = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
-    }).then(handleResponse),
+    }).then((res) => handleResponse(res, { credentialRequest: true })),
 
   resetPassword: (token, password) =>
     fetch(`${SPRING}/api/v1/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
-    }).then(handleResponse),
+    }).then((res) => handleResponse(res, { credentialRequest: true })),
 
   register: (name, email, password, role) =>
     fetch(`${SPRING}/api/v1/auth/register`, {
@@ -84,7 +109,7 @@ export const authAPI = {
         password,
         role,
       }),
-    }).then(handleResponse),
+    }).then((res) => handleResponse(res, { credentialRequest: true })),
 
   login: (email, password) =>
     fetch(`${SPRING}/api/v1/auth/login`, {
@@ -96,7 +121,7 @@ export const authAPI = {
         email,
         password,
       }),
-    }).then(handleResponse),
+    }).then((res) => handleResponse(res, { credentialRequest: true })),
 
   // The signed-in account as the server holds it now. A recruiter
   // waiting for approval polls this rather than logging out and in.
@@ -285,34 +310,6 @@ export const interviewAPI = {
     inviteCode = null
   ) => {
 
-    console.log(
-      '[Frontend API] Starting interview with Skill Gap context:'
-    );
-
-    console.log(
-      '[Frontend API] Job Field:',
-      jobField
-    );
-
-    console.log(
-      '[Frontend API] Matched Skills:',
-      matchedSkills
-    );
-
-    console.log(
-      '[Frontend API] Related Skills:',
-      relatedSkills
-    );
-
-    console.log(
-      '[Frontend API] Missing Skills:',
-      missingSkills
-    );
-
-    console.log(
-      '[Frontend API] Additional Skills:',
-      additionalSkills
-    );
 
     return fetch(
       `${AI}/interview/start`,
@@ -728,12 +725,6 @@ export const skillGapAPI = {
       };
 
     }
-
-
-    console.log(
-      '[Frontend API] Skill Gap request:',
-      payload
-    );
 
 
     return fetch(

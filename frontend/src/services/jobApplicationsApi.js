@@ -159,6 +159,21 @@ export const notificationsAPI = {
 
 };
 
+// The sidebar shows an unread count beside My Applications, and the
+// page that marks notifications read is a different component. Rather
+// than lifting notification state into the app shell or polling for it,
+// whoever changes it says so once and anyone displaying a count
+// refreshes from the endpoint above.
+//
+// Deliberately not a new notification system: no store, no interval,
+// and no second source of truth. The server remains the only one.
+export const NOTIFICATIONS_CHANGED = 'vynterva:notifications-changed';
+
+/** Say that this user's unread notifications may have changed. */
+export function notificationsChanged() {
+  window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
+}
+
 // ---- Hiring decision display helpers -------------------------------
 
 // Decision -> Badge tone. As everywhere else, the label itself comes

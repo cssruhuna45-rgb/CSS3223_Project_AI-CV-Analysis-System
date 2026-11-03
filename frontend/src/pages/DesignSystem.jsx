@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Download, Trash2, Layers, CheckCircle } from 'lucide-react';
 import { Button, Card, SectionHeader, Badge } from '../components/ui';
+import BrandLogo from '../components/BrandLogo';
 
 // A living reference for the design system: every token and shared
 // component rendered from the real CSS, so this page can never drift
@@ -42,6 +43,7 @@ const label = {
 
 export default function DesignSystem() {
   const [loading, setLoading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState(0);
 
   const fakeSubmit = () => {
     setLoading(true);
@@ -49,7 +51,7 @@ export default function DesignSystem() {
   };
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: 'var(--space-6) var(--space-4)' }}>
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: 'var(--space-4) var(--space-4)' }}>
       <h1 style={{ fontSize: 'var(--fs-xl)', lineHeight: 'var(--lh-tight)', marginBottom: 'var(--space-2)' }}>
         Design System
       </h1>
@@ -70,6 +72,25 @@ export default function DesignSystem() {
                 <span style={{ fontSize: `var(${token})`, fontWeight: 600, lineHeight: 'var(--lh-tight)' }}>{use}</span>
               </div>
             ))}
+          </div>
+        </Card>
+        <Card as="section" aria-labelledby="ds-motion">
+          <SectionHeader id="ds-motion" title="Motion and brand" subtitle="Motion supports orientation. Reduced-motion preferences show the final state immediately." />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)', marginBottom: 'var(--space-5)', flexWrap: 'wrap' }}>
+            <BrandLogo key={logoPreview} alt="Vynterva AI logo shine preview" className="design-system-logo" />
+            <Button variant="secondary" onClick={() => setLogoPreview(value => value + 1)} icon={<Play size={16} />}>Replay logo shine</Button>
+          </div>
+          <div className="table-scroll" tabIndex={0} role="region" aria-label="Motion specifications">
+            <table className="workspace-table">
+              <thead><tr><th scope="col">Context</th><th scope="col">Duration</th><th scope="col">Behaviour</th></tr></thead>
+              <tbody>
+                <tr><td>Landing sections</td><td>550ms</td><td>20px reveal, once per visit; stagger capped at 210ms.</td></tr>
+                <tr><td>Workspace sections</td><td>260ms</td><td>10px reveal; keyboard focus reveals content immediately.</td></tr>
+                <tr><td>Logo artwork</td><td>1100ms</td><td>Masked shine after 700ms; interaction replay has a 6-second cooldown.</td></tr>
+                <tr><td>Controls</td><td>160ms</td><td>Small changes in colour, border, and elevation.</td></tr>
+                <tr><td>Interview</td><td>Static</td><td>Decorative reveals and logo shine are disabled.</td></tr>
+              </tbody>
+            </table>
           </div>
         </Card>
 

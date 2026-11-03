@@ -189,6 +189,12 @@ public class InterviewProgressServiceImpl implements InterviewProgressService {
                     .mode(session.getMode())
                     .scoreChange(change)
                     .feedbackSummary(session.getFeedbackSummary())
+                    // Null for an interview taken alone, which is what
+                    // tells the two apart on the history page.
+                    .jobTitle(session.getJobPosting() == null
+                            ? null : session.getJobPosting().getTitle())
+                    .company(session.getJobPosting() == null
+                            ? null : session.getJobPosting().getCompany())
                     .startedAt(session.getStartedAt())
                     .completedAt(session.getCompletedAt())
                     .build());

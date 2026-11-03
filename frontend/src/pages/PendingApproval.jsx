@@ -42,7 +42,7 @@ export default function PendingApproval({ user, onUserChange }) {
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-7) var(--space-5)' }}>
+    <div className="workspace-page workspace-page--approval" style={{ maxWidth: 640, margin: '0 auto', padding: 'var(--space-5) 0' }}>
       <Card as="section" padding="lg" aria-labelledby="pending-title" style={{ textAlign: 'center' }}>
         <div aria-hidden="true" style={{ color: rejected ? 'var(--danger)' : 'var(--warning)', marginBottom: 'var(--space-4)' }}>
           {rejected ? <XCircle size={40} /> : <Clock size={40} />}

@@ -16,8 +16,8 @@ export default function ModelAnswer({ data, loading, error }) {
       <div
         className="card"
         style={{
-          marginBottom: 20,
-          padding: 20,
+          marginBottom: 16,
+          padding: 16,
           background: CARD_BG,
           border: `1px solid ${BORDER}`,
         }}
@@ -37,7 +37,7 @@ export default function ModelAnswer({ data, loading, error }) {
       <div
         className="card"
         style={{
-          marginBottom: 20,
+          marginBottom: 16,
           padding: 18,
           background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
           border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
@@ -67,7 +67,7 @@ export default function ModelAnswer({ data, loading, error }) {
     <div
       className="card"
       style={{
-        marginBottom: 24,
+        marginBottom: 16,
         background: CARD_BG,
         border: `1px solid ${BORDER}`,
         borderTop: '3px solid var(--accent)',

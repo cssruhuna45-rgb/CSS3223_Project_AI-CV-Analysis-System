@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LockKeyhole } from 'lucide-react';
+import AuthStory from '../components/AuthStory';
 import { authAPI } from '../services/api';
+import {
+  PASSWORD_MIN_LENGTH, PASSWORD_RESET_MAX_LENGTH, PASSWORD_HINT_RESET,
+} from '../constants/passwordRules';
 
 export default function PasswordRecovery({ reset = false, onReset }) {
   const location = useLocation();
@@ -45,9 +49,9 @@ export default function PasswordRecovery({ reset = false, onReset }) {
 
   return (
     <div className="auth-page">
-      <div className="auth-ambient" />
+      <AuthStory recovery />
       <div className="animate-fade-in-up" style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div className="auth-icon"><LockKeyhole size={30} color="var(--on-accent)" /></div>
           <h1 style={{ fontSize: 'var(--fs-2xl)', marginBottom: 8 }}>{reset ? 'Reset your password' : 'Forgot password?'}</h1>
           <p style={{ color: 'var(--text-secondary)' }}>{reset ? 'Choose a new password for your account.' : 'Enter your email and we’ll send you a reset link.'}</p>
@@ -59,10 +63,10 @@ export default function PasswordRecovery({ reset = false, onReset }) {
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {reset ? <>
                 <div><label className="label" htmlFor="new-password">New password</label>
-                  <input id="new-password" className="input" type="password" autoComplete="new-password" required minLength={6} maxLength={72} value={password} onChange={e => setPassword(e.target.value)} aria-describedby="password-hint" />
-                  <p id="password-hint" style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>Use 6–72 characters.</p></div>
+                  <input id="new-password" className="input" type="password" autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_RESET_MAX_LENGTH} value={password} onChange={e => setPassword(e.target.value)} aria-describedby="password-hint" />
+                  <p id="password-hint" style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>{PASSWORD_HINT_RESET}</p></div>
                 <div><label className="label" htmlFor="confirm-password">Confirm new password</label>
-                  <input id="confirm-password" className="input" type="password" autoComplete="new-password" required minLength={6} maxLength={72} value={confirm} onChange={e => setConfirm(e.target.value)} /></div>
+                  <input id="confirm-password" className="input" type="password" autoComplete="new-password" required minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_RESET_MAX_LENGTH} value={confirm} onChange={e => setConfirm(e.target.value)} /></div>
               </> : <div>
                 <label className="label" htmlFor="recovery-email">Email address</label>
                 <input id="recovery-email" className="input" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />

@@ -2,21 +2,20 @@ import React from 'react';
 import { CheckCircle2, XCircle, FileWarning, Sparkles, Check } from 'lucide-react';
 
 const ACCENT = 'var(--accent)';
-const CYAN = 'var(--accent)';
 const TEXT = 'var(--text-primary)';
 const MUTED = 'var(--text-muted)';
-const GREEN = 'var(--success)';
-const AMBER = 'var(--warning)';
-const ROSE = 'var(--danger)';
+const SUCCESS = 'var(--success)';
+const WARNING = 'var(--warning)';
+const DANGER = 'var(--danger)';
 const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 const CARD_BG = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
 
 export default function CVFeedback({ review, loading, error }) {
   if (loading) {
     return (
-      <div className="card" style={{ marginBottom: 24, padding: 22, background: CARD_BG }}>
+      <div className="card" style={{ marginBottom: 16, padding: 16, background: CARD_BG }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Sparkles size={16} color={CYAN} className="animate-spin" />
+          <Sparkles size={16} color={ACCENT} className="animate-spin" />
           <span style={{ color: TEXT, fontSize: 'var(--fs-sm)' }}>
             Evaluating your CV structure, metrics, and technical keywords…
           </span>
@@ -27,9 +26,9 @@ export default function CVFeedback({ review, loading, error }) {
 
   if (error) {
     return (
-      <div className="card" style={{ marginBottom: 24, padding: 20, background: 'color-mix(in srgb, var(--danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+      <div className="card" style={{ marginBottom: 16, padding: 16, background: 'color-mix(in srgb, var(--danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <FileWarning size={16} color={ROSE} style={{ flexShrink: 0, marginTop: 2 }} />
+          <FileWarning size={16} color={DANGER} style={{ flexShrink: 0, marginTop: 2 }} />
           <span style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>
             CV review unavailable: {error}
           </span>
@@ -51,13 +50,13 @@ export default function CVFeedback({ review, loading, error }) {
     score >= 65 ? 'Competitive' :
     score >= 45 ? 'Developing' : 'Needs Structure';
 
-  const bandColor = score >= 75 ? GREEN : score >= 50 ? AMBER : ROSE;
+  const bandColor = score >= 75 ? SUCCESS : score >= 50 ? WARNING : DANGER;
 
   return (
     <div
       className="card"
       style={{
-        marginBottom: 28,
+        marginBottom: 20,
         background: CARD_BG,
         border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
         borderTop: '3px solid var(--accent)',
@@ -89,7 +88,7 @@ export default function CVFeedback({ review, loading, error }) {
         </div>
       </div>
 
-      <div style={{ height: 6, background: TRACK, borderRadius: 3, overflow: 'hidden', marginBottom: 20 }}>
+      <div style={{ height: 6, background: TRACK, borderRadius: 3, overflow: 'hidden', marginBottom: 16 }}>
         <div style={{
           height: '100%', borderRadius: 3, background: `linear-gradient(var(--accent-solid), var(--accent-solid))`,
           width: `${score}%`, transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -97,7 +96,7 @@ export default function CVFeedback({ review, loading, error }) {
       </div>
 
       {review.summary && (
-        <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', lineHeight: 1.65, marginBottom: 20 }}>
+        <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', lineHeight: 1.65, marginBottom: 16 }}>
           {review.summary}
         </p>
       )}
@@ -115,8 +114,8 @@ export default function CVFeedback({ review, loading, error }) {
             {checks.map(c => (
               <div key={c.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 {c.passed
-                  ? <CheckCircle2 size={16} color={GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
-                  : <XCircle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} />}
+                  ? <CheckCircle2 size={16} color={SUCCESS} style={{ flexShrink: 0, marginTop: 2 }} />
+                  : <XCircle size={16} color={WARNING} style={{ flexShrink: 0, marginTop: 2 }} />}
                 <div>
                   <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: c.passed ? TEXT : 'var(--warning)' }}>{c.label}</span>
                   {c.detail && (
@@ -135,7 +134,7 @@ export default function CVFeedback({ review, loading, error }) {
       {improvements.length > 0 && (
         <div style={{ borderTop: `1px solid ${TRACK}`, paddingTop: 18, marginTop: 18 }}>
           <p style={{
-            fontSize: 'var(--fs-xs)', color: AMBER, textTransform: 'uppercase',
+            fontSize: 'var(--fs-xs)', color: WARNING, textTransform: 'uppercase',
             letterSpacing: '0.06em', marginBottom: 12, fontWeight: 700,
           }}>
             Recommended Enhancements
@@ -158,9 +157,9 @@ export default function CVFeedback({ review, loading, error }) {
                 )}
                 {imp.example && (
                   <p style={{
-                    fontSize: 'var(--fs-xs)', color: CYAN, lineHeight: 1.5,
+                    fontSize: 'var(--fs-xs)', color: ACCENT, lineHeight: 1.5,
                     marginTop: 6, paddingLeft: 10,
-                    borderLeft: `2px solid ${CYAN}`,
+                    borderLeft: `2px solid ${ACCENT}`,
                   }}>
                     Example: {imp.example}
                   </p>
@@ -175,7 +174,7 @@ export default function CVFeedback({ review, loading, error }) {
       {strengths.length > 0 && (
         <div style={{ borderTop: `1px solid ${TRACK}`, paddingTop: 18, marginTop: 18 }}>
           <p style={{
-            fontSize: 'var(--fs-xs)', color: GREEN, textTransform: 'uppercase',
+            fontSize: 'var(--fs-xs)', color: SUCCESS, textTransform: 'uppercase',
             letterSpacing: '0.06em', marginBottom: 10, fontWeight: 700,
           }}>
             Strong Aspects of Your CV
@@ -183,7 +182,7 @@ export default function CVFeedback({ review, loading, error }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {strengths.map((s, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <CheckCircle2 size={16} color={GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
+                <CheckCircle2 size={16} color={SUCCESS} style={{ flexShrink: 0, marginTop: 2 }} />
                 <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-primary)', lineHeight: 1.5, margin: 0 }}>{s}</p>
               </div>
             ))}

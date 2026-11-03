@@ -29,10 +29,20 @@ public interface InterviewSessionRepository
      *
      * <p>Scoped by user id as well as status so a caller cannot ask
      * for somebody else's interviews by accident.
+     *
+     * <p>The job comes with it. The history page labels an interview
+     * taken for a recruiter's job differently from one the candidate
+     * sat alone, and jobPosting is lazy: without the fetch that label
+     * costs one query per interview. LEFT, because most interviews
+     * have no job behind them at all.
      */
+    @Query("SELECT s FROM InterviewSession s "
+            + "LEFT JOIN FETCH s.jobPosting "
+            + "WHERE s.user.id = :userId AND s.status = :status "
+            + "ORDER BY s.startedAt ASC")
     List<InterviewSession> findByUserIdAndStatusOrderByStartedAtAsc(
-            Long userId,
-            String status
+            @Param("userId") Long userId,
+            @Param("status") String status
     );
 
     /**

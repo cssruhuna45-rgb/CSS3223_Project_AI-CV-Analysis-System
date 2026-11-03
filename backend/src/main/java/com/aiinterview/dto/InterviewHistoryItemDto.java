@@ -47,6 +47,18 @@ public class InterviewHistoryItemDto {
 
     private String feedbackSummary;
 
+    /**
+     * The job this interview was taken for, or null when the candidate
+     * sat it on their own.
+     *
+     * <p>Only the title and company: the candidate applied for this job
+     * and has already seen both. Nothing about the recruiter, the
+     * question set or anyone else's application belongs here.
+     */
+    private String jobTitle;
+
+    private String company;
+
     private LocalDateTime startedAt;
 
     private LocalDateTime completedAt;

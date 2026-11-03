@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText, Play, Upload, BarChart2, TrendingUp, TrendingDown,
   Minus, Flag, Clock, Trophy, AlertTriangle, ChevronRight, Sparkles, Award, Briefcase
 } from 'lucide-react';
 import { resumeAPI, interviewAPI } from '../services/api';
-import { Button, Card } from '../components/ui';
+import { Button, Card, PageHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_LIGHT = 'var(--accent)';
@@ -44,37 +45,31 @@ function formatDate(iso) {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function Stat({ label, value, hint, color, delay = 0 }) {
+/**
+ * One figure in the dashboard's bento grid.
+ *
+ * `feature` makes it the large tile - the number the candidate opened
+ * the page to read. Everything else stacks beside it at a smaller size,
+ * because four equal tiles would claim all four figures matter equally.
+ */
+function Stat({ label, value, hint, color, feature = false, delay = 0 }) {
   return (
     <div
-      className="stat-card stagger-item"
-      style={{
-        '--stat-accent': color || ACCENT,
-        '--stat-glow': color || ACCENT,
-        animationDelay: `${delay}s`,
-      }}
+      className={`bento-tile stagger-item${feature ? ' bento-feature' : ''}`}
+      style={{ '--bento-accent': color || ACCENT, animationDelay: `${delay}s` }}
     >
-      <p style={{ fontSize: 'var(--fs-xs)', color: MUTED, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
-        {label}
-      </p>
-      <div style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1 }}>
-        {value}
-      </div>
-      {hint && (
-        <p style={{ fontSize: 'var(--fs-xs)', color: SUB, marginTop: 8 }}>{hint}</p>
-      )}
+      <p className="bento-label">{label}</p>
+      <div className={`bento-value${feature ? '' : ' bento-value--sm'}`}>{value}</div>
+      {hint && <p className="bento-hint">{hint}</p>}
     </div>
   );
 }
 
-function Section({ title, action, children }) {
+function Section({ title, action, children, className = '' }) {
   return (
-    <section style={{ marginBottom: 32 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 14, gap: 16,
-      }}>
-        <h2 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, letterSpacing: '-0.01em' }}>{title}</h2>
+    <section className={className} style={{ marginBottom: 20 }}>
+      <div className="panel-head">
+        <h2>{title}</h2>
         {action}
       </div>
       {children}
@@ -89,6 +84,7 @@ export default function Home({ user }) {
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const pageRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,9 +129,16 @@ export default function Home({ user }) {
     navigate('/upload');
   };
 
+  // Declared here, before the loading early return below, so it always
+  // runs. Safe no-op during loading, since pageRef is not attached to
+  // anything until the real page renders. The stat cards already
+  // animate in on mount via .stagger-item; this is for the sections
+  // below them, which currently have no entrance at all.
+  useScrollReveal(pageRef, [loading, interviews.length]);
+
   if (loading) {
     return (
-      <div style={{ maxWidth: 940, margin: '0 auto', padding: '100px 24px', textAlign: 'center' }}>
+      <div style={{ maxWidth: 940, margin: '0 auto', padding: 'var(--space-7) 0', textAlign: 'center' }}>
         <div style={{
           width: 60, height: 60, borderRadius: '50%',
           background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
@@ -153,42 +156,18 @@ export default function Home({ user }) {
   const firstName = (user?.name || '').trim().split(' ')[0] || 'there';
 
   return (
-    <div style={{ maxWidth: 940, margin: '0 auto', padding: '40px 24px 80px' }} className="animate-fade-in-up">
+    <div ref={pageRef} style={{ maxWidth: 1040, margin: '0 auto', padding: '0 0 var(--space-5)' }} className="workspace-page workspace-page--dashboard animate-fade-in-up">
 
       {/* Greeting Header */}
-      <div style={{ marginBottom: 32, position: 'relative' }}>
-        <div style={{
-          position: 'absolute', top: -30, right: 0, width: 300, height: 200,
-          background: 'transparent',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px',
-          borderRadius: 20, background: 'color-mix(in srgb, var(--accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
-          animation: 'pillGlow 3s ease-in-out infinite',
-        }}>
-          <Sparkles size={13} color={CYAN} />
-          <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--accent)' }}>Candidate Cockpit</span>
-        </div>
-        <h1 style={{
-          fontSize: 'var(--fs-2xl)', fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em',
-          background: 'linear-gradient(var(--text-primary), var(--text-primary))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-        }}>
-          Welcome back, {firstName}
-        </h1>
-        <p style={{ color: MUTED, fontSize: 'var(--fs-sm)' }}>
-          {interviews.length === 0
-            ? 'Upload your CV to identify skill gaps and sit your first practice interview.'
-            : `You have completed ${progress.totalInterviews} interview${progress.totalInterviews === 1 ? '' : 's'}. Review your progress or prepare for your next challenge.`}
-        </p>
-      </div>
+      <PageHeader icon={<Briefcase size={20} />} title={`Welcome back, ${firstName}`} subtitle={interviews.length === 0
+        ? 'Upload your CV to identify skill gaps and sit your first practice interview.'
+        : `You have completed ${progress.totalInterviews} interview${progress.totalInterviews === 1 ? '' : 's'}. Review your progress or prepare for your next challenge.`}
+        action={<Button icon={<Upload size={16} />} onClick={() => navigate('/upload')}>Analyse my CV</Button>} />
 
       {error && (
         <div className="card" style={{
           background: 'color-mix(in srgb, var(--danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--danger) 25%, transparent)',
-          padding: 16, marginBottom: 28, display: 'flex', gap: 12, alignItems: 'center',
+          padding: 16, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center',
           animation: 'fadeIn 0.4s ease',
         }}>
           <AlertTriangle size={18} color={ROSE} style={{ flexShrink: 0 }} />
@@ -198,30 +177,36 @@ export default function Home({ user }) {
 
       {/* Stats Cards */}
       {progress && progress.totalInterviews > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 36 }}>
-          <Stat label="Total Interviews" value={progress.totalInterviews} color="var(--text-primary)" delay={0.05} />
+        <div className="bento">
+          {/* Latest score leads: it is the figure a returning candidate
+              came back to read. The rest support it. */}
           <Stat
-            label="Latest Score"
+            feature
+            label="Latest score"
             value={progress.latestScore != null ? `${progress.latestScore}/100` : '—'}
+            hint={progress.latestScore == null
+              ? 'Sit an interview to get your first score.'
+              : 'Your most recent graded interview.'}
             color={scoreColor(progress.latestScore)}
-            delay={0.1}
+            delay={0.05}
           />
+          <Stat label="Interviews" value={progress.totalInterviews} color="var(--text-primary)" delay={0.1} />
           <Stat
-            label="Best Score"
+            label="Best score"
             value={progress.bestScore != null ? `${progress.bestScore}/100` : '—'}
             color={scoreColor(progress.bestScore)}
             delay={0.15}
           />
           <Stat
             label="Trend"
-            value={
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-lg)' }}>
+            value={(
+              <span className="bento-trend">
                 {trend.icon}
                 {progress.scoreDifference != null && progress.scoreDifference !== 0
                   ? `${progress.scoreDifference > 0 ? '+' : ''}${progress.scoreDifference}`
                   : trend.label}
               </span>
-            }
+            )}
             color={trend.color}
             delay={0.2}
           />
@@ -230,6 +215,7 @@ export default function Home({ user }) {
 
       {/* Your CV Section */}
       <Section
+        className="subreveal"
         title="Your Resume / CV"
         action={
           latestResume && (
@@ -276,7 +262,7 @@ export default function Home({ user }) {
             </div>
           </div>
         ) : (
-          <div className="card card-glow" style={{ background: CARD, padding: '40px 24px', textAlign: 'center' }}>
+          <div className="card card-glow" style={{ background: CARD, padding: '0', textAlign: 'center' }}>
             <div style={{
               width: 56, height: 56, borderRadius: 16,
               background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
@@ -285,7 +271,7 @@ export default function Home({ user }) {
               <Upload size={24} color={CYAN} />
             </div>
             <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, marginBottom: 6 }}>No CV uploaded yet</p>
-            <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginBottom: 22, maxWidth: 460, margin: '0 auto 22px', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginBottom: 16, maxWidth: 460, margin: '0 auto 22px', lineHeight: 1.6 }}>
               Upload your resume and our AI will extract your skills, highlight experience gaps, and generate questions tailored to your target job role.
             </p>
             <button
@@ -300,25 +286,27 @@ export default function Home({ user }) {
       </Section>
 
       {/* Job invite: the one way an interview reaches a recruiter */}
-      <Card as="section" padding="md" aria-labelledby="join-title" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
-          <div>
-            <h2 id="join-title" style={{ fontSize: 'var(--fs-base)', fontWeight: 700, marginBottom: 4 }}>
-              Have an invite code from a recruiter?
-            </h2>
-            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
-              Take that job's interview. Only that interview is shared with the recruiter; your practice stays private.
-            </p>
-          </div>
-          <Button variant="secondary" icon={<Briefcase size={15} />} onClick={() => navigate('/join')}>
-            Join a job interview
-          </Button>
+      {/* The page's one accent surface. A tinted panel rather than a
+          fourth white card, so the route into a real job stops looking
+          like more of the same. */}
+      <section className="accent-panel subreveal" aria-labelledby="join-title">
+        <div>
+          <h2 id="join-title" className="accent-panel-title">
+            Have an invite code from a recruiter?
+          </h2>
+          <p className="accent-panel-text">
+            Take that job's interview. Only that interview is shared with the recruiter; your practice stays private.
+          </p>
         </div>
-      </Card>
+        <Button variant="secondary" icon={<Briefcase size={15} />} onClick={() => navigate('/join')}>
+          Join a job interview
+        </Button>
+      </section>
 
       {/* Past Interviews Section */}
       {interviews.length > 0 && (
         <Section
+          className="subreveal"
           title="Past Practice Interviews"
           action={
             <button

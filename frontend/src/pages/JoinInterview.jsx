@@ -62,7 +62,7 @@ export default function JoinInterview({ user }) {
   const who = job?.company ? `${job.recruiterName} at ${job.company}` : job?.recruiterName;
 
   return (
-    <div style={{ maxWidth: 680, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' }}>
+    <div className="workspace-page workspace-page--invite" style={{ maxWidth: 760, margin: '0 auto', padding: '0' }}>
       <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Apply for a job</h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 'var(--lh-normal)' }}>
         A recruiter gave you an invite code. Enter it to read the job before you apply.

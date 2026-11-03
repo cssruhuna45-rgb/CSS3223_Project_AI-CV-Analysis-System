@@ -3,7 +3,7 @@ import {
   ArrowDown, ArrowUp, CheckCircle2, Lock, Plus, RefreshCw, Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { Badge, Button } from './ui';
+import { Badge, Button, ConfirmDialog } from './ui';
 import { jobQuestionsAPI } from '../services/jobQuestionsApi';
 
 const MAX_QUESTIONS = 10;
@@ -46,6 +46,9 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  // Which irreversible action is waiting to be confirmed: 'generate',
+  // 'approve', or null for none.
+  const [confirming, setConfirming] = useState(null);
 
   const apply = (data) => {
     setAssessment(data);
@@ -111,20 +114,32 @@ export default function JobQuestionEditor({ jobId, onChange }) {
     questionCount: Number(count),
   }), 'Question settings saved.');
 
+  const doGenerate = () =>
+    run('generate', () => jobQuestionsAPI.generate(jobId), 'Questions generated. Review them before approving.');
+
   const generate = () => {
-    if (draft.length > 0 && !window.confirm('Replace the current draft questions with newly generated ones?')) {
+    // Only worth asking when there is something to lose; generating
+    // the first set discards nothing.
+    if (draft.length > 0) {
+      setConfirming('generate');
       return;
     }
-    run('generate', () => jobQuestionsAPI.generate(jobId), 'Questions generated. Review them before approving.');
+    doGenerate();
   };
 
   const save = () => run('save', () => jobQuestionsAPI.save(jobId, draft.map(toRequest)), 'Draft saved.');
 
-  const approve = () => {
-    if (!window.confirm('Approve these questions? They cannot be changed afterwards; a different set needs a new job.')) {
-      return;
+  const approve = () => setConfirming('approve');
+
+  // Runs whichever action was being confirmed. The dialog stays up,
+  // with its button disabled, until the request finishes - so a second
+  // click cannot repeat an approval that is already on its way.
+  const confirmAction = async () => {
+    if (confirming === 'generate') await doGenerate();
+    else if (confirming === 'approve') {
+      await run('approve', () => jobQuestionsAPI.approve(jobId), 'Questions approved. Candidates can now take this interview.');
     }
-    run('approve', () => jobQuestionsAPI.approve(jobId), 'Questions approved. Candidates can now take this interview.');
+    setConfirming(null);
   };
 
   if (loadError) {
@@ -286,6 +301,27 @@ export default function JobQuestionEditor({ jobId, onChange }) {
           Approve questions
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirming === 'generate'}
+        tone="danger"
+        title="Replace the draft questions?"
+        description={`The ${draft.length} question${draft.length === 1 ? '' : 's'} in this draft will be discarded and a new set written from the job's required skills. Any wording or key points you have edited here will be lost.`}
+        confirmLabel="Replace them"
+        busy={busy === 'generate'}
+        onConfirm={confirmAction}
+        onCancel={() => setConfirming(null)}
+      />
+
+      <ConfirmDialog
+        open={confirming === 'approve'}
+        title="Approve these questions?"
+        description={`Every candidate will be asked exactly these ${draft.length} questions, in this order, and graded against their key points. Approved questions cannot be changed afterwards - a different set needs a new job.`}
+        confirmLabel="Approve"
+        busy={busy === 'approve'}
+        onConfirm={confirmAction}
+        onCancel={() => setConfirming(null)}
+      />
     </section>
   );
 }

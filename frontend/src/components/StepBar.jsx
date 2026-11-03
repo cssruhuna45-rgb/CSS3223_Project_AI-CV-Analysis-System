@@ -92,11 +92,14 @@ export default function StepBar({ current = 1 }) {
                   </div>
                   <span className="stepbar-label">
                     {s.label}
+                    <span className="stepbar-status">
+                      {isActive ? 'Current step' : isDone ? 'Completed' : s.isAccessible ? 'Ready to open' : 'Finish earlier steps'}
+                    </span>
                   </span>
                 </button>
               </li>
               {i < steps.length - 1 && (
-                <div
+                <li role="presentation"
                   className={`stepbar-line ${isDone ? 'stepbar-line-done' : ''}`}
                   aria-hidden="true"
                 />

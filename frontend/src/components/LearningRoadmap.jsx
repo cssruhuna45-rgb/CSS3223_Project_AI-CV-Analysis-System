@@ -22,25 +22,21 @@ import {
 import { roadmapAPI } from '../services/api';
 
 const ACCENT = 'var(--accent)';
-const ACCENT_LIGHT = 'var(--accent)';
 const TEXT = 'var(--text-primary)';
 const MUTED = 'var(--text-muted)';
 const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 const CARD_BG = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
 const BORDER_COLOR = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 
-const GREEN = 'var(--success)';
-const BLUE = 'var(--accent)';
-const AMBER = 'var(--warning)';
-const PURPLE = 'var(--accent)';
-const CYAN = 'var(--accent)';
-const ROSE = 'var(--danger)';
+const SUCCESS = 'var(--success)';
+const WARNING = 'var(--warning)';
+const DANGER = 'var(--danger)';
 
 const PHASE_COLORS = {
-  1: BLUE,
-  2: PURPLE,
-  3: CYAN,
-  4: GREEN,
+  1: ACCENT,
+  2: ACCENT,
+  3: ACCENT,
+  4: SUCCESS,
 };
 
 export default function LearningRoadmap({
@@ -227,7 +223,7 @@ export default function LearningRoadmap({
         style={{
           background: CARD_BG,
           border: `1px solid ${BORDER_COLOR}`,
-          padding: 32,
+          padding: 20,
           textAlign: 'center',
           borderRadius: 16,
         }}
@@ -252,12 +248,12 @@ export default function LearningRoadmap({
         style={{
           background: CARD_BG,
           border: `1px solid ${BORDER_COLOR}`,
-          borderTop: `3px solid ${CYAN}`,
-          padding: 32,
+          borderTop: `3px solid ${ACCENT}`,
+          padding: 20,
           borderRadius: 16,
           position: 'relative',
           overflow: 'hidden',
-          marginBottom: 24,
+          marginBottom: 16,
         }}
       >
         <div
@@ -273,7 +269,7 @@ export default function LearningRoadmap({
           }}
         />
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
           <div
             style={{
               width: 48,
@@ -287,7 +283,7 @@ export default function LearningRoadmap({
               flexShrink: 0,
             }}
           >
-            <Calendar size={24} color={CYAN} />
+            <Calendar size={24} color={ACCENT} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -297,7 +293,7 @@ export default function LearningRoadmap({
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
-                  color: CYAN,
+                  color: ACCENT,
                 }}
               >
                 {/* Was "Sprint 1 Milestone" with a "14-Day Roadmap Live"
@@ -323,10 +319,10 @@ export default function LearningRoadmap({
               padding: '12px 16px',
               borderRadius: 8,
               background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-              border: `1px solid ${ROSE}`,
-              color: ROSE,
+              border: `1px solid ${DANGER}`,
+              color: DANGER,
               fontSize: 'var(--fs-sm)',
-              marginBottom: 20,
+              marginBottom: 16,
             }}
           >
             {error}
@@ -375,10 +371,10 @@ export default function LearningRoadmap({
       style={{
         background: CARD_BG,
         border: `1px solid ${BORDER_COLOR}`,
-        borderTop: `3px solid ${CYAN}`,
+        borderTop: `3px solid ${ACCENT}`,
         borderRadius: 16,
         padding: '28px 24px',
-        marginBottom: 28,
+        marginBottom: 20,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -405,7 +401,7 @@ export default function LearningRoadmap({
           alignItems: 'flex-start',
           flexWrap: 'wrap',
           gap: 16,
-          marginBottom: 20,
+          marginBottom: 16,
         }}
       >
         <div>
@@ -422,7 +418,7 @@ export default function LearningRoadmap({
                 justifyContent: 'center',
               }}
             >
-              <Calendar size={18} color={CYAN} />
+              <Calendar size={18} color={ACCENT} />
             </div>
             <div>
               <span
@@ -431,7 +427,7 @@ export default function LearningRoadmap({
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '1px',
-                  color: CYAN,
+                  color: ACCENT,
                 }}
               >
                 Personalized Upskilling Plan
@@ -478,7 +474,7 @@ export default function LearningRoadmap({
           border: `1px solid ${TRACK}`,
           borderRadius: 12,
           padding: 16,
-          marginBottom: 24,
+          marginBottom: 16,
         }}
       >
         <div
@@ -490,12 +486,12 @@ export default function LearningRoadmap({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Award size={16} color={GREEN} />
+            <Award size={16} color={SUCCESS} />
             <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>
               Overall Roadmap Progress
             </span>
           </div>
-          <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: progressPercent === 100 ? GREEN : CYAN }}>
+          <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: progressPercent === 100 ? SUCCESS : ACCENT }}>
             {totalCompleted} of {durationDays} Days Completed ({progressPercent}%)
           </span>
         </div>
@@ -514,7 +510,7 @@ export default function LearningRoadmap({
             style={{
               height: '100%',
               borderRadius: 4,
-              background: `linear-gradient(${CYAN}, ${CYAN})`,
+              background: `linear-gradient(${ACCENT}, ${ACCENT})`,
               width: `${progressPercent}%`,
               transition: 'width 0.4s ease',
             }}
@@ -532,7 +528,7 @@ export default function LearningRoadmap({
             }}
           >
             {milestonesList.map((m) => {
-              const pColor = PHASE_COLORS[m.phase] || CYAN;
+              const pColor = PHASE_COLORS[m.phase] || ACCENT;
               const isPhaseActive = activePhase === String(m.phase);
               return (
                 <div
@@ -589,7 +585,7 @@ export default function LearningRoadmap({
 
       {/* Focus Area Tags */}
       {focusAreas.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           <span style={{ fontSize: 'var(--fs-xs)', color: MUTED, fontWeight: 600 }}>KEY FOCUS AREAS:</span>
           {focusAreas.map((fa, i) => (
             <span
@@ -632,9 +628,9 @@ export default function LearningRoadmap({
               borderRadius: 6,
               fontSize: 'var(--fs-xs)',
               fontWeight: 600,
-              border: `1px solid ${activePhase === 'all' ? CYAN : 'var(--border-strong)'}`,
-              background: activePhase === 'all' ? `color-mix(in srgb, ${CYAN} 13%, transparent)` : 'transparent',
-              color: activePhase === 'all' ? CYAN : MUTED,
+              border: `1px solid ${activePhase === 'all' ? ACCENT : 'var(--border-strong)'}`,
+              background: activePhase === 'all' ? `color-mix(in srgb, ${ACCENT} 13%, transparent)` : 'transparent',
+              color: activePhase === 'all' ? ACCENT : MUTED,
               cursor: 'pointer',
             }}
           >
@@ -707,7 +703,7 @@ export default function LearningRoadmap({
           const isExpanded = expandedDays.has(day.day);
           const phaseNum =
             day.day <= 4 ? 1 : day.day <= 7 ? 2 : day.day <= 11 ? 3 : 4;
-          const phaseColor = PHASE_COLORS[phaseNum] || CYAN;
+          const phaseColor = PHASE_COLORS[phaseNum] || ACCENT;
 
           return (
             <div
@@ -748,11 +744,11 @@ export default function LearningRoadmap({
                       padding: 0,
                       display: 'flex',
                       alignItems: 'center',
-                      color: isDone ? GREEN : MUTED,
+                      color: isDone ? SUCCESS : MUTED,
                     }}
                   >
                     {isDone ? (
-                      <CheckCircle2 size={22} color={GREEN} />
+                      <CheckCircle2 size={22} color={SUCCESS} />
                     ) : (
                       <Circle size={22} color={MUTED} />
                     )}
@@ -867,7 +863,7 @@ export default function LearningRoadmap({
                           gap: 6,
                           fontSize: 'var(--fs-xs)',
                           fontWeight: 700,
-                          color: CYAN,
+                          color: ACCENT,
                           marginBottom: 8,
                           textTransform: 'uppercase',
                         }}
@@ -894,7 +890,7 @@ export default function LearningRoadmap({
                                 height: 16,
                                 borderRadius: '50%',
                                 background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                                color: CYAN,
+                                color: ACCENT,
                                 fontSize: 'var(--fs-xs)',
                                 fontWeight: 700,
                                 display: 'flex',
@@ -923,7 +919,7 @@ export default function LearningRoadmap({
                           gap: 6,
                           fontSize: 'var(--fs-xs)',
                           fontWeight: 700,
-                          color: PURPLE,
+                          color: ACCENT,
                           marginBottom: 8,
                           textTransform: 'uppercase',
                         }}
@@ -943,7 +939,7 @@ export default function LearningRoadmap({
                               color: MUTED,
                             }}
                           >
-                            <ExternalLink size={12} color={PURPLE} />
+                            <ExternalLink size={12} color={ACCENT} />
                             <span>{res}</span>
                           </div>
                         ))}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BarChart3, AlertCircle, Inbox, ChevronDown, ChevronRight, Users, Info, UserCheck,
@@ -7,7 +7,8 @@ import { recruiterAPI } from '../services/api';
 import {
   applicantsAPI, decisionTone, matchLabel, statusTone,
 } from '../services/jobApplicationsApi';
-import { Button, Card, SectionHeader, Badge } from '../components/ui';
+import { Button, Card, SectionHeader, Badge, PageHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
 import HiringDecisionPanel from '../components/HiringDecisionPanel';
 
 const VERDICT_TONES = {
@@ -45,6 +46,11 @@ export default function RecruiterComparison() {
   // recruiter can narrow to two or three to read them properly.
   const [selected, setSelected] = useState([]);
   const [expanded, setExpanded] = useState({});
+  const pageRef = useRef(null);
+
+  // No early return in this component. A single fade for the summary
+  // table, matching the Administration page's table treatment.
+  useScrollReveal(pageRef, [comparison?.candidates?.length]);
 
   useEffect(() => {
     recruiterAPI.jobs()
@@ -93,14 +99,12 @@ export default function RecruiterComparison() {
   };
 
   return (
-    <div style={{ maxWidth: 1180, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' }}>
-      <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
-        Compare candidates
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 'var(--lh-normal)' }}>
-        Everyone here answered the same approved questions for this job. Read them side by side;
-        the selection is yours to make.
-      </p>
+    <div className="workspace-page workspace-page--comparison" ref={pageRef} style={{ maxWidth: 1180, margin: '0 auto', padding: '0' }}>
+      <PageHeader
+        icon={<BarChart3 size={18} />}
+        title="Compare candidates"
+        subtitle="Everyone here answered the same approved questions for this job. Read them side by side; the selection is yours to make."
+      />
 
       <Card as="section" padding="md" style={{ marginBottom: 'var(--space-5)' }}>
         <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -168,7 +172,7 @@ export default function RecruiterComparison() {
           </Card>
 
           {/* Headline scores */}
-          <Card as="section" padding="lg" style={{ marginBottom: 'var(--space-5)' }}>
+          <Card as="section" padding="lg" className="subreveal" style={{ marginBottom: 'var(--space-5)' }}>
             <SectionHeader
               level={2}
               icon={<BarChart3 size={18} />}
@@ -176,8 +180,8 @@ export default function RecruiterComparison() {
               subtitle="CV match and interview score measure different things and are not comparable with each other."
             />
 
-            <div style={{ overflowX: 'auto', marginTop: 'var(--space-4)' }}>
-              <table style={table}>
+            <div className="table-scroll" tabIndex={0} role="region" aria-label="Candidate comparison" style={{ marginTop: 'var(--space-4)' }}>
+              <table className="workspace-table" style={table}>
                 <thead>
                   <tr>
                     <th style={th}>Candidate</th>
@@ -190,7 +194,7 @@ export default function RecruiterComparison() {
                 </thead>
                 <tbody>
                   {shown.map((c) => (
-                    <tr key={c.applicationId}>
+                    <tr key={c.applicationId} className="table-row">
                       <td style={td}>
                         <strong>{c.candidateName}</strong>
                         <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)' }}>{c.candidateEmail}</div>

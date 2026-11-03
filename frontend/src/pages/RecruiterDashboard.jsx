@@ -5,7 +5,7 @@ import {
   Brain, Code, MessageSquare, Layers, Download, AlertTriangle, Sparkles, Briefcase,
 } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
-import { Button } from '../components/ui';
+import { Button, PageHeader } from '../components/ui';
 import { printDate, printPage } from '../utils/print';
 
 const ACCENT = 'var(--accent)';
@@ -83,7 +83,7 @@ function ScoreBar({ value }) {
 
 function Message({ icon, title, body }) {
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }} className="animate-fade-in-up">
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-6) 0', textAlign: 'center' }} className="animate-fade-in-up">
       <div style={{
         width: 64, height: 64, borderRadius: 18,
         background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
@@ -122,7 +122,7 @@ function IntegritySignals({ candidate }) {
 
   return (
     <section aria-labelledby="integrity-title" style={{
-      marginBottom: 20, padding: '12px 14px', borderRadius: 12,
+      marginBottom: 16, padding: '12px 14px', borderRadius: 12,
       border: `1px solid ${TRACK}`,
     }}>
       <h3 id="integrity-title" style={{
@@ -241,33 +241,18 @@ export default function RecruiterDashboard() {
   ];
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}
-         className={`animate-fade-in-up${candidate ? ' has-candidate' : ''}`}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0' }}
+         className={`workspace-page workspace-page--recruiter animate-fade-in-up${candidate ? ' has-candidate' : ''}`}>
 
       {/* With a candidate open, printing gives that candidate alone: the
           header, stats and list carry hide-when-printing-candidate. */}
 
       {/* Header */}
-      <div className="hide-when-printing-candidate" style={{ marginBottom: 32 }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '4px 10px',
-          borderRadius: 20, background: 'color-mix(in srgb, var(--accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
-          animation: 'pillGlow 3s ease-in-out infinite',
-        }}>
-          <Sparkles size={13} color={ACCENT_CYAN} />
-          <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--accent)' }}>Recruiter Intelligence</span>
-        </div>
-        <h1 style={{
-          fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 6,
-          background: 'linear-gradient(var(--text-primary), var(--text-primary))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-        }}>Recruiter Dashboard</h1>
-        <p style={{ color: TEXT, fontSize: 'var(--fs-sm)' }}>
-          {data.totalInterviews === 0
-            ? 'No interviews have been taken yet.'
-            : `${data.totalInterviews} interview${data.totalInterviews === 1 ? '' : 's'} across ${data.totalCandidates} candidate${data.totalCandidates === 1 ? '' : 's'}`}
-        </p>
+      <div className="hide-when-printing-candidate" style={{ marginBottom: 20 }}>
+        <PageHeader icon={<Users size={20} />} title="Recruiter Dashboard" subtitle={data.totalInterviews === 0
+          ? 'Your job-linked candidate interviews will appear here.'
+          : `${data.totalInterviews} interview${data.totalInterviews === 1 ? '' : 's'} across ${data.totalCandidates} candidate${data.totalCandidates === 1 ? '' : 's'}`}
+          action={<Button icon={<Briefcase size={16} />} onClick={() => navigate('/jobs')}>Manage jobs</Button>} />
 
         {jobs.length > 0 && (
           <div style={{ marginTop: 'var(--space-4)', maxWidth: 360 }}>
@@ -288,37 +273,29 @@ export default function RecruiterDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="hide-when-printing-candidate" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
+      {/* auto-fit rather than four fixed columns: at 320-375px these
+          became four slivers with the numbers wrapping mid-digit. The
+          four cards and their figures are unchanged - only how many sit
+          on a row. */}
+      <div className="hide-when-printing-candidate kpi-grid">
         {statData.map((s, i) => (
-          <div key={s.label} className="stat-card stagger-item" style={{
-            '--stat-accent': s.color,
-            '--stat-glow': s.color,
-            padding: 22,
-            animationDelay: `${i * 0.08}s`,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, fontWeight: 500 }}>{s.label}</span>
-              <div style={{
-                width: 38, height: 38, borderRadius: 10,
-                background: `linear-gradient(color-mix(in srgb, ${s.color} 20%, transparent), color-mix(in srgb, ${s.color} 20%, transparent))`,
-                border: `1px solid color-mix(in srgb, ${s.color} 27%, transparent)`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color,
-                transition: 'transform 0.3s var(--ease-spring)',
-              }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'rotate(-5deg) scale(1.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'rotate(0) scale(1)'; }}
-              >
-                {s.icon}
-              </div>
+          <div
+            key={s.label}
+            className="kpi-tile stagger-item"
+            style={{ '--kpi-accent': s.color, animationDelay: `${i * 0.08}s` }}
+          >
+            <div className="kpi-head">
+              <span className="kpi-label">{s.label}</span>
+              <span className="kpi-icon" aria-hidden="true">{s.icon}</span>
             </div>
-            <div style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, color: TEXT_PRIMARY, letterSpacing: '-0.5px' }}>{s.value}</div>
+            <div className="kpi-value">{s.value}</div>
           </div>
         ))}
       </div>
 
       {candidates.length === 0 ? (
         <div className="card card-glow" style={{
-          padding: 48,
+          padding: 32,
           textAlign: 'center',
           background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
           border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
@@ -336,7 +313,7 @@ export default function RecruiterDashboard() {
           )}
         </div>
       ) : (
-        <div className="print-single" style={{ display: 'grid', gridTemplateColumns: candidate ? '1fr 380px' : '1fr', gap: 20 }}>
+        <div className="print-single recruiter-review-grid" style={{ display: 'grid', gridTemplateColumns: candidate ? 'minmax(0, 1fr) minmax(300px, 380px)' : 'minmax(0, 1fr)', gap: 20 }}>
 
           {/* Candidate table */}
           <div className="card hide-when-printing-candidate" style={{
@@ -347,12 +324,13 @@ export default function RecruiterDashboard() {
             borderRadius: 18,
           }}>
 
-            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${TRACK}`, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="recruiter-review-toolbar" style={{ padding: '16px 20px', borderBottom: `1px solid ${TRACK}`, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input
                   className="input"
                   placeholder="Search candidates..."
+                  aria-label="Search candidates"
                   style={{ paddingLeft: 36, height: 40, fontSize: 'var(--fs-sm)' }}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -379,8 +357,8 @@ export default function RecruiterDashboard() {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="table-scroll" tabIndex={0} role="region" aria-label="Candidate interview results">
+              <table className="workspace-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${TRACK}` }}>
                     {['Candidate', 'Role', 'Score', 'Status', 'Date', ''].map(h => (
@@ -460,7 +438,7 @@ export default function RecruiterDashboard() {
           {/* Detail panel */}
           {candidate && (
             <div className="card card-glow animate-fade-in-up" style={{
-              padding: 26,
+              padding: 16,
               alignSelf: 'start',
               background: 'color-mix(in srgb, var(--bg-surface) 85%, transparent)',
               border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
@@ -472,7 +450,7 @@ export default function RecruiterDashboard() {
                 AI Interview Platform &middot; Candidate interview result &middot; {printDate()}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                 <div style={{
                   width: 50, height: 50, borderRadius: '50%',
                   background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
@@ -490,7 +468,7 @@ export default function RecruiterDashboard() {
 
               <div className="glow-line" style={{ margin: '0 0 20px' }} />
 
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <div style={{
                   fontSize: 48, fontWeight: 900,
                   color: typeof candidate.score === 'number'

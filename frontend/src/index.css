@@ -134,10 +134,10 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-  --space-8: 64px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
 
   /* Corner radii */
   --radius-sm: 8px;
@@ -354,7 +354,7 @@ body {
 }
 
 .shell-content {
-  padding: var(--space-6) var(--space-6) var(--space-8);
+  padding: var(--space-3) var(--space-5) var(--space-5);
 }
 
 /* ---------- Sidebar ---------- */
@@ -465,6 +465,35 @@ body {
   flex: none;
   color: currentColor;
 }
+
+/* Unread count beside a navigation entry. Pushed to the trailing edge
+   so the labels stay left-aligned with each other, and tinted with the
+   accent rather than a warning colour: an announcement is news, not a
+   problem. The label itself still says which page it belongs to, so
+   the number is never the only signal. */
+.shell-nav-badge {
+  margin-left: auto;
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* The pill keeps --accent-solid on the active row too. Switching it to
+   --accent there would look tidier in light mode and fail in dark,
+   where --accent is a light blue (#7AB0FF) chosen for text on a dark
+   surface: white on it is about 2:1. --accent-solid is the one that is
+   always paired with --on-accent, which is why .btn-primary uses it. */
 
 /* Active page: a tinted row with a solid accent rule down its
    leading edge, so the current page is identifiable without
@@ -627,8 +656,8 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 60px;
-  padding: 0 var(--space-6);
+  min-height: 52px;
+  padding: 0 var(--space-5);
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
 }
@@ -1033,7 +1062,7 @@ body {
   }
 
   .shell-content {
-    padding: var(--space-5) var(--space-4) var(--space-7);
+    padding: var(--space-3) var(--space-4) var(--space-5);
   }
 }
 
@@ -1056,7 +1085,7 @@ body {
   }
 
   .shell-content {
-    padding: var(--space-4) var(--space-3) var(--space-6);
+    padding: var(--space-3) var(--space-3) var(--space-5);
   }
 }
 
@@ -1541,8 +1570,11 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  box-shadow: 0 10px 30px -5px color-mix(in srgb, var(--shadow-ink) 45%, transparent), 0 0 0 1px color-mix(in srgb, var(--fg) 3%, transparent) inset;
-  transition: all 0.32s var(--ease-smooth);
+  /* A short, low-opacity shadow rather than a 30px glow: the border
+     above is what actually separates a card from the page, so the
+     shadow only needs to hint at depth, not announce it. */
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-ink) 8%, transparent);
+  transition: box-shadow 0.2s var(--ease-smooth), border-color 0.2s var(--ease-smooth), transform 0.2s var(--ease-smooth);
   position: relative;
 }
 
@@ -1551,12 +1583,12 @@ body {
 }
 
 .card-interactive:hover {
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: 
-    0 20px 40px -8px color-mix(in srgb, var(--shadow-ink) 55%, transparent),
-    0 0 24px -5px color-mix(in srgb, var(--accent) 25%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent) inset;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  /* No scale: a card that grows under the pointer is the easiest way
+     to turn a hover into a misclick. A small lift is enough to say
+     "this responds to you." */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--shadow-ink) 18%, transparent);
 }
 
 /* Card with glow aura on hover */
@@ -1572,12 +1604,14 @@ body {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
   opacity: 0;
   z-index: -1;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.3s ease;
   filter: blur(12px);
 }
 
 .card-glow:hover::before {
-  opacity: 1;
+  /* A hint of the accent at the edge, not a solid ring replacing the
+     card's own border-color. */
+  opacity: 0.4;
 }
 
 /* ============================================================
@@ -1730,6 +1764,46 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Lighter sibling of .reveal-section, for ordinary subpages rather
+   than the marketing hero. Driven by useScrollReveal: the "visible"
+   suffix matches that hook's class name exactly. Numbers come from
+   the brief: ~16px lift, ~450ms - felt once per page open, not once
+   per scroll, and quick enough not to make a page you visit daily
+   feel slow. Opacity and transform only, so this never triggers
+   layout and is cheap on low-end devices. */
+.subreveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.45s var(--ease-out-expo), transform 0.45s var(--ease-out-expo);
+}
+
+.subreveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* A row of cards revealing together rather than all at once reads as
+   considered rather than accidental - but kept short (80ms apart, 6
+   deep) so a long list does not make the last card wait a visible
+   moment after the first one has settled. */
+.subreveal-stagger > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.45s var(--ease-out-expo), transform 0.45s var(--ease-out-expo);
+}
+
+.subreveal-stagger.subreveal--visible > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.subreveal-stagger > *:nth-child(1) { transition-delay: 0ms; }
+.subreveal-stagger > *:nth-child(2) { transition-delay: 80ms; }
+.subreveal-stagger > *:nth-child(3) { transition-delay: 160ms; }
+.subreveal-stagger > *:nth-child(4) { transition-delay: 240ms; }
+.subreveal-stagger > *:nth-child(5) { transition-delay: 320ms; }
+.subreveal-stagger > *:nth-child(n+6) { transition-delay: 400ms; }
 
 /* 3D tilt card */
 .tilt-card {
@@ -2021,6 +2095,13 @@ body {
 
 .table-row-interactive:hover {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+/* A plain reading aid for a table whose rows are not themselves
+   clickable - no pointer cursor, so hovering never implies an action
+   that is not there. */
+.table-row:hover {
+  background: color-mix(in srgb, var(--fg) 3%, transparent);
 }
 
 /* ============================================================

@@ -3,8 +3,15 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
+import AuthStory from '../components/AuthStory';
 import { authAPI } from '../services/api';
 import { homePathFor, toStoredUser } from '../constants/accounts';
+import { PASSWORD_MIN_LENGTH, PASSWORD_HINT_REGISTER } from '../constants/passwordRules';
+
+// Regions the fields point at: the rule they must satisfy, and why the
+// form was refused. Both are read out with the field they belong to.
+const HINT_ID = 'register-password-hint';
+const ERROR_ID = 'register-error';
 
 export default function Register({ onLogin }) {
   const notify = useToast();
@@ -51,10 +58,10 @@ export default function Register({ onLogin }) {
   return (
     <div className="auth-page">
       {/* Ambient background glow */}
-      <div className="auth-ambient" />
+      <AuthStory />
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }} className="animate-fade-in-up">
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <BrandLogo variant="mark" alt="Vynterva AI" className="auth-logo" />
           <h1 style={{
             fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
@@ -73,13 +80,14 @@ export default function Register({ onLogin }) {
             border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
             borderRadius: 12,
             padding: 4,
-            marginBottom: 24,
+            marginBottom: 16,
           }}>
             {[
               { key: 'candidate', label: 'Candidate', icon: <GraduationCap size={14} /> },
               { key: 'recruiter', label: 'Recruiter', icon: <UserCog size={14} /> },
             ].map(r => (
-              <button key={r.key} onClick={() => setForm(f => ({ ...f, role: r.key }))}
+              <button key={r.key} type="button" aria-pressed={form.role === r.key}
+                onClick={() => setForm(f => ({ ...f, role: r.key }))}
                 style={{
                   flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
                   fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-sm)', fontWeight: 600,
@@ -96,7 +104,7 @@ export default function Register({ onLogin }) {
           </div>
 
           {form.role === 'recruiter' && (
-            <p role="note" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginTop: -12, marginBottom: 20, lineHeight: 'var(--lh-normal)' }}>
+            <p role="note" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginTop: -12, marginBottom: 16, lineHeight: 'var(--lh-normal)' }}>
               Recruiter accounts see candidates' results, so an administrator
               approves each one before the dashboard opens.
             </p>
@@ -104,38 +112,52 @@ export default function Register({ onLogin }) {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label className="label">Full Name</label>
+              <label className="label" htmlFor="register-name">Full Name</label>
               <div style={{ position: 'relative' }}>
-                <User size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input className="input" placeholder="John Doe" style={{ paddingLeft: 42 }}
+                <User size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input id="register-name" className="input" placeholder="John Doe" style={{ paddingLeft: 42 }}
+                  autoComplete="name"
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? ERROR_ID : undefined}
                   value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
               </div>
             </div>
             <div>
-              <label className="label">Email address</label>
+              <label className="label" htmlFor="register-email">Email address</label>
               <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input className="input" type="email" placeholder="you@example.com" style={{ paddingLeft: 42 }}
+                <Mail size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input id="register-email" className="input" type="email" placeholder="you@example.com" style={{ paddingLeft: 42 }}
+                  autoComplete="email"
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? ERROR_ID : undefined}
                   value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
               </div>
             </div>
             <div>
-              <label className="label">Password</label>
+              <label className="label" htmlFor="register-password">Password</label>
               <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input className="input" type={showPass ? 'text' : 'password'} placeholder="Min. 8 characters"
+                <Lock size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input id="register-password" className="input" type={showPass ? 'text' : 'password'}
+                  placeholder={PASSWORD_HINT_REGISTER}
+                  autoComplete="new-password"
+                  minLength={PASSWORD_MIN_LENGTH}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? `${HINT_ID} ${ERROR_ID}` : HINT_ID}
                   style={{ paddingLeft: 42, paddingRight: 42 }}
                   value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
-                  aria-label="Show password" aria-pressed={showPass}
+                  aria-label={showPass ? 'Hide password' : 'Show password'} aria-pressed={showPass}
                   style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <p id={HINT_ID} style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>
+                {PASSWORD_HINT_REGISTER}
+              </p>
             </div>
 
             {error && (
-              <div style={{
+              <div id={ERROR_ID} role="alert" style={{
                 background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
                 borderRadius: 10,
