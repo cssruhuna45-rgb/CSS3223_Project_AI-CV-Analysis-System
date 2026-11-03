@@ -3,6 +3,8 @@ package com.aiinterview.service.impl;
 import com.aiinterview.exception.InvalidFileException;
 import com.aiinterview.service.FileStorageService;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,6 +15,8 @@ import java.nio.file.*;
 
 @Service
 public class FileStorageServiceImpl implements FileStorageService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileStorageServiceImpl.class);
 
     private final Path fileStorageLocation;
 
@@ -25,7 +29,8 @@ public class FileStorageServiceImpl implements FileStorageService {
         try {
             Files.createDirectories(this.fileStorageLocation);
         } catch (IOException | SecurityException ex) {
-            throw new InvalidFileException("Could not create the directory where the uploaded files will be stored.");
+            log.error("Could not create the upload directory {}", fileStorageLocation, ex);
+            throw new InvalidFileException("CV uploads are unavailable right now. Please try again later.");
         }
     }
 
@@ -33,7 +38,8 @@ public class FileStorageServiceImpl implements FileStorageService {
     public String storeFile(MultipartFile file, String storedFileName) {
         try {
             if (storedFileName.contains("..")) {
-                throw new InvalidFileException("Filename contains invalid path sequence " + storedFileName);
+                log.warn("Refused to store a file whose name contains a path sequence");
+                throw new InvalidFileException("This file name isn't allowed. Rename the file and try again.");
             }
 
             Path targetLocation = this.fileStorageLocation.resolve(storedFileName);
@@ -42,7 +48,8 @@ public class FileStorageServiceImpl implements FileStorageService {
             }
             return targetLocation.toString();
         } catch (IOException ex) {
-            throw new InvalidFileException("Could not store file " + storedFileName + ". Please try again!");
+            log.error("Could not store uploaded file {}", storedFileName, ex);
+            throw new InvalidFileException("We couldn't save your CV. Please try again.");
         }
     }
 

@@ -41,6 +41,8 @@ test('replaces a crashed page with a way out instead of a blank screen', () => {
   act(() => root.render(<ErrorBoundary><Broken /></ErrorBoundary>));
   const alert = container.querySelector('[role="alert"]');
   expect(alert.textContent).toContain('Something went wrong');
+  // It cannot know whether anything was saved, so it must not promise it.
+  expect(alert.textContent).not.toMatch(/safe/i);
   expect(alert.querySelector('button').textContent).toBe('Reload page');
   expect(alert.querySelector('a').getAttribute('href')).toBe('/');
 });

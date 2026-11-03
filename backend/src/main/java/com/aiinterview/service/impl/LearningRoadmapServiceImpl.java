@@ -45,7 +45,7 @@ public class LearningRoadmapServiceImpl implements LearningRoadmapService {
     @Transactional
     public RoadmapResponseDto generateAndSaveRoadmap(String userEmail, RoadmapGenerateRequestDto request) {
         User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
 
         enrichFromSession(request);
 
@@ -127,7 +127,7 @@ public class LearningRoadmapServiceImpl implements LearningRoadmapService {
     @Transactional
     public RoadmapResponseDto updateProgress(String userEmail, Long id, int dayNumber, boolean completed) {
         LearningRoadmap roadmap = roadmapRepository.findByIdAndUserEmail(id, userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Roadmap not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that learning plan."));
 
         Set<Integer> completedSet = new HashSet<>(parseCompletedDays(roadmap.getCompletedDaysJson()));
 

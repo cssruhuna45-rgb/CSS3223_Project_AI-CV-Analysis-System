@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Wand2, Copy, Check, AlertCircle, ShieldCheck } from 'lucide-react';
 import { aiResumeAPI } from '../services/api';
 import { Button, Card, SectionHeader } from './ui';
+import { userMessage } from '../services/http';
 
 // Google's XYZ bullet: "Accomplished [X] as measured by [Y], by doing [Z]".
 //
@@ -82,7 +83,7 @@ export default function BulletTuner({ suggestions = [], jobField = '' }) {
     try {
       setResult(await aiResumeAPI.tuneBullet(value, jobField));
     } catch (err) {
-      setError(err.message || 'Could not rewrite this bullet. Please try again.');
+      setError(userMessage(err, "We couldn't rewrite this bullet point. Please try again."));
     } finally {
       setLoading(false);
     }

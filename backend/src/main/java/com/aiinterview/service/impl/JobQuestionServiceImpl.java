@@ -480,14 +480,14 @@ public class JobQuestionServiceImpl implements JobQuestionService {
     }
 
     private static AiServiceException noQuestions() {
-        return new AiServiceException(
-                "The AI service did not return any usable questions. Please try again.", 502, null);
+        return AiServiceException.userFacing(
+                "We couldn't write usable questions this time. Please try again.", 502);
     }
 
     private JobQuestion questionOf(JobPosting job, Long questionId) {
         return jobQuestionRepository.findById(questionId)
                 .filter(q -> q.getJobPosting().getId().equals(job.getId()))
-                .orElseThrow(() -> new ResourceNotFoundException("No question with id " + questionId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that question. Reload the questions and try again."));
     }
 
     private static void requireDraft(JobPosting job) {
@@ -512,12 +512,12 @@ public class JobQuestionServiceImpl implements JobQuestionService {
      */
     private JobPosting ownedJob(User recruiter, Long jobId) {
         return jobPostingRepository.findByIdAndRecruiterId(jobId, recruiter.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("No job with id " + jobId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that job."));
     }
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 
     /** Trimmed with inner whitespace collapsed; null when empty. */

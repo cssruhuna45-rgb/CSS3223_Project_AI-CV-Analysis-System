@@ -5,6 +5,33 @@ import {
 import { useToast } from './ToastProvider';
 import { Badge, Button, ConfirmDialog } from './ui';
 import { jobQuestionsAPI } from '../services/jobQuestionsApi';
+import { userMessage } from '../services/http';
+import { FormAlert } from './FormErrors';
+
+// What each action says when it fails. `uncertain` is for when the
+// server never answered, so the change may or may not have happened.
+const ACTION_ERRORS = {
+  settings: {
+    fallback: "We couldn't save the question settings. Check the skills and question count, then try again.",
+    uncertain: "We couldn't confirm the settings were saved. Save them again to be sure.",
+  },
+  generate: {
+    fallback: "We couldn't generate questions for this job. Please try again.",
+    uncertain: "We couldn't confirm whether new questions were generated. The questions below have been reloaded from the server.",
+  },
+  save: {
+    fallback: "We couldn't save your draft. Your changes are still here; please try again.",
+    uncertain: "We couldn't confirm your draft was saved. Your changes are still here; save again to be sure.",
+  },
+  approve: {
+    fallback: "We couldn't approve these questions. Please try again.",
+    uncertain: "We couldn't confirm the questions were approved. They have been reloaded from the server.",
+  },
+  regenerate: {
+    fallback: "We couldn't write a new question. The current question is unchanged; please try again.",
+    uncertain: "We couldn't confirm the question was replaced. Reload the page to check.",
+  },
+};
 
 const MAX_QUESTIONS = 10;
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
@@ -57,11 +84,19 @@ export default function JobQuestionEditor({ jobId, onChange }) {
     if (onChange) onChange(data);
   };
 
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
   useEffect(() => {
+    setLoadError('');
     jobQuestionsAPI.get(jobId)
       .then(apply)
-      .catch((err) => setLoadError(err.message || 'Could not load the questions.'));
-  }, [jobId]);
+      .catch((err) => setLoadError(userMessage(err, "We couldn't load the interview questions for this job. Please try again.")));
+  }, [jobId, loadAttempt]);
+
+  // After a change whose outcome is unknown, show what the server holds
+  // rather than guessing. Only for actions that replace the whole set,
+  // so no unsaved edit is thrown away.
+  const reread = () => jobQuestionsAPI.get(jobId).then(apply).catch(() => {});
 
   const serverDraft = useMemo(
     () => (assessment?.questions || []).map(toDraft),
@@ -83,7 +118,9 @@ export default function JobQuestionEditor({ jobId, onChange }) {
       apply(await action());
       if (success) notify(success);
     } catch (err) {
-      setError(err.message || 'That did not work. Please try again.');
+      const messages = ACTION_ERRORS[name];
+      setError(userMessage(err, messages.fallback, { uncertain: messages.uncertain }));
+      if (err.uncertain && (name === 'generate' || name === 'approve')) reread();
     } finally {
       setBusy('');
     }
@@ -137,7 +174,7 @@ export default function JobQuestionEditor({ jobId, onChange }) {
       }
       notify(`Question ${index + 1} replaced with a new ${q.difficulty} question.`);
     } catch (err) {
-      setError(err.message || 'That did not work. Please try again.');
+      setError(userMessage(err, ACTION_ERRORS.regenerate.fallback, { uncertain: ACTION_ERRORS.regenerate.uncertain }));
     } finally {
       setBusy('');
     }
@@ -173,7 +210,13 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   const cancelConfirm = () => setConfirming(null);
 
   if (loadError) {
-    return <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{loadError}</p>;
+    return (
+      <FormAlert message={loadError}>
+        <div style={{ marginTop: 'var(--space-2)' }}>
+          <Button size="sm" variant="secondary" onClick={() => setLoadAttempt((n) => n + 1)}>Try again</Button>
+        </div>
+      </FormAlert>
+    );
   }
 
   if (!assessment) {
@@ -337,7 +380,7 @@ export default function JobQuestionEditor({ jobId, onChange }) {
         </div>
       )}
 
-      {error && <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{error}</p>}
+      <FormAlert message={error} />
 
       <div>
         <Button icon={<CheckCircle2 size={16} />} loading={busy === 'approve'}

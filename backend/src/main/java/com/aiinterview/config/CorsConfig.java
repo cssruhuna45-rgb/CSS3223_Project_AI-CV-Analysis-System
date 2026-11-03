@@ -31,6 +31,9 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("Authorization", "Content-Type", "Accept")
+                // Not a CORS-safelisted header, so the browser hides it
+                // unless exposed; the frontend reads it on a 429.
+                .exposedHeaders("Retry-After")
                 .allowCredentials(true)
                 .maxAge(3600);
     }

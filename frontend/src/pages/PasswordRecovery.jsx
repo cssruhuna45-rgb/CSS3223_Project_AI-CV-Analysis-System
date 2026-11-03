@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LockKeyhole } from 'lucide-react';
 import { authAPI } from '../services/api';
+import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
 
 export default function PasswordRecovery({ reset = false, onReset }) {
   const location = useLocation();
@@ -10,15 +11,17 @@ export default function PasswordRecovery({ reset = false, onReset }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const errors = useFormErrors('recovery', ['email', 'password'], {
+    ids: { email: 'recovery-email', password: 'new-password' },
+  });
   const [message, setMessage] = useState('');
   const validLink = /^[A-Za-z0-9_-]{43}$/.test(token);
 
   async function submit(event) {
     event.preventDefault();
-    setError('');
+    errors.clear();
     if (reset && password !== confirm) {
-      setError('Passwords do not match.');
+      errors.report(null, 'The passwords do not match. Enter the same password in both boxes.');
       return;
     }
     setLoading(true);
@@ -37,7 +40,11 @@ export default function PasswordRecovery({ reset = false, onReset }) {
         onReset?.();
       }
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      // The request-a-link answer is the same whether or not the account
+      // exists, so nothing here can reveal which emails are registered.
+      errors.report(err, reset
+        ? "We couldn't reset your password. Please try again."
+        : "We couldn't send a reset link right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -59,15 +66,17 @@ export default function PasswordRecovery({ reset = false, onReset }) {
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {reset ? <>
                 <div><label className="label" htmlFor="new-password">New password</label>
-                  <input id="new-password" className="input" type="password" autoComplete="new-password" required minLength={6} maxLength={72} value={password} onChange={e => setPassword(e.target.value)} aria-describedby="password-hint" />
-                  <p id="password-hint" style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>Use 6–72 characters.</p></div>
+                  <input id="new-password" className="input" type="password" autoComplete="new-password" required minLength={6} maxLength={72} value={password} onChange={e => { errors.clearField('password'); setPassword(e.target.value); }} {...errors.fieldProps('password', 'password-hint')} />
+                  <p id="password-hint" style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>Use 6–72 characters.</p>
+                  <FieldError errors={errors} field="password" /></div>
                 <div><label className="label" htmlFor="confirm-password">Confirm new password</label>
                   <input id="confirm-password" className="input" type="password" autoComplete="new-password" required minLength={6} maxLength={72} value={confirm} onChange={e => setConfirm(e.target.value)} /></div>
               </> : <div>
                 <label className="label" htmlFor="recovery-email">Email address</label>
-                <input id="recovery-email" className="input" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+                <input id="recovery-email" className="input" type="email" autoComplete="email" required maxLength={254} value={email} onChange={e => { errors.clearField('email'); setEmail(e.target.value); }} placeholder="you@example.com" {...errors.fieldProps('email')} />
+                <FieldError errors={errors} field="email" />
               </div>}
-              {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
+              <FormAlert id="recovery-alert" message={errors.message} />
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ justifyContent: 'center' }}>
                 {loading ? 'Please wait...' : reset ? 'Reset password' : 'Send reset link'}
               </button>

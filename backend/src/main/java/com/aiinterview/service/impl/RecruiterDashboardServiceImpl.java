@@ -54,7 +54,7 @@ public class RecruiterDashboardServiceImpl implements RecruiterDashboardService 
 
         User recruiter = userRepository.findByEmail(recruiterEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found: " + recruiterEmail
+                        "We couldn't find your account. Please sign in again."
                 ));
 
         // Scoped by the recruiter id from the token. The optional job

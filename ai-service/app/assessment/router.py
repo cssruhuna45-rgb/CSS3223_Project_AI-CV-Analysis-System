@@ -11,7 +11,12 @@ import os
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.ai_errors import RATE_LIMIT_DETAIL, is_rate_limit_error
+from app.ai_errors import (
+    failed_error,
+    is_rate_limit_error,
+    rate_limit_error,
+    unavailable_error,
+)
 from app.assessment.generator import generate_questions
 from app.assessment.schemas import (
     QuestionGenerationRequest,
@@ -35,10 +40,7 @@ def generate_assessment_questions(req: QuestionGenerationRequest):
     """
 
     if not os.getenv("GEMINI_API_KEY"):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="GEMINI_API_KEY environment variable is not configured.",
-        )
+        raise unavailable_error()
 
     try:
         result = generate_questions(
@@ -62,15 +64,9 @@ def generate_assessment_questions(req: QuestionGenerationRequest):
         print(f"[AssessmentAPI] Error: {e}")
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Question generation failed: {str(e)}",
-        )
+        raise failed_error("We couldn't write questions for this job right now. Please try again.")
 
     print(
         "[AssessmentAPI] Drafted "

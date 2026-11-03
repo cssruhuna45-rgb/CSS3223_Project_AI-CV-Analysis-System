@@ -4,6 +4,7 @@ import {
   TrendingUp, TrendingDown, Minus, Flag, Award, History, AlertTriangle, ChevronRight,
 } from 'lucide-react';
 import { interviewAPI } from '../services/api';
+import { userMessage } from '../services/http';
 
 // Same palette the scorecard uses, so this reads as part of the app
 // rather than a bolted-on page.
@@ -202,18 +203,24 @@ export default function InterviewProgress({ compact = false }) {
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError('');
 
     interviewAPI.progress()
       .then(data => { if (active) setProgress(data); })
-      .catch(err => { if (active) setError(err.message); })
+      .catch(err => {
+        console.error('[InterviewProgress] Could not load progress:', err);
+        if (active) setError(userMessage(err, "We couldn't load your progress. Please try again."));
+      })
       .finally(() => { if (active) setLoading(false); });
 
     // The scorecard can unmount while this is still in flight.
     return () => { active = false; };
-  }, []);
+  }, [attempt]);
 
   if (loading) {
     return (
@@ -225,14 +232,18 @@ export default function InterviewProgress({ compact = false }) {
 
   if (error) {
     return (
-      <div className="card" style={{
-        display: 'flex', gap: 12, alignItems: 'flex-start',
+      <div className="card" role="alert" style={{
+        display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap',
         background: CARD, borderTop: `3px solid ${AMBER}`,
       }}>
-        <AlertTriangle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} />
-        <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>
-          Your progress could not be loaded. {error}
+        <AlertTriangle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
+        <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, flex: 1 }}>
+          <span className="sr-only">Error: </span>{error}
         </p>
+        <button type="button" className="btn btn-outline" style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }}
+          onClick={() => setAttempt((n) => n + 1)}>
+          Try again
+        </button>
       </div>
     );
   }
