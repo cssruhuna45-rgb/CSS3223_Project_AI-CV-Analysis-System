@@ -40,10 +40,13 @@ export const jobQuestionsAPI = {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  regenerate: (jobId, questionId) =>
+  // Replaces one question. { difficulty, topic } is optional: when given,
+  // the new question is written at that difficulty, about that topic.
+  regenerate: (jobId, questionId, { difficulty, topic } = {}) =>
     fetch(`${base(jobId)}/questions/${encodeURIComponent(questionId)}/regenerate`, {
       method: 'POST',
       headers: authHeaders(),
+      body: JSON.stringify({ difficulty: difficulty || null, topic: (topic || '').trim() || null }),
     }).then(handleResponse),
 
   // The whole draft, in the order it should be asked. A question

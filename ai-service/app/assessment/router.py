@@ -48,6 +48,8 @@ def generate_assessment_questions(req: QuestionGenerationRequest):
             required_skills=req.required_skills,
             question_count=req.question_count,
             existing_questions=req.existing_questions,
+            difficulty=req.difficulty,
+            topic=req.topic,
         )
 
     except ValueError as e:

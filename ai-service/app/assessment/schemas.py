@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -39,6 +39,24 @@ class QuestionGenerationRequest(BaseModel):
         description=(
             "Questions already in the set, which a replacement must not "
             "repeat."
+        ),
+    )
+
+    difficulty: Optional[Literal["easy", "medium", "hard"]] = Field(
+        default=None,
+        description=(
+            "Replacing one question: the difficulty the recruiter chose "
+            "for it. Every returned question has exactly this difficulty."
+        ),
+    )
+
+    topic: Optional[str] = Field(
+        default=None,
+        max_length=120,
+        description=(
+            "Replacing one question: the topic the recruiter chose for "
+            "it. The question tests this topic instead of being spread "
+            "across the required skills."
         ),
     )
 
