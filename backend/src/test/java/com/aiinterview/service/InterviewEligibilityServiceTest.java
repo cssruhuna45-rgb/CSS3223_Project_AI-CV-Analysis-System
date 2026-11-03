@@ -188,6 +188,31 @@ class InterviewEligibilityServiceTest {
     }
 
     @Test
+    @DisplayName("an archived job takes no interviews even from a shortlisted candidate")
+    void archivedJobRefused() {
+        job.setArchived(true);
+
+        assertThrows(ConflictException.class,
+                () -> service.requireEligibleApplication(candidate, job));
+    }
+
+    @Test
+    @DisplayName("an attempt left running on an archived job cannot be resumed")
+    void archivedJobRunningAttemptNotResumable() {
+        job.setArchived(true);
+        when(interviewSessionRepository.findByJobApplicationId(77L))
+                .thenReturn(Optional.of(InterviewSession.builder()
+                        .sessionId("s-live")
+                        .status(InterviewSession.STATUS_ACTIVE)
+                        .build()));
+
+        InterviewEligibilityService.InterviewAccess access = service.describeAccess(application);
+
+        assertFalse(access.available());
+        assertFalse(access.resumable());
+    }
+
+    @Test
     @DisplayName("a job whose questions are not approved is not ready")
     void unapprovedQuestionsRefused() {
         job.setQuestionsApprovedAt(null);

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { applicationsAPI } from '../services/jobApplicationsApi';
+import { publicJobsAPI } from '../services/publicJobsApi';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card, SectionHeader, Badge } from '../components/ui';
 
@@ -27,7 +28,9 @@ function fieldName(id) {
  */
 export default function JobApplication() {
   const navigate = useNavigate();
-  const { code } = useParams();
+  // /apply/:code from an invite link, or /apply/job/:jobId from Public
+  // Jobs. Either way it is this same page and the same application.
+  const { code, jobId } = useParams();
 
   const [job, setJob] = useState(null);
   const [resumes, setResumes] = useState([]);
@@ -48,7 +51,7 @@ export default function JobApplication() {
     let cancelled = false;
 
     Promise.all([
-      jobsAPI.preview(code),
+      code ? jobsAPI.preview(code) : publicJobsAPI.get(jobId),
       resumeAPI.getAll().catch(() => []),
     ])
       .then(([previewed, mine]) => {
@@ -76,7 +79,7 @@ export default function JobApplication() {
       });
 
     return () => { cancelled = true; };
-  }, [code]);
+  }, [code, jobId]);
 
   // The analysis behind the chosen CV, so the candidate can see what
   // the recruiter will be shown before agreeing to send it.
@@ -120,6 +123,8 @@ export default function JobApplication() {
       setSubmitted(await applicationsAPI.apply(job.jobId, {
         resumeId: Number(resumeId),
         consentGranted: true,
+        // An unpublished job takes applications only with its own code.
+        inviteCode: code,
       }));
     } catch (err) {
       setFormError(err.message || 'Your application could not be submitted. Please try again.');
@@ -146,7 +151,9 @@ export default function JobApplication() {
             <AlertCircle size={18} aria-hidden="true" /> {error}
           </p>
           <div style={{ marginTop: 'var(--space-4)' }}>
-            <Button variant="secondary" onClick={() => navigate('/join')}>Try another code</Button>
+            <Button variant="secondary" onClick={() => navigate('/join')}>
+              {code ? 'Try another code' : 'Back to jobs'}
+            </Button>
           </div>
         </Card>
       </div>

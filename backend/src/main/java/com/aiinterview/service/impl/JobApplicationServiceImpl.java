@@ -91,8 +91,14 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             );
         }
 
+        // Open and not archived, and either listed under Public Jobs or
+        // applied for with its own invite code (V13). A private job is
+        // refused with the same message as a missing one, so a guessed
+        // job id says nothing about which private jobs exist.
         JobPosting job = jobPostingRepository.findById(jobId)
                 .filter(JobPosting::isOpen)
+                .filter(j -> !j.isArchived())
+                .filter(j -> j.isPubliclyListed() || sameCode(j.getInviteCode(), request.getInviteCode()))
                 .orElseThrow(() -> new ResourceNotFoundException(UNAVAILABLE_JOB));
 
         // A job with no stated requirements cannot be matched against,
@@ -303,6 +309,18 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 .interviewSessionId(access.sessionId())
                 .interviewMessage(access.message())
                 .build();
+    }
+
+    /**
+     * Whether a typed code is this job's own. Compared without case,
+     * spaces or the dash, the way invite codes are looked up.
+     */
+    private static boolean sameCode(String jobCode, String typed) {
+        if (jobCode == null || typed == null) {
+            return false;
+        }
+        String compact = typed.toUpperCase().replaceAll("[^A-Z0-9]", "");
+        return !compact.isEmpty() && compact.equals(jobCode.replace("-", ""));
     }
 
     private User user(String email) {

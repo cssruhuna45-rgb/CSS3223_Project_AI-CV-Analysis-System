@@ -26,19 +26,21 @@ const id = (value) => encodeURIComponent(value);
 
 export const applicationsAPI = {
 
-  // { resumeId, consentGranted }. consentGranted must be the
-  // candidate's own tick: the server refuses the application without
-  // it, and pressing Apply is not consent.
+  // { resumeId, consentGranted, inviteCode }. consentGranted must be
+  // the candidate's own tick: the server refuses the application
+  // without it, and pressing Apply is not consent. inviteCode is the
+  // code the candidate came with, or undefined from Public Jobs: a job
+  // that is not published takes applications only with its own code.
   //
   // Returns the created application: { applicationId, jobId, jobTitle,
   // company, recruiterName, inviteCode, status, statusLabel,
   // submittedCvFileName, appliedAt, decidedAt, interviewCompletedAt,
   // interviewAvailable, interviewResumable, interviewMessage }.
-  apply: (jobId, { resumeId, consentGranted }) =>
+  apply: (jobId, { resumeId, consentGranted, inviteCode }) =>
     fetch(`${SPRING}/api/v1/jobs/${id(jobId)}/applications`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ resumeId, consentGranted }),
+      body: JSON.stringify({ resumeId, consentGranted, inviteCode }),
     }).then(handleResponse),
 
   // The candidate's own applications, newest first.

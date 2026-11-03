@@ -51,6 +51,15 @@ public class JobPostingDto {
 
     private long shortlistedCount;
 
+    // ---- Public listing (V13) -------------------------------------
+
+    /** DRAFT or PUBLISHED. */
+    private String publicationStatus;
+
+    private LocalDateTime publishedAt;
+
+    private boolean archived;
+
     public static JobPostingDto from(JobPosting job, long interviews, long completed) {
         return from(job, interviews, completed, 0, 0, 0);
     }
@@ -81,6 +90,9 @@ public class JobPostingDto {
                 .questionsApprovedAt(job.getQuestionsApprovedAt())
                 .interviewCount(interviews)
                 .completedCount(completed)
+                .publicationStatus(job.getPublicationStatus().name())
+                .publishedAt(job.getPublishedAt())
+                .archived(job.isArchived())
                 .build();
     }
 }

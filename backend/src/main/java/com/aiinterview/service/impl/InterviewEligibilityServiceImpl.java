@@ -88,7 +88,7 @@ public class InterviewEligibilityServiceImpl implements InterviewEligibilityServ
 
         // 4. The job still open. A closed job keeps its results but
         //    takes no new candidates.
-        if (!job.isOpen()) {
+        if (!job.isOpen() || job.isArchived()) {
             throw new ConflictException(JOB_CLOSED);
         }
 
@@ -133,7 +133,9 @@ public class InterviewEligibilityServiceImpl implements InterviewEligibilityServ
             return unavailable(statusRefusal(application.getStatus()));
         }
 
-        if (!job.isOpen()) {
+        // An archived job is treated as closed (V13): no start, and no
+        // resume of an attempt left running. Its history is kept.
+        if (!job.isOpen() || job.isArchived()) {
             return unavailable(JOB_CLOSED);
         }
 

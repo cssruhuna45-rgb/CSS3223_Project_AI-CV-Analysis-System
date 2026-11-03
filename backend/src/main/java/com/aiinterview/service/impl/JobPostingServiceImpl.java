@@ -351,6 +351,8 @@ public class JobPostingServiceImpl implements JobPostingService {
         return normalizeCode(rawCode)
                 .flatMap(jobPostingRepository::findByInviteCode)
                 .filter(JobPosting::isOpen)
+                // An archived job's code is retired with it (V13).
+                .filter(job -> !job.isArchived())
                 .orElseThrow(() -> new ResourceNotFoundException(INVALID_CODE));
     }
 
