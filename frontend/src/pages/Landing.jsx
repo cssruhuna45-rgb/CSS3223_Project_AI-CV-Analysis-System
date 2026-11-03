@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowDown, ArrowRight, AudioLines, BarChart3, BookOpen, Check,
-  CheckCircle2, Compass, FileText, Layers3, Mic, Sparkles, Users,
+  CheckCircle2, Compass, FileText, Layers3, Mic, Users,
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import useScrollReveal from '../hooks/useScrollReveal';
@@ -70,7 +70,6 @@ export default function Landing({ user }) {
       <div className="landing-reading-progress" aria-hidden="true" />
       <section className="landing-hero landing-container" aria-labelledby="landing-title">
         <div className="landing-hero-copy">
-          <div className="landing-kicker"><Sparkles size={15} aria-hidden="true" /><span>A clearer path to your next role</span></div>
           <h1 id="landing-title">Understand your CV.<br /><span>Strengthen your next interview.</span></h1>
           <p className="landing-hero-description">Explore your skills, practise technical interviews, and turn feedback into a focused learning plan.</p>
           <div className="landing-hero-actions">
