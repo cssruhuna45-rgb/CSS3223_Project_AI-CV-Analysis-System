@@ -504,6 +504,15 @@ export const interviewAPI = {
       }
     ).then(handleResponse),
 
+  // A job interview already under way, continued after a reload. The
+  // server checks the session is the signed-in candidate's and sends
+  // back the question they were on.
+  resume: (sessionId) =>
+    fetch(
+      `${SPRING}/api/v1/interviews/${encodeURIComponent(sessionId)}/resume`,
+      { method: 'POST', headers: authHeaders() }
+    ).then(handleResponse),
+
   // The stored scorecard for a past interview, so a result can be
   // reopened from the home page rather than only right after finishing.
   getScorecard: (sessionId) =>

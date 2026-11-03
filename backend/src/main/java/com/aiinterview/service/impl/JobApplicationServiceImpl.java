@@ -300,6 +300,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 .interviewCompletedAt(application.getInterviewCompletedAt())
                 .interviewAvailable(access.available())
                 .interviewResumable(access.resumable())
+                .interviewSessionId(access.sessionId())
                 .interviewMessage(access.message())
                 .build();
     }

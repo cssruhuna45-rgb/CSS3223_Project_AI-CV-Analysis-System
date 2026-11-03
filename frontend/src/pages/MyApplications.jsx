@@ -53,8 +53,15 @@ export default function MyApplications() {
   };
 
   // The interview is still started through the invite code, which is
-  // what identifies the job to the server.
+  // what identifies the job to the server. An attempt already under
+  // way is continued instead: the server refuses a second start.
   const startInterview = (application) => {
+    if (application.interviewResumable && application.interviewSessionId) {
+      navigate(`/interview?resume=${encodeURIComponent(application.interviewSessionId)}`);
+      return;
+    }
+
+
     sessionStorage.setItem('jobInvite', JSON.stringify({
       code: application.inviteCode,
       title: application.jobTitle,

@@ -153,6 +153,48 @@ test('an attempt already under way is offered as a resume', async () => {
   expect(buttonLabels()).not.toContain('Start interview');
 });
 
+const clickButton = (label) => act(() => {
+  [...container.querySelectorAll('button')]
+    .find((b) => b.textContent === label)
+    .click();
+});
+
+test('resume continues the attempt under way instead of starting again', async () => {
+  await render([{
+    ...base,
+    status: 'SHORTLISTED',
+    statusLabel: 'Shortlisted',
+    interviewAvailable: true,
+    interviewResumable: true,
+    interviewSessionId: 'session-42',
+    interviewMessage: null,
+  }]);
+
+  sessionStorage.removeItem('jobInvite');
+  clickButton('Resume interview');
+
+  expect(mockNavigate).toHaveBeenCalledWith('/interview?resume=session-42');
+  // No invite is left behind for the interview page to start from.
+  expect(sessionStorage.getItem('jobInvite')).toBeNull();
+});
+
+test('start goes through the invite code', async () => {
+  await render([{
+    ...base,
+    status: 'SHORTLISTED',
+    statusLabel: 'Shortlisted',
+    interviewAvailable: true,
+    interviewResumable: false,
+    interviewMessage: null,
+  }]);
+
+  clickButton('Start interview');
+
+  expect(mockNavigate).toHaveBeenCalledWith('/interview');
+  expect(JSON.parse(sessionStorage.getItem('jobInvite')).code).toBe('ABCD-EF23');
+  sessionStorage.removeItem('jobInvite');
+});
+
 test('no applications shows an empty state rather than a blank page', async () => {
   await render([]);
 

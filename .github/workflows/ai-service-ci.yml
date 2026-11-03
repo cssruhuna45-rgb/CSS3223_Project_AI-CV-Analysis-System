@@ -1,0 +1,46 @@
+# AI service unit tests.
+#
+# Python 3.11, the same as ai-service/Dockerfile, and the same install
+# order: CPU-only torch first, so requirements.txt does not pull the
+# much larger CUDA build. No Gemini key or Redis is needed - the tests
+# fake the model and keep sessions in memory.
+
+name: AI Service CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'ai-service/**'
+      - '.github/workflows/ai-service-ci.yml'
+  pull_request:
+    paths:
+      - 'ai-service/**'
+      - '.github/workflows/ai-service-ci.yml'
+
+jobs:
+  test:
+    name: Unit tests (Python 3.11)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ai-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ai-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v

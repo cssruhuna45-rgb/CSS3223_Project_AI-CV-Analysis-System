@@ -202,6 +202,99 @@ class FixedInterviewTest(unittest.TestCase):
         })
         self.assertEqual(res.status_code, 400)
 
+    # ---- resuming after a reload --------------------------------------
+
+    def resume(self, session_id, answers=(), fixed=FIXED):
+        return self.client.post("/api/v1/interview/resume", json={
+            "session_id": session_id,
+            "job_description": JOB_DESCRIPTION,
+            "job_field": "backend_development",
+            "fixed_questions": fixed,
+            "answers": list(answers),
+        })
+
+    def test_resume_returns_the_question_still_on_screen(self):
+        sid = self.start()["session_id"]
+        self.answer(sid, "First answer.")
+
+        res = self.resume(sid, ["First answer."])
+
+        self.assertEqual(res.status_code, 200, res.text)
+        body = res.json()
+        self.assertEqual(body["question"]["question"], FIXED[1]["question"])
+        self.assertEqual(body["answered"], 1)
+        self.assertEqual(body["total_questions"], 3)
+        self.assertFalse(body["complete"])
+        self.assertFalse(body["restored"])
+
+    def test_resume_does_not_add_or_skip_a_question(self):
+        sid = self.start()["session_id"]
+        self.resume(sid)
+        self.resume(sid)
+
+        session = session_manager.get_session(sid)
+        self.assertEqual(session.questions, [FIXED[0]["question"]])
+        self.assertEqual(session.answers, [])
+
+    def test_an_expired_session_is_rebuilt_and_can_be_finished(self):
+        sid = self.start()["session_id"]
+        self.answer(sid, "First answer.")
+        session_manager.delete_session(sid)
+
+        body = self.resume(sid, ["First answer."]).json()
+
+        self.assertTrue(body["restored"])
+        self.assertEqual(body["question"]["question"], FIXED[1]["question"])
+
+        self.answer(sid, "Second answer.")
+        last = self.answer(sid, "Third answer.").json()
+        self.assertTrue(last["complete"])
+
+        session = session_manager.get_session(sid)
+        self.assertEqual(session.questions, [q["question"] for q in FIXED])
+        self.assertEqual(
+            session.answers,
+            ["First answer.", "Second answer.", "Third answer."],
+        )
+
+    def test_a_rebuilt_session_keeps_the_key_points_and_the_order(self):
+        sid = "rebuilt-session"
+        self.resume(sid, ["One."], fixed=list(reversed(FIXED)))
+
+        session = session_manager.get_session(sid)
+        self.assertEqual(session.fixed_questions[0]["key_points"], FIXED[0]["key_points"])
+        self.assertEqual(session.mode, "fixed")
+
+    def test_resume_never_shows_key_points_or_later_questions(self):
+        sid = self.start()["session_id"]
+        session_manager.delete_session(sid)
+
+        raw = self.resume(sid).text
+
+        self.assertNotIn(FIXED[1]["question"], raw)
+        for q in FIXED:
+            for point in q["key_points"]:
+                self.assertNotIn(point, raw)
+
+    def test_resume_after_the_last_answer_says_to_finish(self):
+        sid = self.start()["session_id"]
+        for _ in FIXED:
+            self.answer(sid)
+
+        body = self.resume(sid, ["An answer."] * 3).json()
+
+        self.assertTrue(body["complete"])
+        self.assertIsNone(body["question"])
+
+    def test_more_answers_than_questions_are_refused(self):
+        res = self.resume("rebuilt-session", ["a", "b", "c", "d"])
+        self.assertEqual(res.status_code, 400)
+
+    def test_a_practice_session_cannot_be_resumed(self):
+        session = session_manager.create_session(job_description=JOB_DESCRIPTION)
+        res = self.resume(session.session_id)
+        self.assertEqual(res.status_code, 400)
+
     # ---- grading ------------------------------------------------------
 
     def test_grading_uses_the_saved_key_points_and_hides_them(self):

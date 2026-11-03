@@ -22,6 +22,17 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
+        return toUserDetails(user);
+    }
+
+    /**
+     * The same answer as {@link #loadUserByUsername}, for a user already
+     * loaded. JwtAuthenticationFilter needs the account itself as well,
+     * and used to read it from the database a second time on every
+     * authenticated request.
+     */
+    public UserDetails toUserDetails(User user) {
+
         // Granting ROLE_<name> lets endpoints be locked down with
         // @PreAuthorize("hasRole('RECRUITER')") instead of trusting a
         // role the browser sends.

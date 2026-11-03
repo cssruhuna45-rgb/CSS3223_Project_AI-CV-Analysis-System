@@ -3,6 +3,7 @@ package com.aiinterview.controller;
 import com.aiinterview.dto.InterviewHistoryItemDto;
 import com.aiinterview.dto.InterviewProgressResponse;
 import com.aiinterview.service.InterviewProgressService;
+import com.aiinterview.service.InterviewResumeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,10 +21,11 @@ import java.util.List;
 /**
  * A candidate's own interview record.
  *
- * <p>Read-only. Interviews are written by {@code AiProxyController} as
- * they happen; this exposes what was stored.
+ * <p>Interviews are written by {@code AiProxyController} as they
+ * happen; this exposes what was stored, and lets a job interview
+ * interrupted by a reload carry on.
  *
- * <p>Neither endpoint takes a user id. The user comes from the
+ * <p>No endpoint takes a user id. The user comes from the
  * authenticated principal, so there is no parameter a caller could
  * change to read somebody else's interviews.
  */
@@ -33,6 +36,8 @@ import java.util.List;
 public class InterviewController {
 
     private final InterviewProgressService interviewProgressService;
+
+    private final InterviewResumeService interviewResumeService;
 
     @Operation(summary = "List the signed-in candidate's completed interviews")
     @GetMapping("/history")
@@ -57,6 +62,26 @@ public class InterviewController {
     ) {
         return ResponseEntity.ok(
                 interviewProgressService.getScorecard(
+                        authentication.getName(),
+                        sessionId
+                )
+        );
+    }
+
+    @Operation(
+            summary = "Continue a job interview after a reload",
+            description = "Returns the question the candidate was on. "
+                    + "A session that expired on the AI service is "
+                    + "rebuilt from the stored answers. Their own job "
+                    + "interviews only, and only while still allowed."
+    )
+    @PostMapping("/{sessionId}/resume")
+    public ResponseEntity<JsonNode> resume(
+            @PathVariable String sessionId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                interviewResumeService.resume(
                         authentication.getName(),
                         sessionId
                 )

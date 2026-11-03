@@ -1,5 +1,6 @@
 package com.aiinterview.config;
 
+import com.aiinterview.security.AiRateLimitFilter;
 import com.aiinterview.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +30,8 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
 
+    private final AiRateLimitFilter aiRateLimitFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -57,7 +60,10 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // After the JWT filter, so the limit is counted against
+                // the signed-in account.
+                .addFilterAfter(aiRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
