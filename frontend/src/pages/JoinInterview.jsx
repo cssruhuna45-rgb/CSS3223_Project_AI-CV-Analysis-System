@@ -4,6 +4,7 @@ import { Briefcase, ShieldCheck, ArrowRight, CheckCircle, Clock } from 'lucide-r
 import { jobsAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card } from '../components/ui';
+import PublicJobs from '../components/PublicJobs';
 import { userMessage } from '../services/http';
 
 function fieldName(id) {
@@ -88,6 +89,10 @@ export default function JoinInterview({ user }) {
           )}
         </Card>
       )}
+
+      {/* Published jobs, for candidates browsing without a code. Hidden
+          while a looked-up job is on screen, so that one stays the focus. */}
+      {!job && isCandidate && <PublicJobs />}
 
       {job && (
         <Card as="section" padding="lg" aria-labelledby="job-title">

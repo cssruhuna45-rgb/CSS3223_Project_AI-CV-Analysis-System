@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { applicationsAPI } from '../services/jobApplicationsApi';
+import { publicJobsAPI } from '../services/publicJobsApi';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card, SectionHeader, Badge } from '../components/ui';
 import { isApiError, userMessage } from '../services/http';
@@ -28,7 +29,9 @@ function fieldName(id) {
  */
 export default function JobApplication() {
   const navigate = useNavigate();
-  const { code } = useParams();
+  // /apply/:code from an invite link, or /apply/job/:jobId from Public
+  // Jobs. Either way it is this same page and the same application.
+  const { code, jobId } = useParams();
 
   const [job, setJob] = useState(null);
   const [resumes, setResumes] = useState([]);
@@ -54,14 +57,16 @@ export default function JobApplication() {
   useEffect(() => {
     let cancelled = false;
 
-    jobsAPI.preview(code)
+    (code ? jobsAPI.preview(code) : publicJobsAPI.get(jobId))
       .then((previewed) => {
         if (cancelled) return;
         setJob(previewed);
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(userMessage(err, "We couldn't check that invite code. Please try again."));
+          setError(userMessage(err, code
+            ? "We couldn't check that invite code. Please try again."
+            : "We couldn't load this job. Please try again."));
         }
       })
       .finally(() => {
@@ -69,7 +74,7 @@ export default function JobApplication() {
       });
 
     return () => { cancelled = true; };
-  }, [code]);
+  }, [code, jobId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +152,8 @@ export default function JobApplication() {
       setSubmitted(await applicationsAPI.apply(job.jobId, {
         resumeId: Number(resumeId),
         consentGranted: true,
+        // An unpublished job takes applications only with its own code.
+        inviteCode: code,
       }));
     } catch (err) {
       setFormError(userMessage(err, "We couldn't submit your application. Please try again.", {
@@ -175,7 +182,9 @@ export default function JobApplication() {
             <AlertCircle size={18} aria-hidden="true" /> {error}
           </p>
           <div style={{ marginTop: 'var(--space-4)' }}>
-            <Button variant="secondary" onClick={() => navigate('/join')}>Try another code</Button>
+            <Button variant="secondary" onClick={() => navigate('/join')}>
+              {code ? 'Try another code' : 'Back to jobs'}
+            </Button>
           </div>
         </Card>
       </div>

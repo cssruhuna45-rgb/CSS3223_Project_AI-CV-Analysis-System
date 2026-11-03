@@ -5,6 +5,7 @@ import com.aiinterview.dto.JobApplicationRequestDto;
 import com.aiinterview.entity.ApplicationStatus;
 import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
+import com.aiinterview.entity.JobPublicationStatus;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.ResumeAnalysis;
 import com.aiinterview.entity.Role;
@@ -153,10 +154,20 @@ class JobApplicationServiceTest {
         );
     }
 
+    /** Applying through the job's invite link, as most tests here do. */
     private JobApplicationRequestDto request(Long resumeId, boolean consent) {
         return JobApplicationRequestDto.builder()
                 .resumeId(resumeId)
                 .consentGranted(consent)
+                .inviteCode("ABCD-EF23")
+                .build();
+    }
+
+    /** Applying from Public Jobs, or by guessing an id: no invite code. */
+    private JobApplicationRequestDto withoutCode() {
+        return JobApplicationRequestDto.builder()
+                .resumeId(31L)
+                .consentGranted(true)
                 .build();
     }
 
@@ -354,6 +365,68 @@ class JobApplicationServiceTest {
 
         assertTrue(thrown.getMessage().contains("not ready"));
         verify(skillMatchService, never()).match(any(), any());
+    }
+
+    // ---- Public listing and archiving (V13) --------------------------
+
+    @Test
+    @DisplayName("a draft job cannot be applied for by its id alone")
+    void draftJobWithoutCodeRefused() {
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.apply(CANDIDATE, 5L, withoutCode()));
+
+        verify(jobApplicationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("a draft job cannot be applied for with another job's code")
+    void draftJobWithWrongCodeRefused() {
+        JobApplicationRequestDto wrongCode = withoutCode();
+        wrongCode.setInviteCode("ZZZZ-ZZ99");
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.apply(CANDIDATE, 5L, wrongCode));
+    }
+
+    @Test
+    @DisplayName("an invite code typed in lower case without the dash still counts")
+    void inviteCodeComparedLikeALookup() {
+        JobApplicationRequestDto typed = withoutCode();
+        typed.setInviteCode("abcdef23");
+
+        assertEquals(ApplicationStatus.APPLIED.name(),
+                service.apply(CANDIDATE, 5L, typed).getStatus());
+    }
+
+    @Test
+    @DisplayName("a published job can be applied for from Public Jobs without a code")
+    void publishedJobWithoutCodeAccepted() {
+        job.setPublicationStatus(JobPublicationStatus.PUBLISHED);
+
+        assertEquals(ApplicationStatus.APPLIED.name(),
+                service.apply(CANDIDATE, 5L, withoutCode()).getStatus());
+    }
+
+    @Test
+    @DisplayName("a published job that is closed takes no applications")
+    void publishedClosedJobRefused() {
+        job.setPublicationStatus(JobPublicationStatus.PUBLISHED);
+        job.setOpen(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.apply(CANDIDATE, 5L, withoutCode()));
+    }
+
+    @Test
+    @DisplayName("an archived job takes no applications, published or by code")
+    void archivedJobRefused() {
+        job.setPublicationStatus(JobPublicationStatus.PUBLISHED);
+        job.setArchived(true);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.apply(CANDIDATE, 5L, withoutCode()));
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.apply(CANDIDATE, 5L, request(31L, true)));
     }
 
     // ---- Who may apply -----------------------------------------------

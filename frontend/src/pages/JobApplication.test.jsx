@@ -4,6 +4,7 @@ import { act, Simulate } from 'react-dom/test-utils';
 import JobApplication from './JobApplication';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { applicationsAPI } from '../services/jobApplicationsApi';
+import { publicJobsAPI } from '../services/publicJobsApi';
 import { ApiError } from '../services/http';
 
 // A refusal as the shared request handler delivers it: a business rule
@@ -25,10 +26,17 @@ const broken = () => new ApiError({
 // uses from it are stubbed rather than changing the shared Jest config.
 const mockNavigate = jest.fn();
 
+// /apply/:code by default; a test sets { jobId } for /apply/job/:jobId.
+let mockParams = { code: 'ABCD-EF23' };
+
 jest.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
-  useParams: () => ({ code: 'ABCD-EF23' }),
+  useParams: () => mockParams,
   Link: ({ children }) => children,
+}));
+
+jest.mock('../services/publicJobsApi', () => ({
+  publicJobsAPI: { get: jest.fn() },
 }));
 
 jest.mock('../services/api', () => ({
@@ -71,6 +79,7 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
 
+  mockParams = { code: 'ABCD-EF23' };
   jobsAPI.preview.mockResolvedValue(JOB);
   resumeAPI.getAll.mockResolvedValue([CV]);
   resumeAPI.getAnalysis.mockResolvedValue({
@@ -158,6 +167,43 @@ test('applying sends the chosen CV with consent granted', async () => {
   expect(applicationsAPI.apply).toHaveBeenCalledWith(5, {
     resumeId: 31,
     consentGranted: true,
+    // A job that is not published takes applications only with its code.
+    inviteCode: 'ABCD-EF23',
+  });
+});
+
+// ---- From Public Jobs ------------------------------------------------
+
+test('a job opened from Public Jobs is loaded by id, not by invite code', async () => {
+  mockParams = { jobId: '5' };
+  const { inviteCode, ...published } = JOB;
+  publicJobsAPI.get.mockResolvedValue(published);
+
+  await act(async () => {
+    root.render(<JobApplication />);
+  });
+
+  expect(publicJobsAPI.get).toHaveBeenCalledWith('5');
+  expect(jobsAPI.preview).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('Backend Developer');
+});
+
+test('applying from Public Jobs goes through the same application, without a code', async () => {
+  mockParams = { jobId: '5' };
+  const { inviteCode, ...published } = JOB;
+  publicJobsAPI.get.mockResolvedValue(published);
+  applicationsAPI.apply.mockResolvedValue({ applicationId: 77, jobTitle: 'Backend Developer', statusLabel: 'Under review' });
+
+  await act(async () => {
+    root.render(<JobApplication />);
+  });
+  await tickConsent();
+  await click(applyButton());
+
+  expect(applicationsAPI.apply).toHaveBeenCalledWith(5, {
+    resumeId: 31,
+    consentGranted: true,
+    inviteCode: undefined,
   });
 });
 

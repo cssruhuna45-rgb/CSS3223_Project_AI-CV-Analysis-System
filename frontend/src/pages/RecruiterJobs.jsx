@@ -1,11 +1,13 @@
 import { useToast } from '../components/ToastProvider';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock, ListChecks } from 'lucide-react';
+import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock, ListChecks, Globe, EyeOff, Archive, ArchiveRestore } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Badge, Button, Card, SectionHeader } from '../components/ui';
 import JobQuestionEditor from '../components/JobQuestionEditor';
+import PublishJobDialog from '../components/PublishJobDialog';
+import { jobPublicationAPI } from '../services/publicJobsApi';
 import { userMessage } from '../services/http';
 import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
 
@@ -30,6 +32,23 @@ function inviteLink(code) {
   return `${window.location.origin}/join/${code}`;
 }
 
+// Whether candidates can find the job under Public Jobs. Separate from
+// Open/Closed: archived hides it whatever its publication status, and
+// a job with no status yet is a draft.
+function publicationOf(job) {
+  if (job.archived) return 'Archived';
+  return job.publicationStatus === 'PUBLISHED' ? 'Published' : 'Draft';
+}
+
+const PUBLICATION_TONE = { Published: 'info', Draft: 'neutral', Archived: 'warning' };
+
+const PUBLICATION_MESSAGES = {
+  publish: 'Job published. Candidates can now find it under Public Jobs.',
+  unpublish: 'Job unpublished. It no longer appears under Public Jobs.',
+  archive: 'Job archived. It is hidden and its invite link no longer works.',
+  unarchive: 'Job restored from the archive.',
+};
+
 // A recruiter's jobs. Each one has an invite code; candidates who join
 // with it take an exam-mode interview of this job's approved questions,
 // and only those interviews reach this recruiter's dashboard. A job is
@@ -49,6 +68,15 @@ export default function RecruiterJobs() {
   const [copiedId, setCopiedId] = useState(null);
   const [questionsFor, setQuestionsFor] = useState(null);
   const [busyId, setBusyId] = useState(null);
+
+  // The job just created, while the recruiter decides whether to publish it.
+  const [publishPrompt, setPublishPrompt] = useState(null);
+  const [publishingId, setPublishingId] = useState(null);
+  // Archived jobs are kept out of the working list; this shows them
+  // on their own so one can still be found and unarchived.
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedCount = jobs.filter((job) => job.archived).length;
+  const shownJobs = jobs.filter((job) => job.archived === showArchived);
 
   useEffect(() => {
     recruiterAPI.jobs()
@@ -82,6 +110,8 @@ export default function RecruiterJobs() {
       setShowForm(false);
       // Straight on to the questions: candidates cannot start until then.
       setQuestionsFor(job.id);
+      // Saved as a draft; ask whether to make it public as well.
+      setPublishPrompt(job);
     } catch (err) {
       formErrors.report(err, "We couldn't create the job. Please try again.", {
         uncertain: "We couldn't confirm the job was created. Reload the page to check before creating it again.",
@@ -118,6 +148,26 @@ export default function RecruiterJobs() {
       }));
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // change is publish, unpublish, archive or unarchive.
+  const changePublication = async (job, change) => {
+    setPublishingId(job.id);
+    setError('');
+    try {
+      const updated = await jobPublicationAPI[change](job.id);
+      notify(PUBLICATION_MESSAGES[change], change === 'archive' ? 'info' : 'success');
+      // Only these fields change; the counts already shown are kept.
+      setJobs((list) => list.map((j) => (j.id === job.id
+        ? { ...j, publicationStatus: updated.publicationStatus, publishedAt: updated.publishedAt, archived: updated.archived }
+        : j)));
+    } catch (err) {
+      setError(userMessage(err, "We couldn't update this job. Please try again.", {
+        uncertain: "We couldn't confirm the change was saved. Reload the page to check before trying again.",
+      }));
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -214,11 +264,33 @@ export default function RecruiterJobs() {
         <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-4)' }}>{error}</p>
       )}
 
+      {!loading && jobs.length > 0 && (
+        <div role="group" aria-label="Which jobs to show"
+          style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <Button size="sm" variant={showArchived ? 'ghost' : 'secondary'}
+            aria-pressed={!showArchived} onClick={() => setShowArchived(false)}>
+            Active ({jobs.length - archivedCount})
+          </Button>
+          <Button size="sm" variant={showArchived ? 'secondary' : 'ghost'}
+            icon={<Archive size={14} />}
+            aria-pressed={showArchived} onClick={() => setShowArchived(true)}>
+            Archived ({archivedCount})
+          </Button>
+        </div>
+      )}
+
       {loading ? (
         <p style={{ color: 'var(--text-secondary)' }}>Loading your jobs{'…'}</p>
       ) : (
         <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-          {jobs.map((job) => (
+          {jobs.length > 0 && shownJobs.length === 0 && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+              {showArchived
+                ? 'No archived jobs. A job you archive is kept here with all its applications and results.'
+                : 'Every job is archived. Open Archived to bring one back.'}
+            </p>
+          )}
+          {shownJobs.map((job) => (
             <Card key={job.id} as="article" padding="md" aria-labelledby={`job-${job.id}-title`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0 }}>
@@ -229,11 +301,12 @@ export default function RecruiterJobs() {
                     {[job.company, fieldName(job.jobField)].filter(Boolean).join(' · ')}
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <Badge tone={job.questionsApproved ? 'success' : 'warning'}>
                     {job.questionsApproved ? `${job.questionCount} questions approved` : 'Questions not ready'}
                   </Badge>
                   <Badge tone={job.open ? 'success' : 'neutral'}>{job.open ? 'Open' : 'Closed'}</Badge>
+                  <Badge tone={PUBLICATION_TONE[publicationOf(job)]}>{publicationOf(job)}</Badge>
                 </div>
               </div>
 
@@ -242,7 +315,7 @@ export default function RecruiterJobs() {
                 <code style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lg)', fontWeight: 700, letterSpacing: '0.08em' }}>
                   {job.inviteCode}
                 </code>
-                <Button size="sm" variant="secondary" disabled={!job.open}
+                <Button size="sm" variant="secondary" disabled={!job.open || job.archived}
                   icon={copiedId === job.id ? <Check size={14} /> : <Copy size={14} />}
                   aria-label={`Copy invite link for ${job.title}`}
                   onClick={() => copy(job)}>
@@ -268,6 +341,22 @@ export default function RecruiterJobs() {
                     onClick={() => toggleOpen(job)}>
                     {job.open ? 'Close' : 'Reopen'}
                   </Button>
+                  {!job.archived && (
+                    <Button size="sm" variant="ghost"
+                      loading={publishingId === job.id}
+                      icon={job.publicationStatus === 'PUBLISHED' ? <EyeOff size={14} /> : <Globe size={14} />}
+                      aria-label={`${job.publicationStatus === 'PUBLISHED' ? 'Unpublish' : 'Publish'} ${job.title}`}
+                      onClick={() => changePublication(job, job.publicationStatus === 'PUBLISHED' ? 'unpublish' : 'publish')}>
+                      {job.publicationStatus === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost"
+                    disabled={publishingId === job.id}
+                    icon={job.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                    aria-label={`${job.archived ? 'Unarchive' : 'Archive'} ${job.title}`}
+                    onClick={() => changePublication(job, job.archived ? 'unarchive' : 'archive')}>
+                    {job.archived ? 'Unarchive' : 'Archive'}
+                  </Button>
                   <Button size="sm" icon={<Users size={14} />}
                     onClick={() => navigate(`/recruiter?job=${job.id}`)}>
                     View candidates
@@ -288,6 +377,15 @@ export default function RecruiterJobs() {
             </Card>
           ))}
         </div>
+      )}
+
+      {publishPrompt && (
+        <PublishJobDialog
+          job={publishPrompt}
+          publishing={publishingId === publishPrompt.id}
+          onPublish={async () => { await changePublication(publishPrompt, 'publish'); setPublishPrompt(null); }}
+          onKeepDraft={() => setPublishPrompt(null)}
+        />
       )}
     </div>
   );

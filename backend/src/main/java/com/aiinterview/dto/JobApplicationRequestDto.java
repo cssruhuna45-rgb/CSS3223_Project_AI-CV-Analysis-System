@@ -2,6 +2,7 @@ package com.aiinterview.dto;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,7 +11,8 @@ import lombok.NoArgsConstructor;
 /**
  * What a candidate submits to apply for a job.
  *
- * <p>Deliberately only two fields. The candidate's identity is taken
+ * <p>Deliberately small: a CV, consent, and the invite code the
+ * candidate came with, if any. The candidate's identity is taken
  * from the authenticated token, never from here, and the job comes from
  * the path - so a request cannot apply on somebody else's behalf, and
  * the CV is checked against the signed-in candidate's own CVs before
@@ -40,4 +42,13 @@ public class JobApplicationRequestDto {
      */
     @AssertTrue(message = "Agree to share your CV with this recruiter before applying")
     private boolean consentGranted;
+
+    /**
+     * The invite code the candidate arrived with, or null when they
+     * applied from Public Jobs (V13). A job that is not publicly listed
+     * takes applications only with its own code, so a guessed job id is
+     * not enough to apply for a private job.
+     */
+    @Size(max = 32, message = "That invite code is not valid")
+    private String inviteCode;
 }

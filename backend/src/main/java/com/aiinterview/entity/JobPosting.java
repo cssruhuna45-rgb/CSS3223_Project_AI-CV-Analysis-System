@@ -4,6 +4,8 @@ import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -98,6 +100,34 @@ public class JobPosting {
     @Column(name = "is_open", nullable = false)
     @Builder.Default
     private boolean open = true;
+
+    // ---- Public listing (V13) -------------------------------------
+
+    /**
+     * Whether candidates can find the job under Public Jobs. A draft is
+     * reachable only through its invite code.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "publication_status", nullable = false, length = 16)
+    @Builder.Default
+    private JobPublicationStatus publicationStatus = JobPublicationStatus.DRAFT;
+
+    /** When the job was last published; kept if it is unpublished. */
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+
+    /**
+     * Retired: never listed, its invite code no longer works and no
+     * interview for it can start or resume. Its history is kept.
+     */
+    @Column(name = "is_archived", nullable = false)
+    @Builder.Default
+    private boolean archived = false;
+
+    /** Listed under Public Jobs: published and not archived. */
+    public boolean isPubliclyListed() {
+        return publicationStatus == JobPublicationStatus.PUBLISHED && !archived;
+    }
 
     // ---- Fixed interview (V10) ------------------------------------
 

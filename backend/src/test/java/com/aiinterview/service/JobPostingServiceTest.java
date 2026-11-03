@@ -160,6 +160,9 @@ class JobPostingServiceTest {
         // No 0/O or 1/I/L: the code has to survive being read aloud.
         assertTrue(created.getInviteCode().matches("[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}"),
                 created.getInviteCode());
+        // Private until the recruiter chooses to publish it (V13).
+        assertEquals("DRAFT", created.getPublicationStatus());
+        assertFalse(created.isArchived());
     }
 
     @Test
@@ -345,6 +348,25 @@ class JobPostingServiceTest {
 
         assertThrows(ResourceNotFoundException.class,
                 () -> service.applyInvite("cara@example.com", json("{\"invite_code\": \"" + CODE + "\"}")));
+    }
+
+    @Test
+    @DisplayName("an archived job's invite code no longer works")
+    void archivedJobCodeRetired() throws Exception {
+        job.setArchived(true);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.previewInvite("cara@example.com", CODE));
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.applyInvite("cara@example.com", json("{\"invite_code\": \"" + CODE + "\"}")));
+    }
+
+    @Test
+    @DisplayName("an unpublished job's invite code keeps working")
+    void draftJobCodeStillWorks() {
+        assertEquals("DRAFT", job.getPublicationStatus().name());
+
+        assertEquals(5L, service.previewInvite("cara@example.com", CODE).getJobId());
     }
 
     // ---- Eligibility is delegated, not duplicated --------------------

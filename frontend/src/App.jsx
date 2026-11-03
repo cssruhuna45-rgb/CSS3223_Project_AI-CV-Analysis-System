@@ -174,6 +174,7 @@ function AppContent() {
             <Route path="/skill-gap" element={<ProtectedRoute user={user} only="candidate"><SkillGap /></ProtectedRoute>} />
             <Route path="/applications" element={<ProtectedRoute user={user} only="candidate"><MyApplications /></ProtectedRoute>} />
             <Route path="/apply/:code" element={<ProtectedRoute user={user} only="candidate"><JobApplication /></ProtectedRoute>} />
+            <Route path="/apply/job/:jobId" element={<ProtectedRoute user={user} only="candidate"><JobApplication /></ProtectedRoute>} />
             {/* The recruiter review screen. Was /dashboard, which now
                 belongs to the candidate workspace; a recruiter opening
                 an old /dashboard link fails that route's candidate
