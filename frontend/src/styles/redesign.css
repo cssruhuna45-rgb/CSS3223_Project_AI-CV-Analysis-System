@@ -717,3 +717,23 @@ textarea.input { resize: vertical; }
 @media (max-width: 720px) {
   .scorecard-categories { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The five progress headline figures, on one row.
+   Fixed five columns rather than auto-fit: auto-fit kept two of them
+   on a second row at this container width, which read as two groups
+   when they are one set of related numbers meant to be compared across.
+   minmax(0, 1fr) rather than a min width, so they divide the row evenly
+   and a long hint wraps inside its tile instead of widening it. */
+.progress-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Stepping down rather than straight to one column: five tiles at phone
+   width would each be a sliver, and three then two keeps them readable
+   while they are still side by side. */
+@media (max-width: 1040px) { .progress-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px)  { .progress-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 440px)  { .progress-metrics { grid-template-columns: minmax(0, 1fr); } }
