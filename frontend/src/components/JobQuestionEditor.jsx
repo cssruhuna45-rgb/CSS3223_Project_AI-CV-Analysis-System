@@ -3,7 +3,7 @@ import {
   ArrowDown, ArrowUp, CheckCircle2, Lock, Plus, RefreshCw, Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { Badge, Button } from './ui';
+import { Badge, Button, ConfirmDialog } from './ui';
 import { jobQuestionsAPI } from '../services/jobQuestionsApi';
 
 const MAX_QUESTIONS = 10;
@@ -46,6 +46,8 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  // Which one-way action is waiting for confirmation: 'generate', 'approve' or null.
+  const [confirming, setConfirming] = useState(null);
 
   const apply = (data) => {
     setAssessment(data);
@@ -151,21 +153,24 @@ export default function JobQuestionEditor({ jobId, onChange }) {
     questionCount: Number(count),
   }), 'Question settings saved.');
 
-  const generate = () => {
-    if (draft.length > 0 && !window.confirm('Replace the current draft questions with newly generated ones?')) {
-      return;
-    }
+  const doGenerate = () => {
+    setConfirming(null);
     run('generate', () => jobQuestionsAPI.generate(jobId), 'Questions generated. Review them before approving.');
   };
 
+  // Replacing an existing draft is asked first; a first draft is not.
+  const generate = () => (draft.length > 0 ? setConfirming('generate') : doGenerate());
+
   const save = () => run('save', () => jobQuestionsAPI.save(jobId, draft.map(toRequest)), 'Draft saved.');
 
-  const approve = () => {
-    if (!window.confirm('Approve these questions? They cannot be changed afterwards; a different set needs a new job.')) {
-      return;
-    }
+  const doApprove = () => {
+    setConfirming(null);
     run('approve', () => jobQuestionsAPI.approve(jobId), 'Questions approved. Candidates can now take this interview.');
   };
+
+  const approve = () => setConfirming('approve');
+
+  const cancelConfirm = () => setConfirming(null);
 
   if (loadError) {
     return <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{loadError}</p>;
@@ -341,6 +346,33 @@ export default function JobQuestionEditor({ jobId, onChange }) {
           Approve questions
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirming === 'generate'}
+        title="Replace the current questions?"
+        confirmLabel="Regenerate all"
+        tone="danger"
+        onConfirm={doGenerate}
+        onCancel={cancelConfirm}
+      >
+        <p>
+          All {draft.length} draft question{draft.length === 1 ? '' : 's'} will be replaced with newly
+          generated ones, including any edits you made.
+        </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirming === 'approve'}
+        title="Approve these questions?"
+        confirmLabel="Approve questions"
+        onConfirm={doApprove}
+        onCancel={cancelConfirm}
+      >
+        <p>
+          Every candidate for this job will be asked these {draft.length} questions, in this order.
+          They cannot be changed afterwards; a different set needs a new job.
+        </p>
+      </ConfirmDialog>
     </section>
   );
 }
