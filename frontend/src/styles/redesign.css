@@ -489,13 +489,13 @@ textarea.input { resize: vertical; }
   display: grid;
   gap: 14px;
   margin-bottom: 24px;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  /* One row: the headline figure and its three supporting numbers are
+     one set, read across. The feature keeps a wider column rather than
+     a taller one, so it still leads without breaking the line. */
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
 }
 
-/* The headline figure holds the left column for the whole height; the
-   supporting tiles stack down the right. No cell is ever left empty,
-   whatever their number. */
-.bento-feature { grid-column: 1; grid-row: 1 / -1; }
+.bento-feature { grid-column: 1; grid-row: 1; }
 
 .bento-tile {
   display: flex;
@@ -581,13 +581,17 @@ textarea.input { resize: vertical; }
 
 .panel-head h2 { font-size: var(--fs-base); font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
 
-@media (max-width: 900px) {
-  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1040px) {
+  .bento { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .bento-feature { grid-column: 1 / -1; grid-row: auto; }
   .bento-feature .bento-value { font-size: 36px; }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 620px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 440px) {
   .bento { grid-template-columns: minmax(0, 1fr); }
   .bento-feature { grid-column: 1; }
 }
