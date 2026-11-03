@@ -489,11 +489,13 @@ textarea.input { resize: vertical; }
   display: grid;
   gap: 14px;
   margin-bottom: 24px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
 }
 
-/* The headline figure: two columns wide, two rows tall. */
-.bento-feature { grid-column: span 2; grid-row: span 2; }
+/* The headline figure holds the left column for the whole height; the
+   supporting tiles stack down the right. No cell is ever left empty,
+   whatever their number. */
+.bento-feature { grid-column: 1; grid-row: 1 / -1; }
 
 .bento-tile {
   display: flex;
@@ -581,13 +583,13 @@ textarea.input { resize: vertical; }
 
 @media (max-width: 900px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .bento-feature { grid-column: span 2; grid-row: span 1; }
+  .bento-feature { grid-column: 1 / -1; grid-row: auto; }
   .bento-feature .bento-value { font-size: 36px; }
 }
 
 @media (max-width: 520px) {
   .bento { grid-template-columns: minmax(0, 1fr); }
-  .bento-feature { grid-column: span 1; }
+  .bento-feature { grid-column: 1; }
 }
 
 /* KPI tile for the recruiter dashboard. Same family as .bento-tile, but
@@ -704,4 +706,14 @@ textarea.input { resize: vertical; }
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
   border: 1px solid var(--border);
+}
+
+/* The scorecard's four competency scores. Two tracks so they read as a
+   2x2 block: four items across three tracks leaves one alone on a
+   second row, which looks like a layout fault rather than a fourth
+   measure of equal standing. */
+.scorecard-categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+@media (max-width: 720px) {
+  .scorecard-categories { grid-template-columns: minmax(0, 1fr); }
 }

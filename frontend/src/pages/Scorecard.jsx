@@ -692,7 +692,11 @@ export default function Scorecard() {
         // Two columns, so the four categories make a 2x2 block instead of
         // three in a row and one left alone underneath; one column on
         // a phone.
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16, marginBottom: 16 }}>
+        //
+        // Spelled out rather than left to auto-fit: with a 300px minimum
+        // this container is wide enough for three tracks, so auto-fit
+        // produced exactly the 3+1 orphan the line above rules out.
+        <div className="scorecard-categories" style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
           {categories.map(c => {
             const tone = scoreTone(c.score);
             return (

@@ -79,32 +79,43 @@ function formatChange(value) {
   return value > 0 ? `+${value}` : `${value}`;
 }
 
+/** The band a score falls in. Latest Score was hard-coded to green, so
+ *  a 20/100 was reported in the colour that means good news. */
+function scoreTone(value) {
+  if (value === null || value === undefined) return MUTED;
+  if (value >= 70) return SUCCESS;
+  if (value >= 45) return WARNING;
+  return DANGER;
+}
+
 function changeColor(value) {
   if (value === null || value === undefined) return TEXT;
   return value >= 0 ? SUCCESS : DANGER;
 }
 
-function StatCard({ label, value, suffix, hint, hintColor, tone = ACCENT }) {
+/**
+ * One figure in the progress bento.
+ *
+ * The label is neutral and only the number carries the tone. Colouring
+ * the label, the border and the value together made five cards read as
+ * five unrelated colours, and spent the status palette on cards whose
+ * tone meant nothing - Previous Score and Completed are just counts.
+ */
+function StatCard({ label, value, suffix, hint, hintColor, feature = false, tone = ACCENT }) {
   return (
-    <div className="card" style={{
-      padding: 16, background: CARD, borderTop: `3px solid ${tone}`,
-    }}>
-      <p style={{
-        fontSize: 'var(--fs-xs)', color: tone, marginBottom: 10, fontWeight: 600,
-        textTransform: 'uppercase', letterSpacing: '0.5px',
-      }}>
-        {label}
-      </p>
+    <div
+      className={`bento-tile${feature ? ' bento-feature' : ''}`}
+      style={{ '--bento-accent': tone }}
+    >
+      <p className="bento-label">{label}</p>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
-        <span style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, color: tone, lineHeight: 1 }}>
-          {value}
-        </span>
+        <span className={`bento-value${feature ? '' : ' bento-value--sm'}`}>{value}</span>
         {suffix && (
-          <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, marginBottom: 4 }}>{suffix}</span>
+          <span style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginBottom: 4 }}>{suffix}</span>
         )}
       </div>
       {hint && (
-        <p style={{ fontSize: 'var(--fs-xs)', color: hintColor || TEXT, marginTop: 8 }}>{hint}</p>
+        <p className="bento-hint" style={hintColor ? { color: hintColor } : undefined}>{hint}</p>
       )}
     </div>
   );
@@ -270,25 +281,21 @@ export default function InterviewProgress({ compact = false }) {
       )}
 
       {/* Headline numbers */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: 16,
-        marginBottom: 16,
-      }}>
+      <div className="bento">
         <StatCard
-          label="Latest Score"
+          feature
+          label="Latest score"
           value={progress.latestScore ?? '--'}
           suffix="/ 100"
           hint={trend.message}
-          tone={SUCCESS}
+          tone={scoreTone(progress.latestScore)}
         />
         <StatCard
-          label="Previous Score"
+          label="Previous score"
           value={progress.previousScore ?? '--'}
           suffix={progress.previousScore === null ? '' : '/ 100'}
           hint={progress.previousScore === null ? 'No earlier interview' : null}
-          tone={ACCENT}
+          tone="var(--text-primary)"
         />
         <StatCard
           label="Change"
@@ -299,15 +306,16 @@ export default function InterviewProgress({ compact = false }) {
           tone={changeColor(progress.scoreDifference)}
         />
         <StatCard
-          label="Best Score"
+          label="Best score"
           value={progress.bestScore ?? '--'}
           suffix={progress.bestScore === null ? '' : '/ 100'}
-          tone={ACCENT}
+          tone={scoreTone(progress.bestScore)}
         />
         <StatCard
           label="Completed"
           value={progress.totalInterviews}
           suffix={progress.totalInterviews === 1 ? 'interview' : 'interviews'}
+          tone="var(--text-primary)"
           hint={
             progress.scoredInterviews < progress.totalInterviews
               ? `${progress.totalInterviews - progress.scoredInterviews} could not be graded`
@@ -317,19 +325,9 @@ export default function InterviewProgress({ compact = false }) {
         />
       </div>
 
-      {/* Trend badge */}
-      <div style={{ marginBottom: 16 }}>
-        <span className="badge" style={{
-          background: `color-mix(in srgb, ${trendColor} 12%, transparent)`,
-          color: trendColor,
-          border: `1px solid color-mix(in srgb, ${trendColor} 35%, transparent)`,
-          fontSize: 'var(--fs-sm)',
-          fontWeight: 600,
-          padding: '6px 14px',
-        }}>
-          {trend.icon} {trend.label}
-        </span>
-      </div>
+      {/* The trend badge that used to sit here said exactly what the
+          Change tile's own hint says, directly above it. One of the two
+          had to go. */}
 
       {/* Score progression */}
       {chartPoints.length >= 2 && (
