@@ -247,6 +247,16 @@ export default function InterviewProgress({ compact = false }) {
 
   const interviews = progress?.interviews || [];
 
+  // totalInterviews - scoredInterviews is not the number that failed to
+  // grade: the server excludes practice from scoredInterviews before it
+  // excludes nulls, so a perfectly graded practice interview lands in
+  // that difference. These two read the history directly and say which
+  // is which.
+  const ungradedCount = interviews.filter(
+    (it) => it.score === null || it.score === undefined,
+  ).length;
+  const practiceCount = interviews.filter((it) => it.mode === 'practice').length;
+
   if (interviews.length === 0) {
     return (
       <div className="card" style={{
@@ -317,11 +327,12 @@ export default function InterviewProgress({ compact = false }) {
           suffix={progress.totalInterviews === 1 ? 'interview' : 'interviews'}
           tone="var(--text-primary)"
           hint={
-            progress.scoredInterviews < progress.totalInterviews
-              ? `${progress.totalInterviews - progress.scoredInterviews} could not be graded`
-              : null
+            ungradedCount > 0
+              ? `${ungradedCount} could not be graded`
+              : practiceCount > 0
+                ? `${practiceCount} practice, not counted in the trend`
+                : null
           }
-          tone={ACCENT}
         />
       </div>
 
