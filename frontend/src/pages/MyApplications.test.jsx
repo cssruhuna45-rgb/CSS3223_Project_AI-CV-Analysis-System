@@ -61,6 +61,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   jest.clearAllMocks();
+  sessionStorage.clear();
 });
 
 async function render(applications, notifications = []) {
@@ -174,6 +175,25 @@ const clickButton = (label) => act(() => {
     .click();
 });
 
+const dialog = () => container.querySelector('[role="dialog"]');
+
+// Scoped to one element, because the card and the confirmation both
+// offer a "Start interview" button and the card's comes first.
+const clickIn = (root, label) => act(() => {
+  [...root.querySelectorAll('button')]
+    .find((b) => b.textContent.trim() === label)
+    .click();
+});
+
+const SHORTLISTED = {
+  ...base,
+  status: 'SHORTLISTED',
+  statusLabel: 'Shortlisted',
+  interviewAvailable: true,
+  interviewResumable: false,
+  interviewMessage: null,
+};
+
 test('resume continues the attempt under way instead of starting again', async () => {
   await render([{
     ...base,
@@ -191,23 +211,47 @@ test('resume continues the attempt under way instead of starting again', async (
   expect(mockNavigate).toHaveBeenCalledWith('/interview?resume=session-42');
   // No invite is left behind for the interview page to start from.
   expect(sessionStorage.getItem('jobInvite')).toBeNull();
+  // And no reminder: the attempt and its clock are already running, so
+  // asking whether to start would be both wrong and alarming.
+  expect(dialog()).toBeNull();
 });
 
-test('start goes through the invite code', async () => {
-  await render([{
-    ...base,
-    status: 'SHORTLISTED',
-    statusLabel: 'Shortlisted',
-    interviewAvailable: true,
-    interviewResumable: false,
-    interviewMessage: null,
-  }]);
+test('starting a job interview states the rules before anything begins', async () => {
+  await render([SHORTLISTED]);
 
   clickButton('Start interview');
 
+  // The whole point: one click no longer spends the single attempt.
+  expect(mockNavigate).not.toHaveBeenCalled();
+  expect(sessionStorage.getItem('jobInvite')).toBeNull();
+
+  const text = dialog().textContent;
+  expect(text).toContain('One attempt');
+  expect(text).toContain('2 minutes');
+  expect(text).toContain('set by the recruiter');
+  // Named, so it is obvious which job is about to be started.
+  expect(text).toContain('Backend Developer');
+});
+
+test('confirming the reminder starts the interview through the invite code', async () => {
+  await render([SHORTLISTED]);
+
+  clickButton('Start interview');
+  clickIn(dialog(), 'Start interview');
+
   expect(mockNavigate).toHaveBeenCalledWith('/interview');
   expect(JSON.parse(sessionStorage.getItem('jobInvite')).code).toBe('ABCD-EF23');
-  sessionStorage.removeItem('jobInvite');
+});
+
+test('cancelling the reminder starts nothing', async () => {
+  await render([SHORTLISTED]);
+
+  clickButton('Start interview');
+  clickIn(dialog(), 'Cancel');
+
+  expect(mockNavigate).not.toHaveBeenCalled();
+  expect(sessionStorage.getItem('jobInvite')).toBeNull();
+  expect(dialog()).toBeNull();
 });
 
 test('no applications shows an empty state rather than a blank page', async () => {

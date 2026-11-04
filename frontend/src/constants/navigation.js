@@ -39,15 +39,15 @@ import { isApprovedRecruiter } from './accounts';
 const CANDIDATE_NAV = [
   {
     path: '/home',
-    label: 'Home',
+    label: 'Get started',
     icon: Home,
-    description: 'Start here: analyse a CV or begin an interview',
+    description: 'Welcome page: analyse a CV, or open a recruiter invite code',
   },
   {
     path: '/dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
-    description: 'Your workspace, latest CV and recent results',
+    description: 'Your scores, latest CV analysis and recent interview results',
   },
   {
     path: '/upload',

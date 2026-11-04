@@ -305,3 +305,88 @@ test('nothing is preselected for the recruiter', async () => {
   expect(selected.getAttribute('aria-pressed')).toBe('false');
   expect(notSelected.getAttribute('aria-pressed')).toBe('false');
 });
+
+// ---- The suggestion has to follow the decision -----------------------
+//
+// Picking Selected and then Not selected used to leave the
+// congratulations message in place, under a rejection, ready to publish.
+
+describe('switching the decision', () => {
+
+  test('swaps the suggested message to match', async () => {
+    await render();
+
+    await click(button('Selected for job'));
+    expect(feedbackBox().value).toContain('Congratulations');
+
+    await click(button('Not selected'));
+
+    const text = feedbackBox().value.toLowerCase();
+    expect(text).not.toContain('congratulations');
+    expect(text).not.toContain('you have been selected');
+    expect(text).toContain('thank you');
+  });
+
+  test('swaps back again', async () => {
+    await render();
+
+    await click(button('Not selected'));
+    await click(button('Selected for job'));
+
+    expect(feedbackBox().value).toContain('Congratulations');
+  });
+
+  test('never saves a message that contradicts the decision', async () => {
+    applicantsAPI.saveDecision.mockResolvedValue(SAVED_DRAFT);
+
+    await render();
+    await click(button('Selected for job'));
+    await click(button('Not selected'));
+    await click(button('Save draft'));
+
+    const [, body] = applicantsAPI.saveDecision.mock.calls[0];
+    expect(body.decision).toBe('NOT_SELECTED');
+    expect(body.candidateFeedback.toLowerCase()).not.toContain('congratulations');
+  });
+
+  test('keeps wording the recruiter typed themselves', async () => {
+    await render();
+    await click(button('Selected for job'));
+
+    await act(async () => {
+      const box = feedbackBox();
+      box.value = 'We would love to have you on the team.';
+      Simulate.change(box);
+    });
+
+    await click(button('Not selected'));
+
+    // Their words are theirs; the panel does not rewrite them.
+    expect(feedbackBox().value).toBe('We would love to have you on the team.');
+  });
+
+  test('says so when their own wording may no longer fit', async () => {
+    await render();
+    await click(button('Selected for job'));
+
+    await act(async () => {
+      const box = feedbackBox();
+      box.value = 'Delighted to say yes.';
+      Simulate.change(box);
+    });
+
+    await click(button('Not selected'));
+
+    expect(container.textContent).toContain('still matches this decision');
+  });
+
+  test('a saved draft is treated as the recruiter\'s own words', async () => {
+    await render(SAVED_DRAFT);
+
+    // SAVED_DRAFT is SELECTED with "Congratulations!" already stored.
+    await click(button('Not selected'));
+
+    expect(feedbackBox().value).toBe('Congratulations!');
+    expect(container.textContent).toContain('still matches this decision');
+  });
+});

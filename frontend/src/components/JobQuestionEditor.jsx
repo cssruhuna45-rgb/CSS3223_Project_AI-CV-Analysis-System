@@ -73,7 +73,8 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  // Which one-way action is waiting for confirmation: 'generate', 'approve' or null.
+  // Which irreversible action is waiting to be confirmed: 'generate',
+  // 'approve', or null for none.
   const [confirming, setConfirming] = useState(null);
 
   const apply = (data) => {
@@ -190,24 +191,33 @@ export default function JobQuestionEditor({ jobId, onChange }) {
     questionCount: Number(count),
   }), 'Question settings saved.');
 
-  const doGenerate = () => {
-    setConfirming(null);
+  const doGenerate = () =>
     run('generate', () => jobQuestionsAPI.generate(jobId), 'Questions generated. Review them before approving.');
-  };
 
-  // Replacing an existing draft is asked first; a first draft is not.
-  const generate = () => (draft.length > 0 ? setConfirming('generate') : doGenerate());
+  const generate = () => {
+    // Only worth asking when there is something to lose; generating
+    // the first set discards nothing.
+    if (draft.length > 0) {
+      setConfirming('generate');
+      return;
+    }
+    doGenerate();
+  };
 
   const save = () => run('save', () => jobQuestionsAPI.save(jobId, draft.map(toRequest)), 'Draft saved.');
 
-  const doApprove = () => {
-    setConfirming(null);
-    run('approve', () => jobQuestionsAPI.approve(jobId), 'Questions approved. Candidates can now take this interview.');
-  };
-
   const approve = () => setConfirming('approve');
 
-  const cancelConfirm = () => setConfirming(null);
+  // Runs whichever action was being confirmed. The dialog stays up,
+  // with its button disabled, until the request finishes - so a second
+  // click cannot repeat an approval that is already on its way.
+  const confirmAction = async () => {
+    if (confirming === 'generate') await doGenerate();
+    else if (confirming === 'approve') {
+      await run('approve', () => jobQuestionsAPI.approve(jobId), 'Questions approved. Candidates can now take this interview.');
+    }
+    setConfirming(null);
+  };
 
   if (loadError) {
     return (
@@ -392,30 +402,24 @@ export default function JobQuestionEditor({ jobId, onChange }) {
 
       <ConfirmDialog
         open={confirming === 'generate'}
-        title="Replace the current questions?"
-        confirmLabel="Regenerate all"
         tone="danger"
-        onConfirm={doGenerate}
-        onCancel={cancelConfirm}
-      >
-        <p>
-          All {draft.length} draft question{draft.length === 1 ? '' : 's'} will be replaced with newly
-          generated ones, including any edits you made.
-        </p>
-      </ConfirmDialog>
+        title="Replace the draft questions?"
+        description={`The ${draft.length} question${draft.length === 1 ? '' : 's'} in this draft will be discarded and a new set written from the job's required skills. Any wording or key points you have edited here will be lost.`}
+        confirmLabel="Replace them"
+        busy={busy === 'generate'}
+        onConfirm={confirmAction}
+        onCancel={() => setConfirming(null)}
+      />
 
       <ConfirmDialog
         open={confirming === 'approve'}
         title="Approve these questions?"
-        confirmLabel="Approve questions"
-        onConfirm={doApprove}
-        onCancel={cancelConfirm}
-      >
-        <p>
-          Every candidate for this job will be asked these {draft.length} questions, in this order.
-          They cannot be changed afterwards; a different set needs a new job.
-        </p>
-      </ConfirmDialog>
+        description={`Every candidate will be asked exactly these ${draft.length} questions, in this order, and graded against their key points. Approved questions cannot be changed afterwards - a different set needs a new job.`}
+        confirmLabel="Approve"
+        busy={busy === 'approve'}
+        onConfirm={confirmAction}
+        onCancel={() => setConfirming(null)}
+      />
     </section>
   );
 }

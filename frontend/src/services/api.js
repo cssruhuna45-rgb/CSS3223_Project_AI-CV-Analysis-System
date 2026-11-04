@@ -249,34 +249,6 @@ export const interviewAPI = {
     inviteCode = null
   ) => {
 
-    console.log(
-      '[Frontend API] Starting interview with Skill Gap context:'
-    );
-
-    console.log(
-      '[Frontend API] Job Field:',
-      jobField
-    );
-
-    console.log(
-      '[Frontend API] Matched Skills:',
-      matchedSkills
-    );
-
-    console.log(
-      '[Frontend API] Related Skills:',
-      relatedSkills
-    );
-
-    console.log(
-      '[Frontend API] Missing Skills:',
-      missingSkills
-    );
-
-    console.log(
-      '[Frontend API] Additional Skills:',
-      additionalSkills
-    );
 
     return request(
       `${AI}/interview/start`,
@@ -692,12 +664,6 @@ export const skillGapAPI = {
       };
 
     }
-
-
-    console.log(
-      '[Frontend API] Skill Gap request:',
-      payload
-    );
 
 
     return request(

@@ -13,6 +13,7 @@ export default function Navbar({ user, onLogout }) {
   const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
+  const mobileToggleRef = useRef(null);
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
@@ -26,7 +27,7 @@ export default function Navbar({ user, onLogout }) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setMenuOpen(false);
       }
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target) && !mobileToggleRef.current?.contains(e.target)) {
         setMobileOpen(false);
       }
     };
@@ -37,6 +38,7 @@ export default function Navbar({ user, onLogout }) {
   // Close menus on Escape key (Nielsen's Heuristic #3: User Control)
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
+      if (document.activeElement?.closest('#mobile-nav-menu')) mobileToggleRef.current?.focus();
       setMenuOpen(false);
       setMobileOpen(false);
     }
@@ -77,6 +79,8 @@ export default function Navbar({ user, onLogout }) {
     : candidateLinks;
 
   const ROLE_LABELS = { admin: 'Administrator', recruiter: 'Recruiter', candidate: 'Candidate' };
+  const publicLinks = [{ href: '#how-it-works', label: 'How it works' }, { href: '#features', label: 'Features' }, { href: '#for-you', label: 'For you' }];
+  const showPublicLinks = !user && location.pathname === '/';
 
   return (
     <nav
@@ -116,9 +120,13 @@ export default function Navbar({ user, onLogout }) {
         </span>
       </div>
 
+      {showPublicLinks && <div className="public-nav-links">{publicLinks.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}</div>}
+
       {/* Mobile Hamburger Button */}
-      {user && (
+      {(user || showPublicLinks) && (
         <button
+          ref={mobileToggleRef}
+          type="button"
           className="nav-mobile-toggle"
           onClick={() => setMobileOpen((o) => !o)}
           aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
@@ -151,15 +159,17 @@ export default function Navbar({ user, onLogout }) {
       )}
 
       {/* Mobile Nav Menu (slide-down overlay) */}
-      {user && mobileOpen && (
+      {(user || showPublicLinks) && mobileOpen && (
         <div
           id="mobile-nav-menu"
           className="nav-mobile-menu animate-fade-in"
           ref={mobileMenuRef}
-          role="menu"
+          role={user ? 'menu' : 'navigation'}
           aria-label="Mobile navigation"
         >
-          {links.map((l) => {
+          {!user && publicLinks.map(link => <a className="nav-mobile-link" key={link.href} href={link.href} onClick={() => setMobileOpen(false)}>{link.label}</a>)}
+          {!user && <button type="button" className="nav-mobile-link" onClick={() => { setMobileOpen(false); navigate('/login'); }}>Sign In</button>}
+          {user && links.map((l) => {
             const active = location.pathname === l.path;
             return (
               <button
@@ -173,7 +183,7 @@ export default function Navbar({ user, onLogout }) {
               </button>
             );
           })}
-          <div className="glow-line" style={{ margin: '8px 0' }} />
+          {user && <><div className="glow-line" style={{ margin: '8px 0' }} />
           <button
             className="nav-mobile-link"
             style={{ color: 'var(--danger-light)' }}
@@ -181,7 +191,7 @@ export default function Navbar({ user, onLogout }) {
             role="menuitem"
           >
             <LogOut size={15} /> Sign Out
-          </button>
+          </button></>}
         </div>
       )}
 
@@ -287,7 +297,7 @@ export default function Navbar({ user, onLogout }) {
           )}
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="nav-auth-actions" style={{ display: 'flex', gap: 10 }}>
           <button
             className="btn btn-ghost"
             style={{ fontSize: 'var(--fs-sm)' }}

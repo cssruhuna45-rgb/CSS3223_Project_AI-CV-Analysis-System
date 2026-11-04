@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Users, Search, AlertCircle, CheckCircle, XCircle, ArrowLeft,
@@ -8,7 +8,8 @@ import { recruiterAPI } from '../services/api';
 import {
   applicantsAPI, matchLabel, statusTone,
 } from '../services/jobApplicationsApi';
-import { Button, Card, SectionHeader, Badge } from '../components/ui';
+import { Button, Card, SectionHeader, Badge, PageHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
 import { userMessage } from '../services/http';
 
 const STATUS_FILTERS = [
@@ -39,6 +40,7 @@ const SORTS = [
  * "not found".
  */
 export default function RecruiterApplicants() {
+  const pageRef = useRef(null);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
 
@@ -150,6 +152,15 @@ export default function RecruiterApplicants() {
     return ordered;
   }, [applicants, query, status, sort]);
 
+  // Declared here, before the early return below, so it always runs -
+  // on the list and the single-applicant view alike. Conditionally
+  // calling a hook is a React rule, not a style preference. It is a
+  // safe no-op while viewing one applicant, since pageRef is not
+  // attached to anything in that view. Re-runs once the list for this
+  // job has actually loaded, since the cards it looks for do not exist
+  // in the DOM before then.
+  useScrollReveal(pageRef, [visible.length]);
+
   const decide = async () => {
     if (!pending) return;
 
@@ -219,15 +230,14 @@ export default function RecruiterApplicants() {
 
   // ---- The list -----------------------------------------------------
 
+
   return (
-    <div style={page}>
-      <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
-        Applicants
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 'var(--lh-normal)' }}>
-        Review who applied and decide who to interview. The CV match is a guide for your
-        reading; it does not shortlist or reject anyone.
-      </p>
+    <div className="workspace-page workspace-page--applicants" ref={pageRef} style={page}>
+      <PageHeader
+        icon={<Users size={18} />}
+        title="Applicants"
+        subtitle="Review who applied and decide who to interview. The CV match is a guide for your reading; it does not shortlist or reject anyone."
+      />
 
       <Card as="section" padding="md" style={{ marginBottom: 'var(--space-5)' }}>
         <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -326,7 +336,7 @@ export default function RecruiterApplicants() {
         </Card>
       )}
 
-      <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+      <div className="subreveal-stagger" style={{ display: 'grid', gap: 'var(--space-4)' }}>
         {visible.map((a) => (
           <Card key={a.applicationId} as="article" padding="lg" aria-labelledby={`applicant-${a.applicationId}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
@@ -512,7 +522,7 @@ function ApplicantDetail({ detail, deciding, pending, onAsk, onConfirm, onCancel
                 style={{
                   display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                   padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)',
-                  background: 'var(--surface-2, transparent)',
+                  background: 'var(--bg-card2)',
                 }}
               >
                 {met
@@ -700,7 +710,7 @@ function ConfirmDecision({ pending, deciding, onConfirm, onCancel }) {
   );
 }
 
-const page = { maxWidth: 980, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' };
+const page = { maxWidth: 980, margin: '0 auto', padding: '0' };
 
 const meta = {
   display: 'flex',

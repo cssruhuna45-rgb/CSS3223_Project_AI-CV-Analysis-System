@@ -31,6 +31,10 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
 
   const [decision, setDecision] = useState(null);
   const [feedback, setFeedback] = useState('');
+  // True once the recruiter has typed in the message box themselves.
+  // Suggested wording may be swapped out freely; their own words may
+  // not be, so the two have to be told apart.
+  const [feedbackEdited, setFeedbackEdited] = useState(false);
   const [notes, setNotes] = useState('');
   const [showNotes, setShowNotes] = useState(false);
 
@@ -54,6 +58,7 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
         setLoaded(found);
         setDecision(found.decision === 'PENDING' ? null : found.decision);
         setFeedback(found.candidateFeedback || '');
+        setFeedbackEdited(Boolean(found.candidateFeedback));
         setNotes(found.internalNotes || '');
       })
       .catch((err) => {
@@ -68,10 +73,30 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
 
   // Offer wording the recruiter can then edit, rather than sending
   // something they never saw.
+  //
+  // The suggestion has to follow the decision. This used to fill the box
+  // only when it was empty, so picking Selected and then Not selected
+  // left "Congratulations! You have been selected" sitting under a
+  // rejection - which is publishable, and about the worst thing this
+  // panel could get wrong.
+  //
+  // Their own typing is still never overwritten. When it would now
+  // contradict the decision, they are told rather than corrected.
   const choose = (value) => {
+    const flipped = decision && decision !== value;
+
     setDecision(value);
     setNotice('');
-    if (!feedback.trim()) setFeedback(defaultFeedback(value, jobTitle));
+
+    if (!feedbackEdited) {
+      setFeedback(defaultFeedback(value, jobTitle));
+      return;
+    }
+
+    if (flipped && feedback.trim()) {
+      setError('');
+      setNotice('Your message was kept. Check it still matches this decision.');
+    }
   };
 
   const save = async () => {
@@ -219,7 +244,10 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
               rows={4}
               maxLength={2000}
               value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
+              onChange={(e) => {
+                setFeedback(e.target.value);
+                setFeedbackEdited(true);
+              }}
               placeholder="Optional. Choose a decision above to start from a suggested message, then edit it."
             />
             <p style={{ ...meta, marginTop: 'var(--space-1)' }}>

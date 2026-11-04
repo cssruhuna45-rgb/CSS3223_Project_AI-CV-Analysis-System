@@ -1,8 +1,9 @@
 import { useToast } from '../components/ToastProvider';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ShieldCheck, Check, X } from 'lucide-react';
 import { adminAPI } from '../services/api';
-import { Badge, Button, Card, SectionHeader } from '../components/ui';
+import { Badge, Button, Card, SectionHeader, PageHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
 import { userMessage } from '../services/http';
 
 const STATUS = {
@@ -37,6 +38,13 @@ export default function AdminPanel() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('pending');
   const [busyId, setBusyId] = useState(null);
+  const pageRef = useRef(null);
+
+  // No early return in this component. A single fade for the whole
+  // table, not a per-row stagger: a transform on every <tr> in a dense
+  // admin table reads as busy rather than considered, which the lighter
+  // card-grid treatment elsewhere does not have to worry about.
+  useScrollReveal(pageRef, [recruiters.length]);
 
   useEffect(() => {
     adminAPI.recruiters()
@@ -69,17 +77,18 @@ export default function AdminPanel() {
   };
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' }}>
-      <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Administration</h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)' }}>
-        {loading
+    <div className="workspace-page workspace-page--admin" ref={pageRef} style={{ maxWidth: 1040, margin: '0 auto', padding: '0' }}>
+      <PageHeader
+        icon={<ShieldCheck size={18} />}
+        title="Administration"
+        subtitle={loading
           ? 'Loading recruiter accounts…'
           : waiting === 0
             ? 'No recruiter accounts are waiting for a decision.'
             : `${waiting} recruiter account${waiting === 1 ? ' is' : 's are'} waiting for a decision.`}
-      </p>
+      />
 
-      <Card as="section" padding="md" aria-labelledby="recruiters-title">
+      <Card as="section" padding="md" aria-labelledby="recruiters-title" className="subreveal">
         <SectionHeader
           id="recruiters-title"
           icon={<ShieldCheck size={18} />}
@@ -112,8 +121,8 @@ export default function AdminPanel() {
             No accounts in this list.
           </p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-sm)' }}>
+          <div className="table-scroll" tabIndex={0} role="region" aria-label="Recruiter accounts">
+            <table className="workspace-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-sm)' }}>
               <caption className="sr-only">Recruiter accounts and their approval status</caption>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>

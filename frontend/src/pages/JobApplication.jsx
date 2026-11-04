@@ -244,8 +244,8 @@ export default function JobApplication() {
   // ---- The form ----------------------------------------------------
 
   return (
-    <div style={page}>
-      <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
+    <div className="workspace-page workspace-page--application" style={page}>
+      <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
         Apply for this job
       </h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 'var(--lh-normal)' }}>
@@ -423,7 +423,7 @@ export default function JobApplication() {
   );
 }
 
-const page = { maxWidth: 760, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' };
+const page = { maxWidth: 760, margin: '0 auto', padding: '0' };
 
 const meta = {
   display: 'flex',

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { skillGapAPI } from '../services/api';
 import StepBar from '../components/StepBar';
+import { PageHeader } from '../components/ui';
 import { PREDEFINED_JOB_FIELDS, getJobFieldName } from '../constants/jobFields';
 import { userMessage } from '../services/http';
 
@@ -127,34 +128,11 @@ export default function SkillGap() {
   const matchTier = getMatchTier(matchPct);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 20px 80px' }} className="animate-fade-in">
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 0 var(--space-5)' }} className="workspace-page workspace-page--skills animate-fade-in">
       <StepBar current={2} />
 
       {/* Header */}
-      <div style={{ marginBottom: 32, textAlign: 'center' }}>
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--accent) 28%, transparent)',
-          borderRadius: 20,
-          padding: '5px 16px',
-          marginBottom: 12,
-          fontSize: 'var(--fs-xs)',
-          color: 'var(--accent)',
-          fontWeight: 600,
-        }}>
-          <Compass size={14} color="var(--accent)" /> Selected Target Career Path
-        </div>
-        <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, marginBottom: 8, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          Skill Gap Analysis
-        </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-base)', maxWidth: 620, margin: '0 auto', lineHeight: 1.6 }}>
-          Evaluating your profile against canonical requirements for{' '}
-          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{currentFieldName}</span>.
-        </p>
-      </div>
+      <PageHeader icon={<Compass size={20} />} title="Skill Gap Analysis" subtitle={<>See how your CV skills align with <strong>{currentFieldName}</strong>, then choose what to practise next.</>} />
 
       {/* Career Path Switcher Bar */}
       <div
@@ -164,7 +142,7 @@ export default function SkillGap() {
           border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
           borderRadius: 16,
           padding: '16px 22px',
-          marginBottom: 24,
+          marginBottom: 16,
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
@@ -219,8 +197,8 @@ export default function SkillGap() {
             background: 'color-mix(in srgb, var(--bg-surface) 95%, transparent)',
             border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
             borderRadius: 16,
-            padding: 22,
-            marginBottom: 24,
+            padding: 16,
+            marginBottom: 16,
             boxShadow: '0 12px 32px color-mix(in srgb, var(--shadow-ink) 60%, transparent)',
           }}
         >
@@ -267,15 +245,15 @@ export default function SkillGap() {
           background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
           border: '1px solid color-mix(in srgb, var(--warning) 25%, transparent)',
           borderRadius: 16,
-          padding: 28,
+          padding: 20,
           textAlign: 'center',
-          marginBottom: 24,
+          marginBottom: 16,
         }}>
           <FileText size={36} color="var(--warning)" style={{ margin: '0 auto 12px' }} />
           <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
             No Resume Found
           </h3>
-          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 20 }}>
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginBottom: 16 }}>
             Please upload your resume first so our AI can perform the skill gap comparison.
           </p>
           <button
@@ -298,7 +276,7 @@ export default function SkillGap() {
           border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
           borderRadius: 12,
           padding: '14px 18px',
-          marginBottom: 24,
+          marginBottom: 16,
         }}>
           <AlertCircle size={18} color="var(--danger)" style={{ flexShrink: 0 }} aria-hidden="true" />
           <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', margin: 0, flex: 1 }}>
@@ -323,7 +301,7 @@ export default function SkillGap() {
           background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
           borderRadius: 20,
           border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
-          marginBottom: 24,
+          marginBottom: 16,
         }}>
           <Loader size={42} color="var(--accent-cyan)" className="animate-spin" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 'var(--fs-lg)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
@@ -337,7 +315,7 @@ export default function SkillGap() {
 
       {/* ── ANALYSIS RESULTS DASHBOARD ── */}
       {result && !loading && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* 1. Visually Strong Overview Card (Match vs Gap) */}
           <div
@@ -419,7 +397,7 @@ export default function SkillGap() {
             </div>
 
             {/* Match & Gap Stat Pills */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 16 }}>
               <div style={{
                 background: 'color-mix(in srgb, var(--success) 12%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)',
@@ -464,8 +442,8 @@ export default function SkillGap() {
           {/* 2. Skill Categories Grid */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-            gap: 20,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+            gap: 16,
           }}>
 
             {/* 2A. Matched Skills (Exact) */}
@@ -476,7 +454,7 @@ export default function SkillGap() {
                 border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderTop: '3px solid var(--success)',
                 borderRadius: 16,
-                padding: 22,
+                padding: 16,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -527,7 +505,7 @@ export default function SkillGap() {
                 border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderTop: '3px solid var(--accent)',
                 borderRadius: 16,
-                padding: 22,
+                padding: 16,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -588,7 +566,7 @@ export default function SkillGap() {
                 border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderTop: '3px solid var(--warning)',
                 borderRadius: 16,
-                padding: 22,
+                padding: 16,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -639,7 +617,7 @@ export default function SkillGap() {
                 border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderTop: '3px solid var(--accent)',
                 borderRadius: 16,
-                padding: 22,
+                padding: 16,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -689,10 +667,10 @@ export default function SkillGap() {
                 background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
                 borderRadius: 18,
-                padding: 26,
+                padding: 16,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <BookOpen size={20} color="var(--accent-cyan)" />
                 <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                   Recommended Next Steps

@@ -7,6 +7,11 @@ import PageSearch from './PageSearch';
 import BrandLogo from './BrandLogo';
 import { navigationFor, activeNavPath } from '../constants/navigation';
 import { homePathFor } from '../constants/accounts';
+import { notificationsAPI, NOTIFICATIONS_CHANGED } from '../services/jobApplicationsApi';
+
+// The one navigation entry that carries an unread count. Announcements
+// land against an application, so that is where the badge belongs.
+const BADGED_PATH = '/applications';
 
 /**
  * The signed-in workspace: a left sidebar of pages, a slim bar above
@@ -25,9 +30,11 @@ import { homePathFor } from '../constants/accounts';
 export default function AppShell({ user, onLogout, children }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const focusMode = location.pathname === '/interview';
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
 
   const drawerRef = useRef(null);
   const drawerToggleRef = useRef(null);
@@ -35,6 +42,42 @@ export default function AppShell({ user, onLogout, children }) {
   const navItems = navigationFor(user);
   const activePath = activeNavPath(navItems, location.pathname);
   const activeItem = navItems.find((item) => item.path === activePath);
+
+  // Only accounts that can open the badged page have anything to count.
+  const showsBadge = navItems.some((item) => item.path === BADGED_PATH);
+
+  // Read once per page change, and again whenever something says the
+  // notifications moved - which is how the badge clears the moment a
+  // candidate marks one read, without an interval behind it.
+  //
+  // Best effort throughout: a failed count must leave the navigation
+  // working, so it falls back to showing no badge rather than an error.
+  useEffect(() => {
+    if (!showsBadge) {
+      setUnread(0);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const refresh = () => {
+      notificationsAPI.unreadCount()
+        .then((data) => {
+          if (!cancelled) setUnread(Number(data?.unread) || 0);
+        })
+        .catch(() => {
+          if (!cancelled) setUnread(0);
+        });
+    };
+
+    refresh();
+    window.addEventListener(NOTIFICATIONS_CHANGED, refresh);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(NOTIFICATIONS_CHANGED, refresh);
+    };
+  }, [showsBadge, location.pathname]);
 
   // Close transient UI when the page changes, so a drawer left open on
   // a phone does not cover the screen that was just opened.
@@ -126,7 +169,7 @@ export default function AppShell({ user, onLogout, children }) {
   // else. The mark is pure artwork, so it carries across both.
   const brand = (
     <button type="button" className="shell-brand" onClick={goHome}>
-      <BrandLogo variant="mark" alt="" className="shell-brand-mark" />
+      <BrandLogo variant="mark" alt="" className="shell-brand-mark" shine={!focusMode} />
       <span className="shell-brand-name">
         VYNTERVA<span className="shell-brand-accent"> AI</span>
       </span>
@@ -138,6 +181,7 @@ export default function AppShell({ user, onLogout, children }) {
       {navItems.map((item) => {
         const Icon = item.icon;
         const active = item.path === activePath;
+        const badge = item.path === BADGED_PATH && unread > 0 ? unread : 0;
 
         return (
           <li key={item.path}>
@@ -149,6 +193,18 @@ export default function AppShell({ user, onLogout, children }) {
             >
               <Icon size={18} aria-hidden="true" className="shell-nav-icon" />
               <span>{item.label}</span>
+              {/* The count is also in the accessible name, because the
+                  badge is a number with no words of its own. */}
+              {badge > 0 && (
+                <span className="shell-nav-badge" aria-hidden="true">
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
+              {badge > 0 && (
+                <span className="sr-only">
+                  {badge === 1 ? '1 unread update' : `${badge} unread updates`}
+                </span>
+              )}
             </button>
           </li>
         );
@@ -202,11 +258,11 @@ export default function AppShell({ user, onLogout, children }) {
   );
 
   return (
-    <div className="shell">
+    <div className={`shell${focusMode ? ' shell--focus' : ''}`}>
       {/* Desktop sidebar. Hidden below the drawer breakpoint, where
           the same navigation is rendered inside the drawer instead. */}
       <nav className="shell-sidebar" aria-label="Main navigation">
-        <div className="shell-sidebar-head">{brand}</div>
+        <div className="shell-sidebar-head">{brand}<span className="shell-workspace-label">{roleLabel(user)} workspace</span></div>
         <div className="shell-sidebar-nav">{navList}</div>
         <div className="shell-sidebar-foot">{accountBlock}</div>
       </nav>
@@ -261,7 +317,7 @@ export default function AppShell({ user, onLogout, children }) {
             <Menu size={20} aria-hidden="true" />
           </button>
 
-          <h1 className="shell-page-title">{activeItem?.label || pageTitleFor(location.pathname)}</h1>
+          <p className="shell-page-title">{activeItem?.label || pageTitleFor(location.pathname)}</p>
 
           <div className="shell-topbar-actions">
             <PageSearch navItems={navItems} />

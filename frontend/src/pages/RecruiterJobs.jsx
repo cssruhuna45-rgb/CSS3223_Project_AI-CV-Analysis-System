@@ -1,10 +1,11 @@
 import { useToast } from '../components/ToastProvider';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock, ListChecks, Globe, EyeOff, Archive, ArchiveRestore } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
-import { Badge, Button, Card, SectionHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
+import { Badge, Button, Card, SectionHeader, PageHeader } from '../components/ui';
 import JobQuestionEditor from '../components/JobQuestionEditor';
 import PublishJobDialog from '../components/PublishJobDialog';
 import { jobPublicationAPI } from '../services/publicJobsApi';
@@ -54,6 +55,7 @@ const PUBLICATION_MESSAGES = {
 // and only those interviews reach this recruiter's dashboard. A job is
 // not ready for candidates until its questions are approved.
 export default function RecruiterJobs() {
+  const pageRef = useRef(null);
   const notify = useToast();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
@@ -67,6 +69,11 @@ export default function RecruiterJobs() {
 
   const [copiedId, setCopiedId] = useState(null);
   const [questionsFor, setQuestionsFor] = useState(null);
+
+  // No early return in this component, so this is safe anywhere; kept
+  // with the other hooks by convention. Re-runs once the jobs have
+  // loaded, since the cards it looks for do not exist before then.
+  useScrollReveal(pageRef, [jobs.length]);
   const [busyId, setBusyId] = useState(null);
 
   // The job just created, while the recruiter decides whether to publish it.
@@ -172,20 +179,15 @@ export default function RecruiterJobs() {
   };
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', flexWrap: 'wrap', marginBottom: 'var(--space-5)' }}>
-        <div>
-          <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>Jobs</h1>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: 620, lineHeight: 'var(--lh-normal)' }}>
-            Approve a job's questions, then share its invite link. Every candidate is asked
-            the same approved questions in exam mode, and only those interviews appear on your
-            dashboard. Interviews candidates take on their own stay private.
-          </p>
-        </div>
-        {!showForm && (
+    <div className="workspace-page workspace-page--jobs" ref={pageRef} style={{ maxWidth: 1040, margin: '0 auto', padding: '0' }}>
+      <PageHeader
+        icon={<Briefcase size={18} />}
+        title="Jobs"
+        subtitle="Approve a job's questions, then share its invite link. Every candidate is asked the same approved questions in exam mode, and only those interviews appear on your dashboard. Interviews candidates take on their own stay private."
+        action={!showForm && (
           <Button icon={<Plus size={16} />} onClick={() => setShowForm(true)}>New job</Button>
         )}
-      </div>
+      />
 
       {showForm && (
         <Card as="section" padding="md" aria-labelledby="new-job-title" style={{ marginBottom: 'var(--space-5)' }}>
@@ -282,7 +284,7 @@ export default function RecruiterJobs() {
       {loading ? (
         <p style={{ color: 'var(--text-secondary)' }}>Loading your jobs{'…'}</p>
       ) : (
-        <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+        <div className="subreveal-stagger" style={{ display: 'grid', gap: 'var(--space-4)' }}>
           {jobs.length > 0 && shownJobs.length === 0 && (
             <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
               {showArchived

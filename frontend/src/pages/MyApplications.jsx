@@ -1,14 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, FileText, AlertCircle, ArrowRight, Inbox, RefreshCw,
-  Bell, Clock, PartyPopper, Handshake,
+  Bell, Clock, PartyPopper, Handshake, ListOrdered, EyeOff, Eye, Send,
 } from 'lucide-react';
 import {
-  applicationsAPI, notificationsAPI, statusTone,
+  applicationsAPI, notificationsAPI, statusTone, notificationsChanged,
 } from '../services/jobApplicationsApi';
-import { Button, Card, Badge, SectionHeader } from '../components/ui';
+import { Button, Card, Badge, SectionHeader, ConfirmDialog, PageHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
 import { userMessage } from '../services/http';
+
+// Mirrors TOTAL_TIME in InterviewRoom.jsx, which is 120 seconds. Stated
+// here so the reminder matches the clock the candidate will actually
+// see; if that constant changes, change this with it.
+const MINUTES_PER_QUESTION = 2;
 
 /**
  * The candidate's own applications and where each one has got to.
@@ -29,6 +35,15 @@ export default function MyApplications() {
   const [unread, setUnread] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // The application whose interview is waiting to be confirmed, and
+  // whether that confirmation has already been acted on.
+  const [pending, setPending] = useState(null);
+  const [starting, setStarting] = useState(false);
+  const pageRef = useRef(null);
+
+  // No early return in this component. Re-runs once the applications
+  // have loaded, since the cards it looks for do not exist before then.
+  useScrollReveal(pageRef, [applications.length]);
   // Applications from an earlier load stay on screen when a refresh
   // fails, marked as possibly out of date rather than wiped.
   const [loadedOnce, setLoadedOnce] = useState(false);
@@ -59,46 +74,60 @@ export default function MyApplications() {
   const dismiss = (notificationId) => {
     const dismissed = unread.find((n) => n.id === notificationId);
     setUnread((current) => current.filter((n) => n.id !== notificationId));
-    notificationsAPI.markRead(notificationId).catch((err) => {
-      // Put it back: it is still unread on the server.
-      if (dismissed) setUnread((current) => (current.some((n) => n.id === notificationId) ? current : [dismissed, ...current]));
-      setNotificationsError(userMessage(err, "We couldn't mark that notification as read. Please try again."));
-    });
+    notificationsAPI.markRead(notificationId)
+      .catch((err) => {
+        // Put it back: it is still unread on the server.
+        if (dismissed) setUnread((current) => (current.some((n) => n.id === notificationId) ? current : [dismissed, ...current]));
+        setNotificationsError(userMessage(err, "We couldn't mark that notification as read. Please try again."));
+      })
+      // The sidebar shows the unread count, so it has to hear about
+      // this. Announced either way: if the notification was already
+      // read elsewhere, the count still needs refreshing.
+      .finally(notificationsChanged);
   };
 
-  // The interview is still started through the invite code, which is
-  // what identifies the job to the server. An attempt already under
-  // way is continued instead: the server refuses a second start.
+  // An attempt already under way is continued, not restarted: the
+  // server refuses a second start. No confirmation in that case - the
+  // attempt and the clock have already begun, so asking "are you sure
+  // you want to start?" would be both wrong and alarming.
   const startInterview = (application) => {
     if (application.interviewResumable && application.interviewSessionId) {
       navigate(`/interview?resume=${encodeURIComponent(application.interviewSessionId)}`);
       return;
     }
 
+    setPending(application);
+  };
+
+  // The interview is still started through the invite code, which is
+  // what identifies the job to the server. Guarded against a second
+  // click: the first one navigates away, but a fast double-click would
+  // otherwise run this twice before React unmounts the page.
+  const beginInterview = () => {
+    if (!pending || starting) return;
+
+    setStarting(true);
 
     sessionStorage.setItem('jobInvite', JSON.stringify({
-      code: application.inviteCode,
-      title: application.jobTitle,
-      company: application.company,
+      code: pending.inviteCode,
+      title: pending.jobTitle,
+      company: pending.company,
     }));
     navigate('/interview');
   };
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: 'var(--space-6) var(--space-5)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
-            My applications
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-5)', lineHeight: 'var(--lh-normal)' }}>
-            Jobs you have applied for, and what the recruiter decided.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={load} loading={loading}>
-          Refresh
-        </Button>
-      </div>
+    <div className="workspace-page workspace-page--applications" ref={pageRef} style={{ maxWidth: 960, margin: '0 auto', padding: '0' }}>
+      <PageHeader
+        icon={<Send size={18} />}
+        title="My applications"
+        subtitle="Jobs you have applied for, and what the recruiter decided."
+        action={(
+          <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={load} loading={loading}>
+            Refresh
+          </Button>
+        )}
+      />
 
       {error && (
         <Card as="section" padding="md" style={{ marginBottom: 'var(--space-5)' }}>
@@ -159,7 +188,7 @@ export default function MyApplications() {
         </Card>
       )}
 
-      <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+      <div className="subreveal-stagger" style={{ display: 'grid', gap: 'var(--space-4)' }}>
         {applications.map((application) => (
           <Card
             key={application.applicationId}
@@ -217,6 +246,60 @@ export default function MyApplications() {
           </Card>
         ))}
       </div>
+
+      {/* A job interview is one attempt, timed, with the recruiter's own
+          questions - and until now a single click began it. This only
+          restates rules that already apply; it changes none of them.
+
+          Kept short on purpose: five paragraphs of prose is a wall
+          nobody reads before clicking past it. One line each, an icon
+          to anchor it, and the whole thing fits without scrolling. */}
+      <ConfirmDialog
+        open={Boolean(pending)}
+        title="Before you start"
+        confirmLabel="Start interview"
+        width={420}
+        busy={starting}
+        onConfirm={beginInterview}
+        onCancel={() => setPending(null)}
+      >
+        {pending && (
+          <>
+            <p style={{ ...meta, marginTop: 'calc(-1 * var(--space-2))' }}>
+              <Briefcase size={14} aria-hidden="true" />
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{pending.jobTitle}</span>
+              {pending.company ? ` · ${pending.company}` : ''}
+            </p>
+
+            <ul style={rules}>
+              <li style={rule}>
+                <AlertCircle size={15} aria-hidden="true" style={ruleIcon} />
+                <span><strong>One attempt.</strong> It cannot be retaken.</span>
+              </li>
+              <li style={rule}>
+                <Clock size={15} aria-hidden="true" style={ruleIcon} />
+                <span><strong>{MINUTES_PER_QUESTION} minutes</strong> per question, then it submits as it stands.</span>
+              </li>
+              <li style={rule}>
+                <ListOrdered size={15} aria-hidden="true" style={ruleIcon} />
+                <span>Questions are set by the recruiter, in a fixed order.</span>
+              </li>
+              <li style={rule}>
+                <EyeOff size={15} aria-hidden="true" style={ruleIcon} />
+                <span>Expected answers appear only on your scorecard.</span>
+              </li>
+              <li style={rule}>
+                <Eye size={15} aria-hidden="true" style={ruleIcon} />
+                <span>Leaving the page and pasting are recorded.</span>
+              </li>
+            </ul>
+
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-xs)', marginTop: 'var(--space-3)', lineHeight: 'var(--lh-normal)' }}>
+              Reloading is safe - you continue from the same question.
+            </p>
+          </>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
@@ -260,7 +343,7 @@ function FinalResult({ application }) {
         borderLeft: `3px solid ${selected ? 'var(--success)' : 'var(--text-secondary)'}`,
         background: selected
           ? 'color-mix(in srgb, var(--success) 8%, transparent)'
-          : 'var(--surface-2, transparent)',
+          : 'var(--bg-card2)',
       }}
     >
       <p style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontWeight: 700, fontSize: 'var(--fs-lg)' }}>
@@ -299,11 +382,33 @@ function FinalResult({ application }) {
   );
 }
 
+const rules = {
+  listStyle: 'none',
+  margin: 'var(--space-4) 0 0',
+  padding: 0,
+  display: 'grid',
+  gap: 'var(--space-2)',
+  fontSize: 'var(--fs-sm)',
+  lineHeight: 'var(--lh-normal)',
+};
+
+const rule = {
+  display: 'flex',
+  gap: 'var(--space-3)',
+  alignItems: 'flex-start',
+};
+
+const ruleIcon = {
+  flexShrink: 0,
+  marginTop: 3,
+  color: 'var(--text-muted)',
+};
+
 const panel = {
   marginTop: 'var(--space-5)',
   padding: 'var(--space-4)',
   borderRadius: 'var(--radius-md)',
-  background: 'var(--surface-2, transparent)',
+  background: 'var(--bg-card2)',
 };
 
 const meta = {

@@ -1,5 +1,5 @@
 import { useToast } from '../components/ToastProvider';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Trophy,
@@ -29,7 +29,8 @@ import {
 import InterviewProgress from '../components/InterviewProgress';
 import LearningRoadmap from '../components/LearningRoadmap';
 import { interviewAPI } from '../services/api';
-import { CodeText } from '../components/ui';
+import { CodeText, PageHeader } from '../components/ui';
+import useScrollReveal from '../hooks/useScrollReveal';
 import { printDate, printPage } from '../utils/print';
 import { userMessage } from '../services/http';
 
@@ -85,6 +86,59 @@ function readResult() {
   }
 }
 
+// The cached result is what makes a bare /scorecard show the report a
+// candidate has just finished. Anything that deliberately leaves a
+// report has to drop it, or that report keeps reappearing in place of
+// the archive.
+// The three kinds of interview an archive row can be, and the labels
+// the candidate sees for them.
+//
+// "Job interview" rather than "Recruiter interview": the candidate
+// applied for a job, which is the fact that matters to them, and the
+// recruiter is only who happens to be reading it. It is also the name
+// the rest of the codebase already uses for this.
+//
+// A job interview is always sat under exam conditions, so it is shown
+// as one kind, not as "Exam" plus a second tag saying the same thing.
+const ALL = 'all';
+const JOB = 'job';
+const EXAM = 'exam';
+const PRACTICE = 'practice';
+// Interviews sat before modes existed. They carry no mode and no job,
+// so there is nothing truthful to label them with: they show no tag,
+// as they always have, and are offered under All only. Counting them
+// as exams would put rows with no tag behind an "Exam" filter.
+const UNTAGGED = 'untagged';
+
+const KIND_LABEL = {
+  [JOB]: 'Job interview',
+  [EXAM]: 'Exam',
+  [PRACTICE]: 'Practice',
+};
+
+const FILTER_LABEL = {
+  [ALL]: 'All',
+  [JOB]: 'Job interviews',
+  [EXAM]: 'Exam',
+  [PRACTICE]: 'Practice',
+};
+
+/** A job behind the interview is what makes it a job interview. */
+function kindOf(item) {
+  if (item.jobTitle) return JOB;
+  if (item.mode === PRACTICE) return PRACTICE;
+  if (item.mode === EXAM) return EXAM;
+  return UNTAGGED;
+}
+
+function clearCachedResult() {
+  try {
+    sessionStorage.removeItem('interviewResult');
+  } catch (err) {
+    // Storage unavailable: there was nothing cached to begin with.
+  }
+}
+
 function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -96,7 +150,7 @@ function formatDate(iso) {
 // Shown when no interview is found and history is completely empty
 function EmptyState({ navigate, title, message, onRetry, alert = false }) {
   return (
-    <div role={alert ? 'alert' : undefined} style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
+    <div role={alert ? 'alert' : undefined} style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-6) 0', textAlign: 'center' }}>
       <AlertTriangle size={40} color={AMBER} style={{ marginBottom: 16 }} aria-hidden="true" />
       <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, marginBottom: 10 }}>{title}</h1>
       <p style={{ color: TEXT, fontSize: 'var(--fs-base)', lineHeight: 1.6, marginBottom: 28 }}>{message}</p>
@@ -160,6 +214,9 @@ export default function Scorecard() {
   // History archive state when no session is selected
   const [historyList, setHistoryList] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Which kind of interview the archive is showing: all, job, exam or
+  // practice.
+  const [archiveFilter, setArchiveFilter] = useState(ALL);
   const [historyError, setHistoryError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const retry = () => setAttempt((n) => n + 1);
@@ -169,6 +226,17 @@ export default function Scorecard() {
   // "Why this score?" panels, by question number
   const [expandedSources, setExpandedSources] = useState(new Set());
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const pageRef = useRef(null);
+  // Declared here, before any of the early returns below, so it always
+  // runs - Scorecard has several (loading, error, archive, full
+  // report), each swapping in a different root element under the same
+  // ref. The deps cover every transition between them, since the
+  // effect only re-runs when a dep changes, not merely because
+  // pageRef.current now points somewhere new. Scoped to the archive
+  // list only: the full report view is dense enough already and was
+  // not part of what this pass was asked to touch.
+  useScrollReveal(pageRef, [loading, historyLoading, Boolean(result), historyList.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,10 +277,12 @@ export default function Scorecard() {
       .getScorecard(sessionId)
       .then((stored) => {
         if (!cancelled && stored) {
+          // Deliberately not cached. This cache means "the interview
+          // just finished", which is the one case a bare /scorecard
+          // should show instead of the archive. Writing every report
+          // the candidate opens into it made the archive unreachable
+          // from the sidebar as well as from the back button.
           setResult(stored);
-          try {
-            sessionStorage.setItem('interviewResult', JSON.stringify(stored));
-          } catch (e) {}
         }
       })
       .catch((err) => {
@@ -227,6 +297,20 @@ export default function Scorecard() {
       cancelled = true;
     };
   }, [sessionId, attempt]); // not on result, which would refetch in a loop
+
+  // Back to the list of every past interview.
+  //
+  // Three things have to happen together. The URL loses its session, so
+  // the effect below knows to fetch the history; the loaded report is
+  // dropped, because the archive only renders when there is no result;
+  // and the cached copy goes too, or a reload - or the sidebar's own
+  // Scorecards link - would put that same report straight back.
+  const showArchive = () => {
+    clearCachedResult();
+    setResult(null);
+    setLoadError('');
+    navigate('/scorecard');
+  };
 
   const toggleModelAnswer = (qNum) => {
     setExpandedAnswers((prev) => {
@@ -264,7 +348,7 @@ export default function Scorecard() {
 
   if (loading || historyLoading) {
     return (
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-6) 0', textAlign: 'center' }}>
         <Clock size={32} color={ACCENT} />
         <p style={{ color: TEXT, marginTop: 14 }}>
           {sessionId ? 'Retrieving your interview scorecard…' : 'Loading interview archive…'}
@@ -299,61 +383,147 @@ export default function Scorecard() {
       );
     }
     if (historyList.length > 0) {
-      return (
-        <div style={{ maxWidth: 840, margin: '0 auto', padding: '40px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <Award size={22} color={CYAN} />
-                <h1 style={{ fontSize: 'var(--fs-xl)', fontWeight: 700 }}>Interview Reports Archive</h1>
-              </div>
-              <p style={{ color: MUTED, fontSize: 'var(--fs-sm)' }}>
-                Select any completed interview to view its detailed scorecard, transcripts, and 14-day learning roadmap.
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              style={{ fontSize: 'var(--fs-sm)', padding: '10px 18px' }}
-              onClick={() => navigate('/upload')}
-            >
-              <RotateCcw size={14} /> New Interview
-            </button>
-          </div>
+      // Numbered from the whole list, before any filtering: "Interview
+      // #7" is the seventh interview whichever filter is on. Numbering
+      // the filtered list instead would rename every row the moment a
+      // filter was touched.
+      const numbered = historyList.map((it, idx) => ({
+        ...it,
+        number: historyList.length - idx,
+        kind: kindOf(it),
+      }));
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {historyList.map((it, idx) => {
+      const counts = numbered.reduce(
+        (acc, it) => ({ ...acc, [it.kind]: (acc[it.kind] || 0) + 1 }),
+        { [ALL]: numbered.length },
+      );
+
+      // Only offer a filter for a kind the candidate actually has, and
+      // only offer filtering at all when there is more than one kind.
+      const kinds = [JOB, EXAM, PRACTICE].filter((k) => counts[k] > 0);
+      const filters = kinds.length > 1 ? [ALL, ...kinds] : [];
+
+      const shown = archiveFilter === ALL
+        ? numbered
+        : numbered.filter((it) => it.kind === archiveFilter);
+
+      return (
+        <div className="workspace-page workspace-page--scorecards" ref={pageRef} style={{ maxWidth: 960, margin: '0 auto', padding: '0' }}>
+          <PageHeader
+            icon={<Award size={18} />}
+            title="Interview Reports Archive"
+            subtitle="Open any completed interview for its scorecard, transcript and 14-day learning roadmap."
+            action={(
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => navigate('/upload')}
+              >
+                <RotateCcw size={14} /> New Interview
+              </button>
+            )}
+          />
+
+          {filters.length > 0 && (
+            <div
+              role="group"
+              aria-label="Filter interviews by kind"
+              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}
+            >
+              {filters.map((key) => {
+                const active = archiveFilter === key;
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setArchiveFilter(key)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 14px',
+                      borderRadius: 999,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: 'var(--fs-sm)',
+                      fontWeight: active ? 700 : 500,
+                      border: `1px solid ${active ? 'var(--accent)' : BORDER_COLOR}`,
+                      background: active
+                        ? 'color-mix(in srgb, var(--accent) 12%, transparent)'
+                        : 'transparent',
+                      color: active ? 'var(--accent-text)' : TEXT,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {FILTER_LABEL[key]}
+                    <span style={{ color: MUTED, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                      {counts[key] || 0}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* One surface with hairline rules between the rows, rather
+              than a stack of separate cards each with its own border and
+              a gap beneath it. Six rows used to carry six borders and
+              five 12px gaps of nothing; this reads as one list, which is
+              what it is. */}
+          <div
+            className="subreveal"
+            style={{
+              background: CARD_BG,
+              border: `1px solid ${BORDER_COLOR}`,
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}
+          >
+            {shown.map((it, idx) => {
               // No score (grading did not run) is neutral, not a red zero.
               const score = it.score;
               const tone = score == null ? MUTED : score >= 75 ? GREEN : score >= 50 ? AMBER : ROSE;
               return (
                 <div
                   key={it.sessionId || idx}
+                  // A row that only answers the mouse is a row a
+                  // keyboard cannot open. It behaves as a button now,
+                  // and the global focus ring applies.
+                  role={it.sessionId ? 'button' : undefined}
+                  tabIndex={it.sessionId ? 0 : undefined}
                   onClick={() => it.sessionId && navigate(`/scorecard?session=${encodeURIComponent(it.sessionId)}`)}
+                  onKeyDown={(e) => {
+                    if (!it.sessionId) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/scorecard?session=${encodeURIComponent(it.sessionId)}`);
+                    }
+                  }}
                   style={{
-                    background: CARD_BG,
-                    border: `1px solid ${BORDER_COLOR}`,
-                    borderRadius: 12,
-                    padding: '18px 22px',
+                    // A hairline between rows, not a border around each.
+                    borderTop: idx === 0 ? 'none' : `1px solid ${BORDER_COLOR}`,
+                    padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    gap: 12,
                     cursor: it.sessionId ? 'pointer' : 'default',
-                    transition: 'all 0.2s ease',
+                    transition: 'background 0.15s ease',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = CYAN;
-                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.background = 'var(--bg-card-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = BORDER_COLOR;
-                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                     <div
                       style={{
-                        width: 48,
-                        height: 48,
+                        width: 40,
+                        height: 40,
+                        flexShrink: 0,
                         borderRadius: '50%',
                         background: `color-mix(in srgb, ${tone} 12%, transparent)`,
                         border: `1px solid color-mix(in srgb, ${tone} 35%, transparent)`,
@@ -369,15 +539,24 @@ export default function Scorecard() {
                     </div>
 
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>
-                          Interview #{historyList.length - idx}
+                          Interview #{it.number}
                         </span>
                         <span style={{ fontSize: 'var(--fs-xs)', color: MUTED }}>
                           • {formatDate(it.completedAt || it.startedAt)}
                         </span>
-                        {it.mode && (
-                          <span className="badge badge-neutral">{it.mode === 'practice' ? 'Practice' : 'Exam'}</span>
+                        {/* One tag, not two: a job interview is always
+                            sat under exam conditions. */}
+                        {it.kind === JOB ? (
+                          <span className="badge badge-blue">{KIND_LABEL[JOB]}</span>
+                        ) : it.mode ? (
+                          <span className="badge badge-neutral">{KIND_LABEL[it.kind]}</span>
+                        ) : null}
+                        {it.kind === JOB && (
+                          <span style={{ fontSize: 'var(--fs-xs)', color: MUTED }}>
+                            {it.jobTitle}{it.company ? ` · ${it.company}` : ''}
+                          </span>
                         )}
                         {it.status !== 'completed' && (
                           <span style={{ fontSize: 'var(--fs-xs)', padding: '2px 8px', borderRadius: 8, background: `color-mix(in srgb, ${AMBER} 13%, transparent)`, color: AMBER }}>
@@ -428,6 +607,17 @@ export default function Scorecard() {
   const perQuestion = result.per_question || [];
   const turns = result.turns || [];
 
+  // A job interview puts the recruiter's own approved questions to every
+  // candidate, so each graded answer carries that question's id. A
+  // practice interview's questions are written for that session alone
+  // and have none - which is what separates the two here.
+  //
+  // It matters because "what was missing" names the points the answer
+  // should have covered. On a practice question that is the feedback the
+  // candidate came for. On a job question, which the next candidate will
+  // also be asked, it is the answer key.
+  const isJobInterview = perQuestion.some((q) => q.question_id != null);
+
   const overall = result.overall_score ?? 0;
 
   // One label for the score. There used to be two side by side
@@ -439,13 +629,8 @@ export default function Scorecard() {
 
   const gradeColor = scoreTone(overall);
 
-  const glow =
-    overall >= 85 ? '74,222,128' :
-    overall >= 70 ? '34,211,238' :
-    overall >= 55 ? '251,191,36' : '244,114,182';
-
   return (
-    <div style={{ maxWidth: 840, margin: '0 auto', padding: '36px 24px' }}>
+    <div className="workspace-page workspace-page--report" style={{ maxWidth: 960, margin: '0 auto', padding: '0' }}>
 
       {/* Top Navigation & Actions Bar */}
       <div className="no-print" style={{
@@ -454,11 +639,11 @@ export default function Scorecard() {
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: 12,
-        marginBottom: 24,
+        marginBottom: 16,
       }}>
         <button
           className="btn btn-ghost"
-          onClick={() => navigate('/progress')}
+          onClick={showArchive}
           style={{ fontSize: 'var(--fs-sm)', gap: 6, padding: '6px 12px' }}
         >
           <ArrowLeft size={15} /> All Past Interviews
@@ -489,10 +674,10 @@ export default function Scorecard() {
       </div>
 
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{
           width: 72, height: 72, borderRadius: '50%',
-          background: `rgba(${glow},0.15)`,
+          background: `color-mix(in srgb, ${gradeColor} 10%, var(--bg-surface))`,
           border: `2px solid ${gradeColor}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 16px',
@@ -517,7 +702,7 @@ export default function Scorecard() {
 
       {/* Overall Score & Readiness Badge */}
       <div className="card" style={{
-        textAlign: 'center', marginBottom: 24, position: 'relative', overflow: 'hidden',
+        textAlign: 'center', marginBottom: 16, position: 'relative', overflow: 'hidden',
         background: CARD, borderTop: `3px solid ${gradeColor}`,
       }}>
         <div style={{
@@ -533,7 +718,7 @@ export default function Scorecard() {
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span className="badge" style={{
-            background: `rgba(${glow},0.15)`,
+            background: `color-mix(in srgb, ${gradeColor} 10%, var(--bg-surface))`,
             color: gradeColor, border: `1px solid color-mix(in srgb, ${gradeColor} 25%, transparent)`, fontSize: 'var(--fs-sm)', padding: '6px 14px',
           }}>
             <TrendingUp size={14} /> {readiness}
@@ -546,12 +731,16 @@ export default function Scorecard() {
         // Two columns, so the four categories make a 2x2 block instead of
         // three in a row and one left alone underneath; one column on
         // a phone.
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16, marginBottom: 24 }}>
+        //
+        // Spelled out rather than left to auto-fit: with a 300px minimum
+        // this container is wide enough for three tracks, so auto-fit
+        // produced exactly the 3+1 orphan the line above rules out.
+        <div className="scorecard-categories" style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
           {categories.map(c => {
             const tone = scoreTone(c.score);
             return (
               <div key={c.key} className="card" style={{
-                padding: 20, background: CARD,
+                padding: 16, background: CARD,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <div style={{
@@ -582,9 +771,9 @@ export default function Scorecard() {
       {/* Strengths and improvements */}
       {(strengths.length > 0 || improvements.length > 0) && (
         <div className="card" style={{
-          marginBottom: 24, background: CARD, borderTop: `3px solid ${ACCENT}`,
+          marginBottom: 16, background: CARD, borderTop: `3px solid ${ACCENT}`,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Brain size={18} color={ACCENT} />
             <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: 'var(--accent-text)' }}>AI Feedback & Assessment</span>
           </div>
@@ -614,16 +803,25 @@ export default function Scorecard() {
       {/* Question by question - Transcripts, Answers & Model Answers */}
       {perQuestion.length > 0 && (
         <div className="card" style={{
-          marginBottom: 24, background: CARD, borderTop: `3px solid ${BLUE}`,
+          marginBottom: 16, background: CARD, borderTop: `3px solid ${BLUE}`,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Layers size={18} color={BLUE} />
             <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: BLUE }}>
               Question-by-Question Transcript & Evaluation
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {isJobInterview && (
+            <p role="note" style={{ fontSize: 'var(--fs-sm)', color: MUTED, lineHeight: 1.6, marginBottom: 16 }}>
+              This interview used the questions set by the recruiter for this job.
+              Every candidate is asked the same ones, so the detailed notes on what
+              each answer should have covered are shown only to the recruiter. Your
+              scores, strengths and areas to improve are all above.
+            </p>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {perQuestion.map(q => {
               const style = VERDICT_STYLE[q.verdict] || VERDICT_STYLE.weak;
               const turn = turns.find(t => t.turnNumber === q.question_number);
@@ -675,8 +873,11 @@ export default function Scorecard() {
                     </div>
                   )}
 
-                  {/* What was missing */}
-                  {q.what_was_missing && (
+                  {/* What was missing. Practice only: on a job interview
+                      this is the recruiter's answer key in all but name,
+                      and the same question is reused for every
+                      candidate. */}
+                  {q.what_was_missing && !isJobInterview && (
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
                       <XCircle size={14} color={AMBER} style={{ flexShrink: 0, marginTop: 3 }} />
                       <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, margin: 0 }}>
@@ -771,8 +972,8 @@ export default function Scorecard() {
       />
 
       {/* How this interview compares with the earlier ones */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <TrendingUp size={18} color={GREEN} />
           <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: GREEN }}>Your Overall Progress</span>
         </div>

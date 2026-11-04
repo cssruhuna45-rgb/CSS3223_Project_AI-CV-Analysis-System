@@ -1,309 +1,141 @@
-import React, { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Brain, Mic, BarChart2, Shield, Zap, ChevronRight, FileText, Users, Sparkles, Award, Compass } from 'lucide-react';
-import { PREDEFINED_JOB_FIELDS as JOB_FIELDS } from '../constants/jobFields';
+import React, { useRef } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  ArrowDown, ArrowRight, AudioLines, BarChart3, BookOpen, Check,
+  CheckCircle2, Compass, FileText, Layers3, Mic, Users,
+} from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
+import useScrollReveal from '../hooks/useScrollReveal';
 import { homePathFor } from '../constants/accounts';
 
 const FEATURES = [
-  {
-    icon: <Brain size={24} />,
-    color: 'var(--accent)',
-    bg: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-    glow: 'color-mix(in srgb, var(--accent) 30%, transparent)',
-    title: 'AI-Powered Questions',
-    desc: 'LangChain RAG retrieves deep technical context from industry standards and your specific CV to form tailored questions.',
-  },
-  {
-    icon: <Mic size={24} />,
-    color: 'var(--accent)',
-    bg: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-    glow: 'color-mix(in srgb, var(--accent) 30%, transparent)',
-    title: 'Real-Time Voice Studio',
-    desc: 'Speak answers naturally with live speech-to-text recognition, timed turn pressure, and text-to-speech audio questions.',
-  },
-  {
-    icon: <BarChart2 size={24} />,
-    color: 'var(--success)',
-    bg: 'color-mix(in srgb, var(--success) 15%, transparent)',
-    glow: 'color-mix(in srgb, var(--success) 30%, transparent)',
-    title: '4-Axis Competency Scoring',
-    desc: 'Get evaluated objectively across Technical Knowledge, Implementation Depth, Problem Solving, and Communication Clarity.',
-  },
-  {
-    icon: <FileText size={24} />,
-    color: 'var(--warning)',
-    bg: 'color-mix(in srgb, var(--warning) 15%, transparent)',
-    glow: 'color-mix(in srgb, var(--warning) 30%, transparent)',
-    title: 'Intelligent CV Parsing',
-    desc: 'Instantly extract skills, seniority level, and discover hidden skill gaps tailored to your dream career track.',
-  },
-  {
-    icon: <Compass size={24} />,
-    color: 'var(--accent)',
-    bg: 'color-mix(in srgb, var(--danger) 15%, transparent)',
-    glow: 'color-mix(in srgb, var(--danger) 30%, transparent)',
-    title: '14-Day Action Roadmap',
-    desc: 'Transform interview mistakes into a daily curriculum with curated study topics, practical code exercises, and milestones.',
-  },
-  {
-    icon: <Users size={24} />,
-    color: 'var(--accent)',
-    bg: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-    glow: 'color-mix(in srgb, var(--accent) 30%, transparent)',
-    title: 'Recruiter Intelligence',
-    desc: 'Rank candidates automatically, inspect verifiable turn-by-turn transcripts, and make confident data-driven hires.',
-  },
+  { icon: FileText, label: 'Start with your experience', title: 'A clearer picture of your CV.', text: 'Bring your skills, projects, and experience together. Explore relevant career tracks and see where you can grow.' },
+  { icon: AudioLines, label: 'Practise with purpose', title: 'Find your interview voice.', text: 'Work through technical questions with text or supported voice tools. Choose a learning-focused practice or a timed exam.' },
+  { icon: Compass, label: 'Find your focus', title: 'Know what to work on.', text: 'Compare your skills with a target career track and make sense of the gaps.' },
+  { icon: BarChart3, label: 'Understand the feedback', title: 'Go beyond a score.', text: 'Explore four competency dimensions with answer feedback and supporting explanations.' },
+  { icon: BookOpen, label: 'Keep moving forward', title: 'Turn feedback into a plan.', text: 'Build a 14-day learning roadmap around the areas that need your attention.' },
+  { icon: Users, label: 'For hiring teams', title: 'Bring evidence into view.', text: 'Review submitted CVs and job-linked interviews. Compare evidence and make your own hiring decisions.' },
+];
+const STEPS = [
+  { icon: FileText, title: 'Bring your CV', text: 'Upload a PDF and review your experience.' },
+  { icon: Compass, title: 'Choose your direction', text: 'Explore a career track and your skill gaps.' },
+  { icon: Mic, title: 'Put it into practice', text: 'Work through a relevant technical interview.' },
+  { icon: BarChart3, title: 'Take your next step', text: 'Use your feedback to focus your learning.' },
 ];
 
-/* Intersection Observer hook for scroll-based reveals */
-function useReveal(ref) {
-  useEffect(() => {
-    if (!ref.current) return;
-    const sections = ref.current.querySelectorAll('.reveal-section');
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-          }
-        });
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
-    );
-    sections.forEach((s) => observer.observe(s));
-    return () => observer.disconnect();
-  }, [ref]);
-}
-
-export default function Landing({ user }) {
-  const navigate = useNavigate();
-  const startPath = !user ? '/register' : user.role === 'candidate' ? '/upload' : homePathFor(user);
-  const pageRef = useRef(null);
-  useReveal(pageRef);
-
+function ProductPreview() {
   return (
-    <div ref={pageRef} style={{ position: 'relative', overflowX: 'hidden' }}>
-      {/* Hero Section */}
-      <div style={{ position: 'relative', padding: '110px 24px 80px', textAlign: 'center' }}>
-        {/* Top ambient glow */}
-        <div style={{
-          position: 'absolute', top: -60, left: '50%', transform: 'translateX(-50%)',
-          width: 1000, height: 600,
-          background: 'transparent',
-          pointerEvents: 'none',
-        }} />
-
-        <div style={{ maxWidth: 840, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          {/* Pill Tag */}
-          <div className="hero-pill" style={{ marginBottom: 28 }}>
-            <Sparkles size={14} color="var(--accent)" />
-            <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--accent)', fontWeight: 600 }}>
-              Next-Gen AI Interview Intelligence · 2026 Edition
-            </span>
+    <figure className="product-preview" aria-label="Illustrative product preview, not your personal results">
+      <div className="preview-topbar">
+        <span className="preview-brand"><BrandLogo alt="" className="preview-brand-mark" shine={false} /> Your workspace</span>
+        <span className="preview-label">Illustrative preview</span>
+      </div>
+      <div className="preview-content">
+        <div className="preview-cv">
+          <span className="preview-file-icon"><FileText size={23} aria-hidden="true" /></span>
+          <div><strong>Your CV, understood</strong><span>Skills, experience, and possibilities</span></div>
+          <CheckCircle2 size={20} className="preview-complete" aria-label="Analysis complete in this example" />
+        </div>
+        <div className="preview-skill-tags" aria-label="Example extracted skills"><span>React</span><span>Java</span><span>SQL</span><span>Problem solving</span></div>
+        <div className="preview-feedback">
+          <div className="preview-feedback-heading">
+            <div><span className="landing-eyebrow">INTERVIEW FEEDBACK</span><h3>See the whole picture.</h3></div>
+            <span className="preview-score">82<span>/100</span></span>
           </div>
-
-          {/* Heading */}
-          <h1 className="hero-title" style={{ marginBottom: 24 }}>
-            Master Your Next Interview with{' '}
-            <span style={{
-              background: 'linear-gradient(var(--accent-solid), var(--accent-solid))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundSize: '200% auto',
-              animation: 'shimmer 4s linear infinite',
-            }}>
-              Autonomous AI
-            </span>
-          </h1>
-
-          <p className="hero-subtitle" style={{ marginBottom: 38 }}>
-            Upload your CV, experience adaptive voice-enabled technical interviews, receive turn-by-turn evaluations, and unlock a personalized 14-day study roadmap.
-          </p>
-
-          {/* Action Buttons */}
-          <div className="hero-actions">
-            <button
-              className="btn btn-cta"
-              onClick={() => navigate(startPath)}
-            >
-              Start Free Practice <ChevronRight size={17} />
-            </button>
-            <button
-              className="btn btn-outline"
-              style={{ padding: '14px 28px', fontSize: 'var(--fs-base)' }}
-              onClick={() => navigate('/login')}
-            >
-              Recruiter Dashboard
-            </button>
-          </div>
-
-          {/* Floating stats pills */}
-          <div style={{
-            display: 'flex', gap: 24, justifyContent: 'center', marginTop: 50,
-            flexWrap: 'wrap',
-            animation: 'fadeInUp 1s var(--ease-out-expo) 0.5s forwards',
-            opacity: 0,
-          }}>
-            {[
-              { label: 'RAG-Powered', icon: <Brain size={14} /> },
-              { label: 'Voice Enabled', icon: <Mic size={14} /> },
-              { label: 'Explained Scores', icon: <BarChart2 size={14} /> },
-              { label: 'Secure Login', icon: <Shield size={14} /> },
-            ].map((s) => (
-              <div key={s.label} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', borderRadius: 20,
-                background: 'color-mix(in srgb, var(--fg) 4%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
-                color: 'var(--text-muted)', fontSize: 'var(--fs-xs)', fontWeight: 500,
-              }}>
-                <span style={{ color: 'var(--accent)' }}>{s.icon}</span>
-                {s.label}
-              </div>
+          <div className="preview-bars">
+            {[['Technical knowledge', 82], ['Implementation depth', 76], ['Problem solving', 88], ['Communication clarity', 80]].map(([label, value]) => (
+              <div className="preview-bar-row" key={label}><span>{label}</span><div className="preview-bar-track" aria-hidden="true"><span style={{ width: value + '%' }} /></div><strong>{value}</strong></div>
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Features Grid */}
-      <div className="reveal-section" style={{ maxWidth: 1120, margin: '0 auto', padding: '60px 24px 80px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)' }}>
-            Engineered for Precision
-          </span>
-          <h2 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--text-primary)' }}>
-            Everything You Need to Get Hired
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-base)', marginTop: 6 }}>
-            Designed using cognitive HCI principles and modern retrieval-augmented generation.
-          </p>
+        <div className="preview-roadmap">
+          <span className="preview-roadmap-icon"><BookOpen size={20} aria-hidden="true" /></span>
+          <div><strong>A plan for what comes next</strong><span>Your personalised 14-day learning roadmap</span></div>
+          <ArrowRight size={18} aria-hidden="true" />
         </div>
+      </div>
+      <figcaption>Example content. Your feedback is based on your own CV and answers.</figcaption>
+    </figure>
+  );
+}
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 24,
-        }}>
-          {FEATURES.map((f, i) => (
-            <div
-              key={f.title}
-              className="feature-card-static stagger-item"
-              style={{
-                '--feature-accent': f.color,
-                '--feature-glow': f.glow,
-              }}
-            >
-              <div
-                className="feature-icon"
-                style={{
-                  background: f.bg,
-                  border: `1px solid color-mix(in srgb, ${f.color} 25%, transparent)`,
-                  color: f.color,
-                  boxShadow: 'none',
-                }}
-              >
-                {f.icon}
-              </div>
-              <h3 style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
-                {f.title}
-              </h3>
-              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', lineHeight: 1.65 }}>
-                {f.desc}
-              </p>
-            </div>
+export default function Landing({ user }) {
+  const pageRef = useRef(null);
+  useScrollReveal(pageRef);
+  const startPath = !user ? '/register' : user.role === 'candidate' ? '/upload' : homePathFor(user);
+  const startLabel = !user ? 'Start your next chapter' : user.role === 'candidate' ? 'Analyse my CV' : 'Open my workspace';
+
+  return (
+    <div className="landing-page" ref={pageRef}>
+      <div className="landing-reading-progress" aria-hidden="true" />
+      <section className="landing-hero landing-container" aria-labelledby="landing-title">
+        <div className="landing-hero-copy">
+          <h1 id="landing-title">Understand your CV.<br /><span>Strengthen your next interview.</span></h1>
+          <p className="landing-hero-description">Explore your skills, practise technical interviews, and turn feedback into a focused learning plan.</p>
+          <div className="landing-hero-actions">
+            <Link className="btn btn-primary btn-lg" to={startPath}>{startLabel}<ArrowRight size={18} aria-hidden="true" /></Link>
+            <a className="landing-text-link" href="#how-it-works">See how it works<ArrowDown size={16} aria-hidden="true" /></a>
+          </div>
+          <div className="landing-hero-notes"><span><Check size={15} aria-hidden="true" />CV-led preparation</span><span><Check size={15} aria-hidden="true" />Feedback you can explore</span></div>
+        </div>
+        <div className="landing-hero-visual"><ProductPreview /></div>
+      </section>
+
+      <section id="how-it-works" className="landing-workflow landing-container" aria-labelledby="workflow-title">
+        <div className="landing-section-heading subreveal">
+          <div><p className="landing-eyebrow">FROM EXPERIENCE TO OPPORTUNITY</p><h2 id="workflow-title">One connected journey.<br />A clear next step.</h2></div>
+          <p>Start where you are. Build on what you know. Make every practice count.</p>
+        </div>
+        <ol className="landing-steps">
+          {STEPS.map(({ icon: Icon, title, text }, index) => (
+            <li className="landing-step subreveal" key={title} style={{ '--reveal-order': index }}><div className="landing-step-head"><span className="landing-step-number">0{index + 1}</span><Icon size={21} aria-hidden="true" /></div><h3>{title}</h3><p>{text}</p></li>
           ))}
-        </div>
-      </div>
+        </ol>
+      </section>
 
-      {/* Metrics Section */}
-      <div className="reveal-section" style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 24px 80px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 20,
-        }}>
-          {/* Facts about the product itself, each one checkable in the
-              code. The figures that stood here before (10k+ sessions,
-              95% satisfaction, a 4.8 rating, under 2s responses) were
-              never measured, and the last was false: a Gemini call
-              takes 4 to 20 seconds. */}
-          {[
-            { value: String(JOB_FIELDS.length), label: 'Job fields covered', color: 'var(--accent)' },
-            { value: '4', label: 'Scoring categories', color: 'var(--accent)' },
-            { value: '5', label: 'Questions per interview', color: 'var(--success)' },
-            { value: '14', label: 'Day study roadmap', color: 'var(--warning)' },
-          ].map((m) => (
-            <div
-              key={m.label}
-              className="stat-card stagger-item"
-              style={{ '--stat-accent': m.color, '--stat-glow': m.color, textAlign: 'center', padding: '28px 18px' }}
-              aria-label={`${m.label}: ${m.value} (demo metric)`}
-            >
-              <div style={{
-                fontSize: 'var(--fs-2xl)', fontWeight: 900, letterSpacing: '-0.02em',
-                background: `linear-gradient(var(--text-primary), var(--text-primary))`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                marginBottom: 6,
-              }}>
-                {m.value}
-              </div>
-              <div style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', fontWeight: 500 }}>
-                {m.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Call to Action Banner */}
-      <div className="reveal-section" style={{ maxWidth: 760, margin: '0 auto 100px', padding: '0 24px', textAlign: 'center' }}>
-        <div className="card cta-banner" style={{
-          background: 'linear-gradient(color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 14%, transparent))',
-          border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
-          padding: '56px 32px',
-          position: 'relative',
-          overflow: 'hidden',
-          boxShadow: 'none',
-        }}>
-          {/* Decorative orbs */}
-          <div style={{
-            position: 'absolute', top: -50, right: -50, width: 180, height: 180,
-            background: 'transparent',
-            pointerEvents: 'none', animation: 'floatSlow 6s ease-in-out infinite',
-          }} />
-          <div style={{
-            position: 'absolute', bottom: -30, left: -30, width: 140, height: 140,
-            background: 'transparent',
-            pointerEvents: 'none', animation: 'floatSlow 5s ease-in-out infinite reverse',
-          }} />
-
-          <div style={{ position: 'relative', zIndex: 2 }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 16,
-              background: 'linear-gradient(color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent) 30%, transparent))',
-              border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 20px',
-              boxShadow: 'none',
-            }}>
-              <Zap size={26} color="var(--accent)" />
-            </div>
-            <h2 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, letterSpacing: '-0.02em' }}>
-              Ready to Elevate Your Interview Game?
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-base)', marginBottom: 32, maxWidth: 500, margin: '0 auto 32px', lineHeight: 1.6 }}>
-              Upload your CV, sit a five-question interview for your target role, and see exactly which answers held up and what to study next.
-            </p>
-            <button
-              className="btn btn-cta"
-              onClick={() => navigate(startPath)}
-            >
-              Get Started Free <ChevronRight size={17} />
-            </button>
+      <section id="features" className="landing-feature-section" aria-labelledby="features-title">
+        <div className="landing-container">
+          <div className="landing-section-heading subreveal">
+            <div><p className="landing-eyebrow">THOUGHTFUL TOOLS. USEFUL INSIGHTS.</p><h2 id="features-title">Preparation with perspective.</h2></div>
+            <p>Your experience is the starting point. Your feedback helps you decide where to go next.</p>
+          </div>
+          <div className="landing-features">
+            {FEATURES.map(({ icon: Icon, label, title, text }, index) => (
+              <article className={'landing-feature subreveal ' + (index < 2 ? 'landing-feature--lead' : '')} key={title} style={{ '--reveal-order': Math.min(index, 3) }}>
+                <div className="landing-feature-top"><span className="landing-feature-icon"><Icon size={23} aria-hidden="true" /></span><span className="landing-feature-number">0{index + 1}</span></div>
+                <p className="landing-feature-label">{label}</p><h3>{title}</h3><p>{text}</p>
+                {index === 0 && <div className="landing-feature-detail" aria-hidden="true"><span>Experience</span><span>Skills</span><span>Career tracks</span></div>}
+                {index === 1 && <div className="landing-feature-detail" aria-hidden="true"><span><Mic size={14} />Voice or text</span><span>Practice or exam</span></div>}
+              </article>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
+
+      <section id="for-you" className="landing-audience landing-container" aria-labelledby="audience-title">
+        <div className="landing-section-heading subreveal"><div><p className="landing-eyebrow">TWO PERSPECTIVES. SHARED CLARITY.</p><h2 id="audience-title">Built around your next decision.</h2></div></div>
+        <div className="landing-audience-grid">
+          <article className="landing-audience-card subreveal">
+            <span className="landing-audience-label"><Compass size={17} aria-hidden="true" />FOR CANDIDATES</span>
+            <h3>Make your next move<br />with more confidence.</h3>
+            <p>Understand your strengths, find areas to develop, and practise at your own pace. Your personal practice stays private.</p>
+            <Link to={startPath} className="landing-text-link">{user ? 'Continue in your workspace' : 'Explore your potential'}<ArrowRight size={17} aria-hidden="true" /></Link>
+          </article>
+          <article className="landing-audience-card subreveal">
+            <span className="landing-audience-label"><Users size={17} aria-hidden="true" />FOR HIRING TEAMS</span>
+            <h3>Better context.<br />More informed decisions.</h3>
+            <p>Review submitted CVs and job-linked assessments side by side. Keep CV matching and interview performance in perspective, with the decision in your hands.</p>
+            <Link to={user ? homePathFor(user) : '/login'} className="landing-text-link">{user ? 'Open your workspace' : 'Sign in to your workspace'}<ArrowRight size={17} aria-hidden="true" /></Link>
+          </article>
+        </div>
+      </section>
+
+      <section className="landing-closing landing-container" aria-labelledby="closing-title">
+        <div className="landing-closing-inner subreveal">
+          <div><span className="landing-closing-icon"><Layers3 size={25} aria-hidden="true" /></span><p className="landing-eyebrow">YOUR NEXT CHAPTER STARTS HERE</p><h2 id="closing-title">Bring your experience.<br />Find your way forward.</h2><p>Start with your CV. Leave with a clearer next step.</p></div>
+          <Link className="btn btn-primary btn-lg" to={startPath}>{user ? 'Continue to my workspace' : 'Get started'}<ArrowRight size={18} aria-hidden="true" /></Link>
+        </div>
+      </section>
     </div>
   );
 }

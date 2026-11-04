@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Users, ArrowRight, ChevronRight } from 'lucide-react';
 
 import BrandLogo from '../components/BrandLogo';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 /**
  * The signed-in candidate's front door.
@@ -19,6 +20,8 @@ import BrandLogo from '../components/BrandLogo';
  */
 export default function CandidateHome() {
   const navigate = useNavigate();
+  const pageRef = useRef(null);
+  useScrollReveal(pageRef);
 
   const actions = [
     {
@@ -36,9 +39,9 @@ export default function CandidateHome() {
   ];
 
   return (
-    <div className="focus-home">
+    <div className="focus-home workspace-page" ref={pageRef}>
       <header className="focus-intro">
-        <h2 className="focus-intro-title">Welcome to your workspace</h2>
+        <h1 className="focus-intro-title">Welcome to your workspace</h1>
         <p className="focus-intro-text">
           Get AI-powered insights, improve your CV, and practise for
           interviews &mdash; all in one place.
@@ -49,9 +52,9 @@ export default function CandidateHome() {
         <div className="focus-feature-body">
           <p className="focus-eyebrow">Career growth starts here</p>
 
-          <h3 id="focus-feature-title" className="focus-feature-title">
+          <h2 id="focus-feature-title" className="focus-feature-title">
             Ready for your next opportunity?
-          </h3>
+          </h2>
 
           <p className="focus-feature-text">
             Improve your CV, uncover skill gaps and practise with realistic
@@ -77,7 +80,7 @@ export default function CandidateHome() {
         </div>
       </section>
 
-      <nav className="focus-actions" aria-label="Get started">
+      <nav className="focus-actions subreveal" aria-label="Get started">
         {actions.map((item) => {
           const Icon = item.icon;
 
@@ -106,6 +109,11 @@ export default function CandidateHome() {
           );
         })}
       </nav>
+      <ol className="welcome-journey subreveal" aria-label="Your preparation journey">
+        <li><span className="welcome-journey-number">01</span><div><strong>Understand your experience</strong><p>Start with your CV and skills.</p></div></li>
+        <li><span className="welcome-journey-number">02</span><div><strong>Practise with direction</strong><p>Focus on your target career track.</p></div></li>
+        <li><span className="welcome-journey-number">03</span><div><strong>Build on your feedback</strong><p>Turn your results into a learning plan.</p></div></li>
+      </ol>
     </div>
   );
 }

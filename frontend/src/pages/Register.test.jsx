@@ -76,7 +76,8 @@ test('field errors with no matching input are summarised instead of lost', async
 });
 
 test('the password guidance matches the server rule of 6 characters', async () => {
-  expect(container.textContent).toContain('At least 6 characters.');
+  // Worded once, in constants/passwordRules.js.
+  expect(container.textContent).toContain('Use at least 6 characters.');
   expect(container.textContent).not.toMatch(/8 characters/);
 
   fill('Ana', 'ana@example.com', '12345');

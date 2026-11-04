@@ -3,17 +3,19 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
+import AuthStory from '../components/AuthStory';
 import { authAPI } from '../services/api';
 import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
+import { homePathFor, toStoredUser } from '../constants/accounts';
+import { PASSWORD_MIN_LENGTH, PASSWORD_HINT_REGISTER } from '../constants/passwordRules';
 
-// The server's rule (RegisterRequest): at least 6 characters, and no
-// more than bcrypt's 72 bytes.
-const MIN_PASSWORD = 6;
+// The server asks for PASSWORD_MIN_LENGTH characters (RegisterRequest).
+// bcrypt cannot hash more than 72 bytes, so a longer password is
+// refused here before it reaches the server.
 const MAX_PASSWORD_BYTES = 72;
 
 // UTF-8 length without TextEncoder, which older test environments lack.
 const utf8Length = (text) => encodeURIComponent(text).replace(/%[0-9A-F]{2}/gi, 'x').length;
-import { homePathFor, toStoredUser } from '../constants/accounts';
 
 export default function Register({ onLogin }) {
   const notify = useToast();
@@ -27,8 +29,8 @@ export default function Register({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     errors.clear();
-    if (form.password.length < MIN_PASSWORD) {
-      errors.setField('password', `Use at least ${MIN_PASSWORD} characters.`);
+    if (form.password.length < PASSWORD_MIN_LENGTH) {
+      errors.setField('password', PASSWORD_HINT_REGISTER);
       return;
     }
     if (utf8Length(form.password) > MAX_PASSWORD_BYTES) {
@@ -68,10 +70,10 @@ export default function Register({ onLogin }) {
   return (
     <div className="auth-page">
       {/* Ambient background glow */}
-      <div className="auth-ambient" />
+      <AuthStory />
 
       <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }} className="animate-fade-in-up">
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <BrandLogo variant="mark" alt="Vynterva AI" className="auth-logo" />
           <h1 style={{
             fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
@@ -90,13 +92,14 @@ export default function Register({ onLogin }) {
             border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
             borderRadius: 12,
             padding: 4,
-            marginBottom: 24,
+            marginBottom: 16,
           }}>
             {[
               { key: 'candidate', label: 'Candidate', icon: <GraduationCap size={14} /> },
               { key: 'recruiter', label: 'Recruiter', icon: <UserCog size={14} /> },
             ].map(r => (
-              <button key={r.key} onClick={() => setForm(f => ({ ...f, role: r.key }))}
+              <button key={r.key} type="button" aria-pressed={form.role === r.key}
+                onClick={() => setForm(f => ({ ...f, role: r.key }))}
                 style={{
                   flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
                   fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-sm)', fontWeight: 600,
@@ -113,7 +116,7 @@ export default function Register({ onLogin }) {
           </div>
 
           {form.role === 'recruiter' && (
-            <p role="note" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginTop: -12, marginBottom: 20, lineHeight: 'var(--lh-normal)' }}>
+            <p role="note" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', marginTop: -12, marginBottom: 16, lineHeight: 'var(--lh-normal)' }}>
               Recruiter accounts see candidates' results, so an administrator
               approves each one before the dashboard opens.
             </p>
@@ -123,7 +126,7 @@ export default function Register({ onLogin }) {
             <div>
               <label className="label" htmlFor={errors.inputId('name')}>Full Name</label>
               <div style={{ position: 'relative' }}>
-                <User size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <User size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input className="input" placeholder="John Doe" style={{ paddingLeft: 42 }}
                   {...errors.fieldProps('name')} autoComplete="name"
                   value={form.name} onChange={e => { errors.clearField('name'); setForm(f => ({ ...f, name: e.target.value })); }} required />
@@ -133,7 +136,7 @@ export default function Register({ onLogin }) {
             <div>
               <label className="label" htmlFor={errors.inputId('email')}>Email address</label>
               <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <Mail size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input className="input" type="email" placeholder="you@example.com" style={{ paddingLeft: 42 }}
                   {...errors.fieldProps('email')} autoComplete="email"
                   value={form.email} onChange={e => { errors.clearField('email'); setForm(f => ({ ...f, email: e.target.value })); }} required />
@@ -143,19 +146,20 @@ export default function Register({ onLogin }) {
             <div>
               <label className="label" htmlFor={errors.inputId('password')}>Password</label>
               <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input className="input" type={showPass ? 'text' : 'password'} placeholder="At least 6 characters"
+                <Lock size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input className="input" type={showPass ? 'text' : 'password'} placeholder={PASSWORD_HINT_REGISTER}
+                  minLength={PASSWORD_MIN_LENGTH}
                   style={{ paddingLeft: 42, paddingRight: 42 }}
                   {...errors.fieldProps('password', 'register-password-hint')} autoComplete="new-password"
                   value={form.password} onChange={e => { errors.clearField('password'); setForm(f => ({ ...f, password: e.target.value })); }} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
-                  aria-label="Show password" aria-pressed={showPass}
+                  aria-label={showPass ? 'Hide password' : 'Show password'} aria-pressed={showPass}
                   style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p id="register-password-hint" style={{ marginTop: 6, fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
-                At least 6 characters.
+              <p id="register-password-hint" style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>
+                {PASSWORD_HINT_REGISTER}
               </p>
               <FieldError errors={errors} field="password" />
             </div>

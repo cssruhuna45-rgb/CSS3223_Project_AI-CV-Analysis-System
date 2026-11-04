@@ -37,6 +37,9 @@ export const UNEXPECTED_RESPONSE_MESSAGE =
 export const SERVER_ERROR_MESSAGE =
   'Something went wrong on our side. Please try again in a moment.';
 
+export const SERVER_STARTING_MESSAGE =
+  'The server is not responding yet. It may still be starting up - please wait a few seconds and try again.';
+
 export const AI_UNAVAILABLE_MESSAGE =
   'The AI service is temporarily unavailable. Please try again in a few minutes.';
 
@@ -67,6 +70,7 @@ const PUBLIC_CODES = new Set([
 const FIXED_MESSAGES = {
   AUTH_INVALID_CREDENTIALS: INVALID_LOGIN_MESSAGE,
   SESSION_EXPIRED: SESSION_EXPIRED_MESSAGE,
+  SERVER_STARTING: SERVER_STARTING_MESSAGE,
   AI_UNAVAILABLE: AI_UNAVAILABLE_MESSAGE,
   AI_RATE_LIMITED: AI_BUSY_MESSAGE,
   AI_DAILY_LIMIT: AI_DAILY_LIMIT_MESSAGE,
@@ -168,6 +172,14 @@ export async function errorFromResponse(res, { authenticated, url = '' }) {
   const raw = body && typeof body.message === 'string' ? body.message : null;
   const fieldErrors = cleanFieldErrors(body && body.fieldErrors);
   const retryAfter = retryAfterSeconds(res);
+
+  // A 502/503/504 with no JSON body is nginx answering for a backend
+  // that is not up yet - in development, the seconds it takes to boot
+  // after a restart. Spring's own AI failures carry a JSON body, and an
+  // AI route keeps saying the AI is unavailable.
+  if (!body && status >= 502 && status <= 504 && !/\/api\/v1\/ai\//.test(url)) {
+    code = 'SERVER_STARTING';
+  }
 
   // A 401 is a wrong password only when the server says so, or when it
   // answers the sign-in form. Anything else is a session that is no

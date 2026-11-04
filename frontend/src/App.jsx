@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './index.css';
+import './styles/redesign.css';
 
 import Navbar from './components/Navbar';
 import AppShell, { BLEED_ROUTES } from './components/AppShell';

@@ -9,28 +9,25 @@ import { userMessage } from '../services/http';
 // Same palette the scorecard uses, so this reads as part of the app
 // rather than a bolted-on page.
 const ACCENT = 'var(--accent)';
-const ACCENT_LIGHT = 'var(--accent)';
 const TEXT = 'var(--text-primary)';
 const MUTED = 'var(--text-muted)';
 const TRACK = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 const CARD = 'color-mix(in srgb, var(--bg-surface) 75%, transparent)';
 
-// The scorecard's hues, kept in step so a colour means the same thing
-// on both panels: green is progress, rose is a drop back.
-const GREEN = 'var(--success)';
-const BLUE = 'var(--accent)';
-const AMBER = 'var(--warning)';
-const PURPLE = 'var(--accent)';
-const CYAN = 'var(--accent)';
-const ROSE = 'var(--danger)';
+// Status colours, named by meaning rather than hue and kept in step
+// with the scorecard so the same colour says the same thing on both
+// panels: success is progress, danger is a drop back.
+const SUCCESS = 'var(--success)';
+const WARNING = 'var(--warning)';
+const DANGER = 'var(--danger)';
 
 // Each trend gets its own colour, so the badge reads before the words do.
 const TREND_COLORS = {
-  IMPROVING: GREEN,
-  DECREASING: ROSE,
-  STABLE: AMBER,
-  FIRST_INTERVIEW: BLUE,
-  NO_DATA: BLUE,
+  IMPROVING: SUCCESS,
+  DECREASING: DANGER,
+  STABLE: WARNING,
+  FIRST_INTERVIEW: ACCENT,
+  NO_DATA: ACCENT,
 };
 
 /**
@@ -85,13 +82,13 @@ function formatChange(value) {
 
 function changeColor(value) {
   if (value === null || value === undefined) return TEXT;
-  return value >= 0 ? GREEN : ROSE;
+  return value >= 0 ? SUCCESS : DANGER;
 }
 
 function StatCard({ label, value, suffix, hint, hintColor, tone = ACCENT }) {
   return (
     <div className="card" style={{
-      padding: 20, background: CARD, borderTop: `3px solid ${tone}`,
+      padding: 16, background: CARD, borderTop: `3px solid ${tone}`,
     }}>
       <p style={{
         fontSize: 'var(--fs-xs)', color: tone, marginBottom: 10, fontWeight: 600,
@@ -163,16 +160,16 @@ function ScoreChart({ points }) {
         </g>
       ))}
 
-      <path d={area} fill={GREEN} opacity="0.14" />
-      <path d={line} fill="none" stroke={GREEN} strokeWidth="2"
+      <path d={area} fill={SUCCESS} opacity="0.14" />
+      <path d={line} fill="none" stroke={SUCCESS} strokeWidth="2"
         strokeLinecap="round" strokeLinejoin="round" />
 
       {points.map((p, i) => (
         <g key={p.sessionId}>
-          <circle cx={x(i)} cy={y(p.score)} r="4" fill={GREEN} />
+          <circle cx={x(i)} cy={y(p.score)} r="4" fill={SUCCESS} />
           <text
             x={x(i)} y={y(p.score) - 10}
-            fill={GREEN} fontSize="11" textAnchor="middle" fontWeight="600"
+            fill={SUCCESS} fontSize="11" textAnchor="middle" fontWeight="600"
           >
             {p.score}
           </text>
@@ -234,9 +231,9 @@ export default function InterviewProgress({ compact = false }) {
     return (
       <div className="card" role="alert" style={{
         display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap',
-        background: CARD, borderTop: `3px solid ${AMBER}`,
+        background: CARD, borderTop: `3px solid ${WARNING}`,
       }}>
-        <AlertTriangle size={16} color={AMBER} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
+        <AlertTriangle size={16} color={WARNING} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
         <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, flex: 1 }}>
           <span className="sr-only">Error: </span>{error}
         </p>
@@ -253,9 +250,9 @@ export default function InterviewProgress({ compact = false }) {
   if (interviews.length === 0) {
     return (
       <div className="card" style={{
-        textAlign: 'center', background: CARD, borderTop: `3px solid ${PURPLE}`,
+        textAlign: 'center', background: CARD, borderTop: `3px solid ${ACCENT}`,
       }}>
-        <History size={28} color={PURPLE} style={{ marginBottom: 12 }} />
+        <History size={28} color={ACCENT} style={{ marginBottom: 12 }} />
         <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6 }}>
           No completed interviews yet. Finish one and your score history
           will build up here.
@@ -265,7 +262,7 @@ export default function InterviewProgress({ compact = false }) {
   }
 
   const trend = TREND[progress.trend] || TREND.NO_DATA;
-  const trendColor = TREND_COLORS[progress.trend] || BLUE;
+  const trendColor = TREND_COLORS[progress.trend] || ACCENT;
 
   // Only graded interviews can be plotted.
   const chartPoints = interviews.filter(i => i.score !== null && i.score !== undefined);
@@ -277,32 +274,27 @@ export default function InterviewProgress({ compact = false }) {
   return (
     <div>
       {!compact && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <TrendingUp size={18} color={ACCENT} />
           <h2 style={{ fontWeight: 600, fontSize: 'var(--fs-lg)' }}>My Interview Progress</h2>
         </div>
       )}
 
       {/* Headline numbers */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: 16,
-        marginBottom: 24,
-      }}>
+      <div className="progress-metrics">
         <StatCard
           label="Latest Score"
           value={progress.latestScore ?? '--'}
           suffix="/ 100"
           hint={trend.message}
-          tone={GREEN}
+          tone={SUCCESS}
         />
         <StatCard
           label="Previous Score"
           value={progress.previousScore ?? '--'}
           suffix={progress.previousScore === null ? '' : '/ 100'}
           hint={progress.previousScore === null ? 'No earlier interview' : null}
-          tone={BLUE}
+          tone={ACCENT}
         />
         <StatCard
           label="Change"
@@ -316,7 +308,7 @@ export default function InterviewProgress({ compact = false }) {
           label="Best Score"
           value={progress.bestScore ?? '--'}
           suffix={progress.bestScore === null ? '' : '/ 100'}
-          tone={PURPLE}
+          tone={ACCENT}
         />
         <StatCard
           label="Completed"
@@ -327,12 +319,12 @@ export default function InterviewProgress({ compact = false }) {
               ? `${progress.totalInterviews - progress.scoredInterviews} could not be graded`
               : null
           }
-          tone={CYAN}
+          tone={ACCENT}
         />
       </div>
 
       {/* Trend badge */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 16 }}>
         <span className="badge" style={{
           background: `color-mix(in srgb, ${trendColor} 12%, transparent)`,
           color: trendColor,
@@ -348,11 +340,11 @@ export default function InterviewProgress({ compact = false }) {
       {/* Score progression */}
       {chartPoints.length >= 2 && (
         <div className="card" style={{
-          marginBottom: 24, background: CARD, borderTop: `3px solid ${GREEN}`,
+          marginBottom: 16, background: CARD, borderTop: `3px solid ${SUCCESS}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Award size={18} color={GREEN} />
-            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: GREEN }}>Score progression</span>
+            <Award size={18} color={SUCCESS} />
+            <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: SUCCESS }}>Score progression</span>
           </div>
           <ScoreChart points={chartPoints} />
         </div>
@@ -360,33 +352,33 @@ export default function InterviewProgress({ compact = false }) {
 
       {/* History */}
       <div className="card" style={{
-        background: CARD, borderTop: `3px solid ${PURPLE}`,
+        background: CARD, borderTop: `3px solid ${ACCENT}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <History size={18} color={PURPLE} />
-          <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: PURPLE }}>Interview history</span>
+          <History size={18} color={ACCENT} />
+          <span style={{ fontWeight: 700, fontSize: 'var(--fs-base)', color: ACCENT }}>Interview history</span>
         </div>
 
         {/* Narrow screens scroll the table rather than the page. */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Interview score history">
+          <table className="workspace-table" style={{
             width: '100%',
             borderCollapse: 'collapse',
             fontSize: 'var(--fs-sm)',
             minWidth: 420,
           }}>
             <thead>
-              <tr style={{ borderBottom: `1px solid color-mix(in srgb, ${PURPLE} 35%, transparent)` }}>
-                <th style={{ textAlign: 'left', padding: '8px 12px 12px 0', color: PURPLE, fontWeight: 600 }}>
+              <tr style={{ borderBottom: `1px solid color-mix(in srgb, ${ACCENT} 35%, transparent)` }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px 12px 0', color: ACCENT, fontWeight: 600 }}>
                   Date
                 </th>
-                <th style={{ textAlign: 'right', padding: '8px 12px 12px', color: PURPLE, fontWeight: 600 }}>
+                <th style={{ textAlign: 'right', padding: '8px 12px 12px', color: ACCENT, fontWeight: 600 }}>
                   Score
                 </th>
-                <th style={{ textAlign: 'right', padding: '8px 12px 12px', color: PURPLE, fontWeight: 600 }}>
+                <th style={{ textAlign: 'right', padding: '8px 12px 12px', color: ACCENT, fontWeight: 600 }}>
                   Change
                 </th>
-                <th style={{ textAlign: 'right', padding: '8px 0 12px 12px', color: PURPLE, fontWeight: 600 }}>
+                <th style={{ textAlign: 'right', padding: '8px 0 12px 12px', color: ACCENT, fontWeight: 600 }}>
                   Action
                 </th>
               </tr>
@@ -412,7 +404,7 @@ export default function InterviewProgress({ compact = false }) {
                       <span className="badge badge-neutral" style={{ marginLeft: 8 }}>Practice</span>
                     )}
                   </td>
-                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: CYAN }}>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: ACCENT }}>
                     {item.score ?? 'Not graded'}
                   </td>
                   <td style={{

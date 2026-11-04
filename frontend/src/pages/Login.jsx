@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
+import AuthStory from '../components/AuthStory';
 import { authAPI } from '../services/api';
 import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
 import { homePathFor, toStoredUser } from '../constants/accounts';
@@ -45,10 +46,10 @@ export default function Login({ onLogin }) {
   return (
     <div className="auth-page">
       {/* Ambient background glow */}
-      <div className="auth-ambient" />
+      <AuthStory />
 
       <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }} className="animate-fade-in-up">
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <BrandLogo variant="mark" alt="Vynterva AI" className="auth-logo" />
           <h1 style={{
             fontSize: 'var(--fs-2xl)', fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6,
@@ -64,7 +65,7 @@ export default function Login({ onLogin }) {
             <div>
               <label className="label" htmlFor={errors.inputId('email')}>Email address</label>
               <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <Mail size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input className="input" type="email" placeholder="you@example.com"
                   style={{ paddingLeft: 42 }}
                   {...errors.fieldProps('email')} autoComplete="email"
@@ -76,13 +77,13 @@ export default function Login({ onLogin }) {
             <div>
               <label className="label" htmlFor={errors.inputId('password')}>Password</label>
               <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <Lock size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input className="input" type={showPass ? 'text' : 'password'} placeholder="••••••••"
                   style={{ paddingLeft: 42, paddingRight: 42 }}
                   {...errors.fieldProps('password')} autoComplete="current-password"
                   value={form.password} onChange={e => { errors.clearField('password'); setForm(f => ({ ...f, password: e.target.value })); }} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
-                  aria-label="Show password" aria-pressed={showPass}
+                  aria-label={showPass ? 'Hide password' : 'Show password'} aria-pressed={showPass}
                   style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

@@ -325,57 +325,6 @@ export default function InterviewRoom() {
       : [];
 
   // ==========================================================
-  // DEBUG SKILL GAP CONTEXT
-  // ==========================================================
-
-  useEffect(() => {
-    console.log(
-      '================================================'
-    );
-
-    console.log(
-      '[Frontend] Interview Skill Gap Context'
-    );
-
-    console.log(
-      '[Frontend] Selected Job Field:',
-      selectedJobField
-    );
-
-    console.log(
-      '[Frontend] Selected Job Field Name:',
-      selectedJobFieldName
-    );
-
-    console.log(
-      '[Frontend] Matched Skills:',
-      matchedSkills
-    );
-
-    console.log(
-      '[Frontend] Related Skills:',
-      relatedSkills
-    );
-
-    console.log(
-      '[Frontend] Missing Skills:',
-      missingSkills
-    );
-
-    console.log(
-      '[Frontend] Additional Skills:',
-      additionalSkills
-    );
-
-    console.log(
-      '================================================'
-    );
-  }, [
-    selectedJobField,
-    selectedJobFieldName,
-  ]);
-
-  // ==========================================================
   // START INTERVIEW
   // ==========================================================
 
@@ -387,9 +336,6 @@ export default function InterviewRoom() {
 
     // Stop duplicate API call
     if (interviewStartedRef.current) {
-      console.log(
-        '[Frontend] Start request already sent.'
-      );
 
       return;
     }
@@ -398,44 +344,7 @@ export default function InterviewRoom() {
 
     const startInterview = async () => {
       try {
-        console.log(
-          '[Frontend] Starting interview...'
-        );
 
-        console.log(
-          '[Frontend] Job description:',
-          jobDescription
-        );
-
-        console.log(
-          '[Frontend] Resume length:',
-          resumeText.length
-        );
-
-        console.log(
-          '[Frontend] Job field:',
-          selectedJobField
-        );
-
-        console.log(
-          '[Frontend] Matched skills:',
-          matchedSkills
-        );
-
-        console.log(
-          '[Frontend] Related skills:',
-          relatedSkills
-        );
-
-        console.log(
-          '[Frontend] Missing skills:',
-          missingSkills
-        );
-
-        console.log(
-          '[Frontend] Additional skills:',
-          additionalSkills
-        );
 
         setLoading(true);
         setError('');
@@ -457,10 +366,6 @@ export default function InterviewRoom() {
           jobInvite?.code || null
         );
 
-        console.log(
-          '[Frontend] Start response:',
-          data
-        );
 
         const newSessionId =
           data?.session_id;
@@ -506,15 +411,6 @@ export default function InterviewRoom() {
           newSessionId
         );
 
-        console.log(
-          '[Frontend] Session ID:',
-          newSessionId
-        );
-
-        console.log(
-          '[Frontend] Question:',
-          newQuestion
-        );
 
       } catch (err) {
         console.error(
@@ -555,10 +451,6 @@ export default function InterviewRoom() {
 
         const data = await interviewAPI.resume(resumeId);
 
-        console.log(
-          '[Frontend] Resume response:',
-          data
-        );
 
         setSessionId(data.session_id);
         setJobInvite({ title: data.job_title, company: data.company });
@@ -745,9 +637,7 @@ export default function InterviewRoom() {
         try {
           recognitionRef.current.stop();
         } catch (error) {
-          console.log(
-            '[Frontend] Microphone cleanup completed.'
-          );
+          // Already stopped. Nothing to clean up.
         }
       }
 
@@ -769,9 +659,7 @@ export default function InterviewRoom() {
     try {
       window.speechSynthesis.cancel();
     } catch (error) {
-      console.log(
-        '[Frontend] Nothing was being spoken.'
-      );
+      // Nothing was being spoken, which is the usual case here.
     }
 
     utteranceRef.current = null;
@@ -838,9 +726,6 @@ export default function InterviewRoom() {
 
     window.speechSynthesis.speak(utterance);
 
-    console.log(
-      '[Frontend] Reading question aloud.'
-    );
   };
 
   // ----------------------------------------------------------
@@ -856,9 +741,7 @@ export default function InterviewRoom() {
         try {
           window.speechSynthesis.cancel();
         } catch (error) {
-          console.log(
-            '[Frontend] Speech cleanup completed.'
-          );
+          // Nothing left to cancel on the way out.
         }
       }
 
@@ -894,9 +777,7 @@ export default function InterviewRoom() {
       try {
         recognitionRef.current.stop();
       } catch (error) {
-        console.log(
-          '[Frontend] Recognition already stopped.'
-        );
+        // Already stopped.
       }
     }
 
@@ -961,9 +842,6 @@ export default function InterviewRoom() {
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
-      console.log(
-        '[Frontend] Microphone started.'
-      );
 
       setListening(true);
     };
@@ -1031,16 +909,9 @@ export default function InterviewRoom() {
         try {
           recognition.start();
 
-          console.log(
-            '[Frontend] Microphone resumed after pause.'
-          );
-
           return;
         } catch (error) {
-          console.log(
-            '[Frontend] Could not resume microphone:',
-            error
-          );
+          // Could not resume: fall through and end the recording.
         }
       }
 
@@ -1114,10 +985,6 @@ export default function InterviewRoom() {
     setModelAnswerLoading(true);
 
     try {
-      console.log(
-        '[Frontend] Fetching expected answer for question',
-        qIndex + 1
-      );
 
       const data =
         await interviewAPI.getModelAnswer(
@@ -1127,10 +994,6 @@ export default function InterviewRoom() {
           selectedJobField
         );
 
-      console.log(
-        '[Frontend] Expected answer:',
-        data
-      );
 
       if (data?.generated === false) {
         // data.error is for the log only, never the page.
@@ -1199,10 +1062,6 @@ export default function InterviewRoom() {
         id
       );
 
-    console.log(
-      '[Frontend] Interview finished successfully:',
-      finishData
-    );
 
     setFinishStep(3);
 
@@ -1269,31 +1128,13 @@ export default function InterviewRoom() {
     }
 
     try {
-      console.log(
-        '[Frontend] Submitting answer...'
-      );
 
-      console.log(
-        '[Frontend] Session:',
-        sessionId
-      );
-
-      console.log(
-        '[Frontend] Question:',
-        qIndex + 1
-      );
-
-      console.log(
-        '[Frontend] Answer length:',
-        text.length
-      );
 
       // ======================================================
       // LAST QUESTION
       // ======================================================
 
       if (qIndex + 1 >= totalQuestions) {
-        console.log('[Frontend] Final question reached, starting AI evaluation.');
         setIsFinishing(true);
         setFinishStep(1);
 
@@ -1326,10 +1167,6 @@ export default function InterviewRoom() {
       answerReceived = true;
       resetIntegrity();
 
-      console.log(
-        '[Frontend] Next question response:',
-        data
-      );
 
       const nextQuestion =
         data?.question?.question ||
@@ -1625,7 +1462,7 @@ export default function InterviewRoom() {
   if (!mode) {
     return (
       <div
-        style={{ maxWidth: 820, margin: '0 auto', padding: '36px 24px 80px' }}
+        style={{ maxWidth: 820, margin: '0 auto', padding: '0 0 var(--space-5)' }}
         className="animate-fade-in"
       >
         <StepBar current={3} />
@@ -1686,7 +1523,7 @@ export default function InterviewRoom() {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 16,
-          padding: 24,
+          padding: 16,
         }}
         className="animate-fade-in"
       >
@@ -1804,7 +1641,7 @@ export default function InterviewRoom() {
       style={{
         maxWidth: 820,
         margin: '0 auto',
-        padding: '36px 24px 80px',
+        padding: '0 0 var(--space-5)',
       }}
       className="animate-fade-in"
     >
@@ -1819,7 +1656,7 @@ export default function InterviewRoom() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: 28,
+          marginBottom: 20,
         }}
       >
         <div>
@@ -1966,7 +1803,7 @@ export default function InterviewRoom() {
           height: 5,
           background: 'color-mix(in srgb, var(--fg) 8%, transparent)',
           borderRadius: 3,
-          marginBottom: 28,
+          marginBottom: 20,
           overflow: 'hidden',
         }}
       >
@@ -1989,7 +1826,7 @@ export default function InterviewRoom() {
       <div
         className="card"
         style={{
-          marginBottom: 24,
+          marginBottom: 16,
           position: 'relative',
           overflow: 'hidden',
           background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
@@ -2206,7 +2043,7 @@ export default function InterviewRoom() {
         <div
           className="card"
           style={{
-            marginBottom: 20,
+            marginBottom: 16,
             background: 'color-mix(in srgb, var(--bg-surface) 75%, transparent)',
             border: '1px solid color-mix(in srgb, var(--fg) 8%, transparent)',
           }}
@@ -2395,7 +2232,7 @@ export default function InterviewRoom() {
               display: 'flex',
               gap: 14,
               alignItems: 'flex-start',
-              marginBottom: 22,
+              marginBottom: 16,
             }}
           >
             <CheckCircle
@@ -2503,7 +2340,7 @@ export default function InterviewRoom() {
           display: 'flex',
           gap: 10,
           alignItems: 'flex-start',
-          marginTop: 20,
+          marginTop: 16,
           padding: '14px 18px',
           background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
           border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)',
@@ -2543,7 +2380,7 @@ export default function InterviewRoom() {
           position: 'fixed', inset: 0, zIndex: 9999,
           background: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 24,
+          padding: 16,
         }}>
           <div style={{
             maxWidth: 540, width: '100%',
@@ -2565,7 +2402,7 @@ export default function InterviewRoom() {
             <h2 id="finishing-title" style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
               Analyzing Your Interview Performance
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', lineHeight: 1.5, marginBottom: 28 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', lineHeight: 1.5, marginBottom: 20 }}>
               Gemini AI is evaluating your technical depth, question answers, and generating your personalized scorecard…
             </p>
 
@@ -2577,7 +2414,7 @@ export default function InterviewRoom() {
             </p>
 
             {/* Stages */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'left', marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'left', marginBottom: 16 }}>
               {FINISH_STAGES.map(s => {
                 const done = finishStep > s.step;
                 const active = finishStep === s.step;
