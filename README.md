@@ -157,11 +157,19 @@ Notes:
   http://localhost:8025.
 - Flyway runs the migrations on backend startup, so the database sets
   itself up.
-- The frontend's API address is compiled into the JavaScript bundle. It
-  defaults to `localhost:8080`, which is right when you browse from the
-  same machine. Opening the app from your phone or another laptop needs
-  `REACT_APP_API_URL=http://<this machine's IP>:8080` in `.env` and a
-  `docker compose build frontend`.
+- A job interview survives a reload. The attempt is stored server side,
+  so closing the tab and coming back resumes the same question rather
+  than spending the single attempt.
+- Sign-in, password-reset emails and the AI endpoints are rate limited,
+  so a stuck client or a guessed password cannot hammer them.
+- The frontend's API address is compiled into the JavaScript bundle, so
+  changing it needs a `docker compose build frontend`. `.env.example`
+  ships `REACT_APP_API_URL=/`, which sends API calls to the frontend's
+  own nginx, which proxies them to the backend over the compose network.
+  That works from any device without naming a host. (The value baked
+  into the source as a last resort is `localhost:8080`, used only when
+  `REACT_APP_API_URL` is unset, which the shipped `.env` never leaves
+  it.)
 
 ---
 
@@ -251,11 +259,6 @@ cd backend && ./mvnw test
 
 ## Known gaps
 
-- `application.yml` still falls back to a committed JWT secret. Set
-  `JWT_SECRET` before deploying anywhere real; the fallback exists only
-  so a fresh clone starts.
 - A CV upload makes two Gemini calls where one would do.
 - There is no fallback when Gemini is down, so a demo depends on it
   being up.
-- The frontend defines colour tokens but mostly ignores them, so a
-  theme change means editing hex values in every file.

@@ -68,7 +68,10 @@ spring:
       # in competition with Flyway, which is how the stale columns in
       # V2 appeared in the first place.
       ddl-auto: validate
-    show-sql: true
+    # Off by default: every query printed buries the one line that
+    # matters when something actually fails. Turn it on for a single
+    # run with SHOW_SQL=true when you need to see what Hibernate sent.
+    show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
