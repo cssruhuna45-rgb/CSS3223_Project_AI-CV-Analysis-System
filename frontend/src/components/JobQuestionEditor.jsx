@@ -5,6 +5,33 @@ import {
 import { useToast } from './ToastProvider';
 import { Badge, Button, ConfirmDialog } from './ui';
 import { jobQuestionsAPI } from '../services/jobQuestionsApi';
+import { userMessage } from '../services/http';
+import { FormAlert } from './FormErrors';
+
+// What each action says when it fails. `uncertain` is for when the
+// server never answered, so the change may or may not have happened.
+const ACTION_ERRORS = {
+  settings: {
+    fallback: "We couldn't save the question settings. Check the skills and question count, then try again.",
+    uncertain: "We couldn't confirm the settings were saved. Save them again to be sure.",
+  },
+  generate: {
+    fallback: "We couldn't generate questions for this job. Please try again.",
+    uncertain: "We couldn't confirm whether new questions were generated. The questions below have been reloaded from the server.",
+  },
+  save: {
+    fallback: "We couldn't save your draft. Your changes are still here; please try again.",
+    uncertain: "We couldn't confirm your draft was saved. Your changes are still here; save again to be sure.",
+  },
+  approve: {
+    fallback: "We couldn't approve these questions. Please try again.",
+    uncertain: "We couldn't confirm the questions were approved. They have been reloaded from the server.",
+  },
+  regenerate: {
+    fallback: "We couldn't write a new question. The current question is unchanged; please try again.",
+    uncertain: "We couldn't confirm the question was replaced. Reload the page to check.",
+  },
+};
 
 const MAX_QUESTIONS = 10;
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
@@ -58,11 +85,19 @@ export default function JobQuestionEditor({ jobId, onChange }) {
     if (onChange) onChange(data);
   };
 
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
   useEffect(() => {
+    setLoadError('');
     jobQuestionsAPI.get(jobId)
       .then(apply)
-      .catch((err) => setLoadError(err.message || 'Could not load the questions.'));
-  }, [jobId]);
+      .catch((err) => setLoadError(userMessage(err, "We couldn't load the interview questions for this job. Please try again.")));
+  }, [jobId, loadAttempt]);
+
+  // After a change whose outcome is unknown, show what the server holds
+  // rather than guessing. Only for actions that replace the whole set,
+  // so no unsaved edit is thrown away.
+  const reread = () => jobQuestionsAPI.get(jobId).then(apply).catch(() => {});
 
   const serverDraft = useMemo(
     () => (assessment?.questions || []).map(toDraft),
@@ -84,7 +119,9 @@ export default function JobQuestionEditor({ jobId, onChange }) {
       apply(await action());
       if (success) notify(success);
     } catch (err) {
-      setError(err.message || 'That did not work. Please try again.');
+      const messages = ACTION_ERRORS[name];
+      setError(userMessage(err, messages.fallback, { uncertain: messages.uncertain }));
+      if (err.uncertain && (name === 'generate' || name === 'approve')) reread();
     } finally {
       setBusy('');
     }
@@ -103,6 +140,46 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   });
 
   const remove = (index) => setDraft((list) => list.filter((_, i) => i !== index));
+
+  // The saved version of a draft question, to tell whether its
+  // difficulty or topic was changed since.
+  const savedById = useMemo(
+    () => new Map(serverDraft.map((q) => [q.id, q])),
+    [serverDraft],
+  );
+
+  const settingsEdited = (q) => {
+    const saved = q.id ? savedById.get(q.id) : null;
+    return Boolean(saved) && (
+      saved.difficulty !== q.difficulty || saved.topic.trim() !== q.topic.trim()
+    );
+  };
+
+  // Replaces one question with a new one at the difficulty and topic
+  // currently set on its card. Only that card changes: unsaved edits
+  // to the other questions are kept.
+  const regenerate = async (index) => {
+    const q = draft[index];
+    setBusy(`regen-${q.id}`);
+    setError('');
+    try {
+      const data = await jobQuestionsAPI.regenerate(jobId, q.id, {
+        difficulty: q.difficulty,
+        topic: q.topic,
+      });
+      const fresh = (data.questions || []).find((item) => item.id === q.id);
+      setAssessment(data);
+      if (onChange) onChange(data);
+      if (fresh) {
+        setDraft((list) => list.map((item) => (item.id === q.id ? toDraft(fresh) : item)));
+      }
+      notify(`Question ${index + 1} replaced with a new ${q.difficulty} question.`);
+    } catch (err) {
+      setError(userMessage(err, ACTION_ERRORS.regenerate.fallback, { uncertain: ACTION_ERRORS.regenerate.uncertain }));
+    } finally {
+      setBusy('');
+    }
+  };
 
   const add = () => setDraft((list) => [
     ...list,
@@ -143,7 +220,13 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   };
 
   if (loadError) {
-    return <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{loadError}</p>;
+    return (
+      <FormAlert message={loadError}>
+        <div style={{ marginTop: 'var(--space-2)' }}>
+          <Button size="sm" variant="secondary" onClick={() => setLoadAttempt((n) => n + 1)}>Try again</Button>
+        </div>
+      </FormAlert>
+    );
   }
 
   if (!assessment) {
@@ -217,11 +300,14 @@ export default function JobQuestionEditor({ jobId, onChange }) {
 
       {draft.length > 0 && (
         <ol style={{ display: 'grid', gap: 'var(--space-3)', listStyle: 'none', padding: 0 }}>
-          {draft.map((q, i) => (
+          {draft.map((q, i) => {
+            const edited = settingsEdited(q);
+            return (
             <li key={q.id || `new-${i}`} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 'var(--fs-sm)' }}>
-                  Question {i + 1}{' '}
+                <strong style={{ fontSize: 'var(--fs-sm)', display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+                  Question {i + 1}
+                  <Badge tone={DIFFICULTY_TONE[q.difficulty]}>{q.difficulty}</Badge>
                   <Badge tone="neutral">{q.source === 'AI' ? 'AI draft' : 'Recruiter'}</Badge>
                 </strong>
                 <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
@@ -229,32 +315,43 @@ export default function JobQuestionEditor({ jobId, onChange }) {
                     disabled={i === 0 || Boolean(busy)} onClick={() => move(i, -1)} />
                   <Button size="sm" variant="ghost" icon={<ArrowDown size={14} />} aria-label={`Move question ${i + 1} down`}
                     disabled={i === draft.length - 1 || Boolean(busy)} onClick={() => move(i, 1)} />
-                  <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />}
-                    aria-label={`Regenerate question ${i + 1}`}
-                    title={dirty ? 'Save your changes first' : 'Replace this question with a new one'}
-                    disabled={!q.id || dirty || Boolean(busy)} loading={busy === `regen-${q.id}`}
-                    onClick={() => run(`regen-${q.id}`, () => jobQuestionsAPI.regenerate(jobId, q.id), `Question ${i + 1} replaced.`)} />
                   <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} aria-label={`Remove question ${i + 1}`}
                     disabled={Boolean(busy)} onClick={() => remove(i)} />
                 </div>
               </div>
 
-              <label className="label" htmlFor={`q-${jobId}-${i}`}>Question</label>
-              <textarea id={`q-${jobId}-${i}`} className="input" rows={2} maxLength={600}
-                value={q.question} onChange={update(i, 'question')} style={{ resize: 'vertical' }} />
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
-                <div>
+              {/* Difficulty and topic first: they decide what a regenerated question asks. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'flex-end' }}>
+                <div style={{ flex: '0 1 160px', minWidth: 140 }}>
                   <label className="label" htmlFor={`d-${jobId}-${i}`}>Difficulty</label>
                   <select id={`d-${jobId}-${i}`} className="input" value={q.difficulty} onChange={update(i, 'difficulty')}>
                     {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                   <label className="label" htmlFor={`t-${jobId}-${i}`}>Topic</label>
-                  <input id={`t-${jobId}-${i}`} className="input" maxLength={120} value={q.topic} onChange={update(i, 'topic')} />
+                  <input id={`t-${jobId}-${i}`} className="input" maxLength={120} value={q.topic}
+                    placeholder="e.g. REST APIs, SQL joins" onChange={update(i, 'topic')} />
+                </div>
+                <div>
+                  <Button size="sm" variant={edited ? 'primary' : 'secondary'} icon={<RefreshCw size={14} />}
+                    aria-label={`Regenerate question ${i + 1} as ${q.difficulty}${q.topic.trim() ? ` about ${q.topic.trim()}` : ''}`}
+                    title={q.id ? 'Write a new question at this difficulty and topic' : 'Save the draft first'}
+                    disabled={!q.id || Boolean(busy)} loading={busy === `regen-${q.id}`}
+                    onClick={() => regenerate(i)}>
+                    Regenerate
+                  </Button>
                 </div>
               </div>
+              {edited && (
+                <p style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
+                  Difficulty or topic changed. Regenerate for a matching question, or save the draft to keep this one as is.
+                </p>
+              )}
+
+              <label className="label" htmlFor={`q-${jobId}-${i}`} style={{ marginTop: 'var(--space-2)' }}>Question</label>
+              <textarea id={`q-${jobId}-${i}`} className="input" rows={2} maxLength={600}
+                value={q.question} onChange={update(i, 'question')} style={{ resize: 'vertical' }} />
 
               <label className="label" htmlFor={`k-${jobId}-${i}`} style={{ marginTop: 'var(--space-2)' }}>
                 Key points (one per line, 2-6) - what a complete answer covers
@@ -262,7 +359,8 @@ export default function JobQuestionEditor({ jobId, onChange }) {
               <textarea id={`k-${jobId}-${i}`} className="input" rows={3}
                 value={q.keyPointsText} onChange={update(i, 'keyPointsText')} style={{ resize: 'vertical' }} />
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
 
@@ -292,7 +390,7 @@ export default function JobQuestionEditor({ jobId, onChange }) {
         </div>
       )}
 
-      {error && <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{error}</p>}
+      <FormAlert message={error} />
 
       <div>
         <Button icon={<CheckCircle2 size={16} />} loading={busy === 'approve'}

@@ -4,16 +4,39 @@ import { act, Simulate } from 'react-dom/test-utils';
 import JobApplication from './JobApplication';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { applicationsAPI } from '../services/jobApplicationsApi';
+import { publicJobsAPI } from '../services/publicJobsApi';
+import { ApiError } from '../services/http';
+
+// A refusal as the shared request handler delivers it: a business rule
+// the server spelled out for the user.
+const refused = (message, status = 409) => new ApiError({
+  status, code: status === 400 ? 'BAD_REQUEST' : status === 404 ? 'NOT_FOUND' : 'CONFLICT',
+  message, serverMessage: message,
+});
+
+// A failure with technical detail that must never reach the page.
+const broken = () => new ApiError({
+  status: 500, code: 'INTERNAL_ERROR',
+  message: 'Something went wrong on our side. Please try again in a moment.',
+});
+
 
 // react-router-dom 7's "react-router/dom" subpath export is not
 // resolvable by react-scripts 5's Jest, so the three things this page
 // uses from it are stubbed rather than changing the shared Jest config.
 const mockNavigate = jest.fn();
 
+// /apply/:code by default; a test sets { jobId } for /apply/job/:jobId.
+let mockParams = { code: 'ABCD-EF23' };
+
 jest.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
-  useParams: () => ({ code: 'ABCD-EF23' }),
+  useParams: () => mockParams,
   Link: ({ children }) => children,
+}));
+
+jest.mock('../services/publicJobsApi', () => ({
+  publicJobsAPI: { get: jest.fn() },
 }));
 
 jest.mock('../services/api', () => ({
@@ -56,6 +79,7 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
 
+  mockParams = { code: 'ABCD-EF23' };
   jobsAPI.preview.mockResolvedValue(JOB);
   resumeAPI.getAll.mockResolvedValue([CV]);
   resumeAPI.getAnalysis.mockResolvedValue({
@@ -143,6 +167,43 @@ test('applying sends the chosen CV with consent granted', async () => {
   expect(applicationsAPI.apply).toHaveBeenCalledWith(5, {
     resumeId: 31,
     consentGranted: true,
+    // A job that is not published takes applications only with its code.
+    inviteCode: 'ABCD-EF23',
+  });
+});
+
+// ---- From Public Jobs ------------------------------------------------
+
+test('a job opened from Public Jobs is loaded by id, not by invite code', async () => {
+  mockParams = { jobId: '5' };
+  const { inviteCode, ...published } = JOB;
+  publicJobsAPI.get.mockResolvedValue(published);
+
+  await act(async () => {
+    root.render(<JobApplication />);
+  });
+
+  expect(publicJobsAPI.get).toHaveBeenCalledWith('5');
+  expect(jobsAPI.preview).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('Backend Developer');
+});
+
+test('applying from Public Jobs goes through the same application, without a code', async () => {
+  mockParams = { jobId: '5' };
+  const { inviteCode, ...published } = JOB;
+  publicJobsAPI.get.mockResolvedValue(published);
+  applicationsAPI.apply.mockResolvedValue({ applicationId: 77, jobTitle: 'Backend Developer', statusLabel: 'Under review' });
+
+  await act(async () => {
+    root.render(<JobApplication />);
+  });
+  await tickConsent();
+  await click(applyButton());
+
+  expect(applicationsAPI.apply).toHaveBeenCalledWith(5, {
+    resumeId: 31,
+    consentGranted: true,
+    inviteCode: undefined,
   });
 });
 
@@ -175,7 +236,7 @@ test('a successful application reports that it is under review', async () => {
 });
 
 test('a rejected submission shows the server message and stays on the form', async () => {
-  applicationsAPI.apply.mockRejectedValue(new Error('You have already applied for this job.'));
+  applicationsAPI.apply.mockRejectedValue(refused('You have already applied for this job.'));
 
   await render();
   await tickConsent();
@@ -210,8 +271,20 @@ test('a job whose questions are not approved can still be applied for', async ()
   expect(applyButton()).not.toBeUndefined();
 });
 
+test('a failed CV list is reported, not shown as having no CV', async () => {
+  resumeAPI.getAll.mockRejectedValue(broken());
+
+  await render();
+
+  const alert = container.querySelector('[role="alert"]');
+  expect(alert.textContent).toContain("We couldn't load your CVs.");
+  expect(container.textContent).not.toContain('You have no analysed CV to apply with yet.');
+  // The job itself still loaded.
+  expect(container.textContent).toContain('Backend Developer');
+});
+
 test('an invalid invite code is reported', async () => {
-  jobsAPI.preview.mockRejectedValue(new Error('This invite code is not valid.'));
+  jobsAPI.preview.mockRejectedValue(refused('This invite code is not valid.', 404));
 
   await act(async () => {
     root.render(<JobApplication />);

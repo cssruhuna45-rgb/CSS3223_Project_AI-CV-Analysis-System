@@ -5,13 +5,17 @@ import { Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCog, GraduationCap } fro
 import BrandLogo from '../components/BrandLogo';
 import AuthStory from '../components/AuthStory';
 import { authAPI } from '../services/api';
+import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
 import { homePathFor, toStoredUser } from '../constants/accounts';
 import { PASSWORD_MIN_LENGTH, PASSWORD_HINT_REGISTER } from '../constants/passwordRules';
 
-// Regions the fields point at: the rule they must satisfy, and why the
-// form was refused. Both are read out with the field they belong to.
-const HINT_ID = 'register-password-hint';
-const ERROR_ID = 'register-error';
+// The server asks for PASSWORD_MIN_LENGTH characters (RegisterRequest).
+// bcrypt cannot hash more than 72 bytes, so a longer password is
+// refused here before it reaches the server.
+const MAX_PASSWORD_BYTES = 72;
+
+// UTF-8 length without TextEncoder, which older test environments lack.
+const utf8Length = (text) => encodeURIComponent(text).replace(/%[0-9A-F]{2}/gi, 'x').length;
 
 export default function Register({ onLogin }) {
   const notify = useToast();
@@ -20,12 +24,20 @@ export default function Register({ onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'candidate' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const errors = useFormErrors('register', ['name', 'email', 'password']);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    errors.clear();
+    if (form.password.length < PASSWORD_MIN_LENGTH) {
+      errors.setField('password', PASSWORD_HINT_REGISTER);
+      return;
+    }
+    if (utf8Length(form.password) > MAX_PASSWORD_BYTES) {
+      errors.setField('password', 'This password is too long. Try a shorter password.');
+      return;
+    }
     setLoading(true);
-    setError('');
     try {
       const data = await authAPI.register(form.name, form.email, form.password, form.role);
       // Trust the role the server stored, not the one the form asked
@@ -49,7 +61,7 @@ export default function Register({ onLogin }) {
         { replace: true }
       );
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
+      errors.report(err, "We couldn't create your account. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -112,63 +124,47 @@ export default function Register({ onLogin }) {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label className="label" htmlFor="register-name">Full Name</label>
+              <label className="label" htmlFor={errors.inputId('name')}>Full Name</label>
               <div style={{ position: 'relative' }}>
                 <User size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input id="register-name" className="input" placeholder="John Doe" style={{ paddingLeft: 42 }}
-                  autoComplete="name"
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? ERROR_ID : undefined}
-                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+                <input className="input" placeholder="John Doe" style={{ paddingLeft: 42 }}
+                  {...errors.fieldProps('name')} autoComplete="name"
+                  value={form.name} onChange={e => { errors.clearField('name'); setForm(f => ({ ...f, name: e.target.value })); }} required />
               </div>
+              <FieldError errors={errors} field="name" />
             </div>
             <div>
-              <label className="label" htmlFor="register-email">Email address</label>
+              <label className="label" htmlFor={errors.inputId('email')}>Email address</label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input id="register-email" className="input" type="email" placeholder="you@example.com" style={{ paddingLeft: 42 }}
-                  autoComplete="email"
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? ERROR_ID : undefined}
-                  value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+                <input className="input" type="email" placeholder="you@example.com" style={{ paddingLeft: 42 }}
+                  {...errors.fieldProps('email')} autoComplete="email"
+                  value={form.email} onChange={e => { errors.clearField('email'); setForm(f => ({ ...f, email: e.target.value })); }} required />
               </div>
+              <FieldError errors={errors} field="email" />
             </div>
             <div>
-              <label className="label" htmlFor="register-password">Password</label>
+              <label className="label" htmlFor={errors.inputId('password')}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input id="register-password" className="input" type={showPass ? 'text' : 'password'}
-                  placeholder={PASSWORD_HINT_REGISTER}
-                  autoComplete="new-password"
+                <input className="input" type={showPass ? 'text' : 'password'} placeholder={PASSWORD_HINT_REGISTER}
                   minLength={PASSWORD_MIN_LENGTH}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? `${HINT_ID} ${ERROR_ID}` : HINT_ID}
                   style={{ paddingLeft: 42, paddingRight: 42 }}
-                  value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+                  {...errors.fieldProps('password', 'register-password-hint')} autoComplete="new-password"
+                  value={form.password} onChange={e => { errors.clearField('password'); setForm(f => ({ ...f, password: e.target.value })); }} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
                   aria-label={showPass ? 'Hide password' : 'Show password'} aria-pressed={showPass}
                   style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p id={HINT_ID} style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>
+              <p id="register-password-hint" style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: 6 }}>
                 {PASSWORD_HINT_REGISTER}
               </p>
+              <FieldError errors={errors} field="password" />
             </div>
 
-            {error && (
-              <div id={ERROR_ID} role="alert" style={{
-                background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
-                borderRadius: 10,
-                padding: '12px 14px',
-                fontSize: 'var(--fs-sm)',
-                color: 'var(--danger)',
-                animation: 'fadeIn 0.3s ease',
-              }}>
-                {error}
-              </div>
-            )}
+            <FormAlert id="register-alert" message={errors.message} />
 
             <button className="btn btn-primary" type="submit" disabled={loading}
               style={{

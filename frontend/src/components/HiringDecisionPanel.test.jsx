@@ -3,6 +3,21 @@ import { createRoot } from 'react-dom/client';
 import { act, Simulate } from 'react-dom/test-utils';
 import HiringDecisionPanel from './HiringDecisionPanel';
 import { applicantsAPI } from '../services/jobApplicationsApi';
+import { ApiError } from '../services/http';
+
+// A refusal as the shared request handler delivers it: a business rule
+// the server spelled out for the user.
+const refused = (message, status = 409) => new ApiError({
+  status, code: status === 400 ? 'BAD_REQUEST' : status === 404 ? 'NOT_FOUND' : 'CONFLICT',
+  message, serverMessage: message,
+});
+
+// A failure with technical detail that must never reach the page.
+const broken = () => new ApiError({
+  status: 500, code: 'INTERNAL_ERROR',
+  message: 'Something went wrong on our side. Please try again in a moment.',
+});
+
 
 jest.mock('../services/jobApplicationsApi', () => ({
   ...jest.requireActual('../services/jobApplicationsApi'),
@@ -154,7 +169,7 @@ test('saving without choosing is refused in the browser', async () => {
 
 test('a refused save is reported', async () => {
   applicantsAPI.saveDecision.mockRejectedValue(
-    new Error('This candidate has not completed the interview.'),
+    refused('This candidate has not completed the interview.'),
   );
 
   await render();

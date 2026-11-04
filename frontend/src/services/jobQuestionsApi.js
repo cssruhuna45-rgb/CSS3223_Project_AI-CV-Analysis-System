@@ -1,4 +1,5 @@
-import { SPRING, authHeaders, handleResponse } from './api';
+import { SPRING, authHeaders } from './api';
+import { request } from './http';
 
 // ============================================================
 // JOB QUESTIONS (recruiter)
@@ -20,45 +21,48 @@ const base = (jobId) => `${SPRING}/api/v1/recruiter/jobs/${encodeURIComponent(jo
 export const jobQuestionsAPI = {
 
   get: (jobId) =>
-    fetch(`${base(jobId)}/questions`, {
+    request(`${base(jobId)}/questions`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // { requiredSkills: [string], questionCount: 5-10 }. Before approval only.
   updateSettings: (jobId, settings) =>
-    fetch(`${base(jobId)}/question-settings`, {
+    request(`${base(jobId)}/question-settings`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify(settings),
-    }).then(handleResponse),
+    }),
 
   // Drafts a full set from the job's skills and description, replacing
   // the current draft. Can take a minute while the AI writes.
   generate: (jobId) =>
-    fetch(`${base(jobId)}/questions/generate`, {
+    request(`${base(jobId)}/questions/generate`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
-  regenerate: (jobId, questionId) =>
-    fetch(`${base(jobId)}/questions/${encodeURIComponent(questionId)}/regenerate`, {
+  // Replaces one question. { difficulty, topic } is optional: when given,
+  // the new question is written at that difficulty, about that topic.
+  regenerate: (jobId, questionId, { difficulty, topic } = {}) =>
+    request(`${base(jobId)}/questions/${encodeURIComponent(questionId)}/regenerate`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+      body: JSON.stringify({ difficulty: difficulty || null, topic: (topic || '').trim() || null }),
+    }),
 
   // The whole draft, in the order it should be asked. A question
   // without an id is new.
   save: (jobId, questions) =>
-    fetch(`${base(jobId)}/questions`, {
+    request(`${base(jobId)}/questions`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({ questions }),
-    }).then(handleResponse),
+    }),
 
   approve: (jobId) =>
-    fetch(`${base(jobId)}/questions/approve`, {
+    request(`${base(jobId)}/questions/approve`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };

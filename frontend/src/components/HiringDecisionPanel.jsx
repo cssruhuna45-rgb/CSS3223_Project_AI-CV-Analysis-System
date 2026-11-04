@@ -6,6 +6,7 @@ import {
   applicantsAPI, decisionTone, defaultFeedback,
 } from '../services/jobApplicationsApi';
 import { Button, Card, SectionHeader, Badge } from './ui';
+import { userMessage } from '../services/http';
 
 /**
  * The recruiter's final hiring decision for one interviewed candidate.
@@ -61,7 +62,7 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
         setNotes(found.internalNotes || '');
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || 'The decision could not be loaded.');
+        if (!cancelled) setError(userMessage(err, "We couldn't load the hiring decision. Please try again."));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
@@ -117,7 +118,9 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
       setNotice('Saved. The candidate has not been told yet.');
       onChanged?.(saved);
     } catch (err) {
-      setError(err.message || 'The decision could not be saved.');
+      setError(userMessage(err, "We couldn't save the decision. Please try again.", {
+        uncertain: "We couldn't confirm the decision was saved. Reload the page to check before saving again.",
+      }));
     } finally {
       setSaving(false);
     }
@@ -134,7 +137,9 @@ export default function HiringDecisionPanel({ candidate, jobTitle, onChanged }) 
       setNotice('Published. The candidate can see this result now.');
       onChanged?.(out);
     } catch (err) {
-      setError(err.message || 'The decision could not be published.');
+      setError(userMessage(err, "We couldn't publish the decision. Please try again.", {
+        uncertain: "We couldn't confirm the decision was published. Reload the page to check before publishing again.",
+      }));
       setConfirming(false);
     } finally {
       setPublishing(false);

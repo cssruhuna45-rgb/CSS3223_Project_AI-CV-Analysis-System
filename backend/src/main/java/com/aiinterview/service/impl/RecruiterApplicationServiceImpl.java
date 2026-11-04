@@ -421,7 +421,7 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
      */
     private JobPosting requireOwnJob(User recruiter, Long jobId) {
         return jobPostingRepository.findByIdAndRecruiterId(jobId, recruiter.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("No job with id " + jobId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that job."));
     }
 
     /**
@@ -432,7 +432,7 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
         return jobApplicationRepository
                 .findByIdForRecruiter(applicationId, recruiter.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No application with id " + applicationId
+                        "We couldn't find that application."
                 ));
     }
 
@@ -469,6 +469,6 @@ public class RecruiterApplicationServiceImpl implements RecruiterApplicationServ
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 }

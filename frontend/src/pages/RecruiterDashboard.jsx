@@ -7,6 +7,7 @@ import {
 import { recruiterAPI } from '../services/api';
 import { Button, PageHeader } from '../components/ui';
 import { printDate, printPage } from '../utils/print';
+import { userMessage } from '../services/http';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_CYAN = 'var(--accent)';
@@ -81,9 +82,9 @@ function ScoreBar({ value }) {
   );
 }
 
-function Message({ icon, title, body }) {
+function Message({ icon, title, body, onRetry, alert = false }) {
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-6) 0', textAlign: 'center' }} className="animate-fade-in-up">
+    <div role={alert ? 'alert' : undefined} style={{ maxWidth: 560, margin: '0 auto', padding: 'var(--space-6) 0', textAlign: 'center' }} className="animate-fade-in-up">
       <div style={{
         width: 64, height: 64, borderRadius: 18,
         background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
@@ -95,6 +96,11 @@ function Message({ icon, title, body }) {
       </div>
       <h2 style={{ fontSize: 'var(--fs-lg)', fontWeight: 700, margin: '0 0 10px', color: TEXT_PRIMARY }}>{title}</h2>
       <p style={{ color: TEXT, fontSize: 'var(--fs-base)', lineHeight: 1.6 }}>{body}</p>
+      {onRetry && (
+        <div style={{ marginTop: 20 }}>
+          <Button onClick={onRetry}>Try again</Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -169,32 +175,42 @@ export default function RecruiterDashboard() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // The job list feeds only the filter and the empty-state advice; if it
+  // fails, the dashboard still shows, and it does not claim "no jobs".
+  const [jobsError, setJobsError] = useState('');
+  const [jobsAttempt, setJobsAttempt] = useState(0);
+  const [attempt, setAttempt] = useState(0);
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
+    setJobsError('');
     recruiterAPI.jobs()
       .then(setJobs)
-      .catch(err => console.error('[Recruiter] Could not load jobs:', err));
-  }, []);
+      .catch(err => {
+        console.error('[Recruiter] Could not load jobs:', err);
+        setJobsError(userMessage(err, "We couldn't load your job list, so filtering by job isn't available right now."));
+      });
+  }, [jobsAttempt]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError('');
     setSelected(null);
 
     recruiterAPI.overview(jobId || null)
       .then(result => { if (!cancelled) setData(result); })
       .catch(err => {
         console.error('[Recruiter] Could not load the dashboard:', err);
-        if (!cancelled) setError(err.message || 'Could not load the dashboard.');
+        if (!cancelled) setError(userMessage(err, "We couldn't load the dashboard. Please try again."));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [jobId]);
+  }, [jobId, attempt]);
 
   const candidates = useMemo(() => data?.candidates || [], [data]);
 
@@ -223,8 +239,10 @@ export default function RecruiterDashboard() {
   if (error) {
     return <Message
       icon={<AlertTriangle size={32} color={ACCENT} />}
-      title="Could not load the dashboard"
+      title="We couldn't load the dashboard"
       body={error}
+      onRetry={() => setAttempt((n) => n + 1)}
+      alert
     />;
   }
 
@@ -253,6 +271,14 @@ export default function RecruiterDashboard() {
           ? 'Your job-linked candidate interviews will appear here.'
           : `${data.totalInterviews} interview${data.totalInterviews === 1 ? '' : 's'} across ${data.totalCandidates} candidate${data.totalCandidates === 1 ? '' : 's'}`}
           action={<Button icon={<Briefcase size={16} />} onClick={() => navigate('/jobs')}>Manage jobs</Button>} />
+
+        {jobsError && (
+          <div role="alert" style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 'var(--fs-sm)', color: 'var(--danger)' }}>
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span style={{ flex: 1 }}><span className="sr-only">Error: </span>{jobsError}</span>
+            <Button size="sm" variant="secondary" onClick={() => setJobsAttempt((n) => n + 1)}>Try again</Button>
+          </div>
+        )}
 
         {jobs.length > 0 && (
           <div style={{ marginTop: 'var(--space-4)', maxWidth: 360 }}>
@@ -303,12 +329,12 @@ export default function RecruiterDashboard() {
         }}>
           <Users size={36} color="var(--accent-cyan)" style={{ margin: '0 auto 14px' }} className="animate-float" />
           <p style={{ fontSize: 'var(--fs-base)', fontWeight: 600, color: TEXT_PRIMARY, marginBottom: 6 }}>No interviews yet</p>
-          <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, marginBottom: jobs.length === 0 ? 'var(--space-4)' : 0 }}>
-            {jobs.length === 0
+          <p style={{ fontSize: 'var(--fs-sm)', color: TEXT, lineHeight: 1.6, marginBottom: jobs.length === 0 && !jobsError ? 'var(--space-4)' : 0 }}>
+            {jobs.length === 0 && !jobsError
               ? 'Create a job and share its invite link. Interviews candidates take through it appear here; nothing else candidates do on the platform is shown to you.'
               : 'Interviews candidates take through your jobs’ invite links appear here.'}
           </p>
-          {jobs.length === 0 && (
+          {jobs.length === 0 && !jobsError && (
             <Button icon={<Briefcase size={16} />} onClick={() => navigate('/jobs')}>Create a job</Button>
           )}
         </div>

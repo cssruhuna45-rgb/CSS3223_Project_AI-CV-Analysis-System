@@ -1,6 +1,7 @@
 package com.aiinterview.service;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
 import com.aiinterview.entity.JobPosting;
@@ -32,8 +33,13 @@ public interface JobQuestionService {
      */
     JobAssessmentDto generate(String recruiterEmail, Long jobId);
 
-    /** Replaces one draft question with a new generated one. */
-    JobAssessmentDto regenerate(String recruiterEmail, Long jobId, Long questionId);
+    /**
+     * Replaces one draft question with a new generated one. When the
+     * request names a difficulty or topic, the replacement has them;
+     * {@code request} may be null.
+     */
+    JobAssessmentDto regenerate(String recruiterEmail, Long jobId, Long questionId,
+                                JobQuestionRegenerateRequestDto request);
 
     /** Saves the recruiter's edited draft, in the order given. */
     JobAssessmentDto saveDraft(String recruiterEmail, Long jobId, List<JobQuestionRequestDto> questions);

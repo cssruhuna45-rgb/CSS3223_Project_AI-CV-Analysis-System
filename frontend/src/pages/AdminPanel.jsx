@@ -4,6 +4,7 @@ import { ShieldCheck, Check, X } from 'lucide-react';
 import { adminAPI } from '../services/api';
 import { Badge, Button, Card, SectionHeader, PageHeader } from '../components/ui';
 import useScrollReveal from '../hooks/useScrollReveal';
+import { userMessage } from '../services/http';
 
 const STATUS = {
   pending: { label: 'Waiting', tone: 'warning' },
@@ -48,7 +49,7 @@ export default function AdminPanel() {
   useEffect(() => {
     adminAPI.recruiters()
       .then(setRecruiters)
-      .catch((err) => setError(err.message || 'Could not load recruiter accounts.'))
+      .catch((err) => setError(userMessage(err, "We couldn't load recruiter accounts. Please try again.")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -67,7 +68,9 @@ export default function AdminPanel() {
       notify(action === 'approve' ? 'Recruiter access approved.' : 'Recruiter access rejected.', action === 'approve' ? 'success' : 'info');
       setRecruiters((list) => list.map((r) => (r.id === id ? updated : r)));
     } catch (err) {
-      setError(err.message || 'That change was not saved. Please try again.');
+      setError(userMessage(err, "We couldn't update this recruiter account. Please try again.", {
+        uncertain: "We couldn't confirm the change was saved. Reload the page to check before trying again.",
+      }));
     } finally {
       setBusyId(null);
     }

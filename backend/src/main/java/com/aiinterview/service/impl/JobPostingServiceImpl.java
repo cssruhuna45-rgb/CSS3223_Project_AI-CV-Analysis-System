@@ -180,7 +180,7 @@ public class JobPostingServiceImpl implements JobPostingService {
         // Looked up together with the owner, so another recruiter's job
         // id is "not found" rather than something that can be closed.
         JobPosting job = jobPostingRepository.findByIdAndRecruiterId(jobId, recruiter.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("No job with id " + jobId));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that job."));
 
         job.setOpen(open);
 
@@ -351,6 +351,8 @@ public class JobPostingServiceImpl implements JobPostingService {
         return normalizeCode(rawCode)
                 .flatMap(jobPostingRepository::findByInviteCode)
                 .filter(JobPosting::isOpen)
+                // An archived job's code is retired with it (V13).
+                .filter(job -> !job.isArchived())
                 .orElseThrow(() -> new ResourceNotFoundException(INVALID_CODE));
     }
 
@@ -392,7 +394,7 @@ public class JobPostingServiceImpl implements JobPostingService {
 
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 
     private static long toLong(Object value) {

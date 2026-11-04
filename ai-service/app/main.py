@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -21,7 +23,15 @@ from app.security import (
     get_internal_api_key,
 )
 
-from app.ai_errors import is_rate_limit_error, RATE_LIMIT_DETAIL
+from app.ai_errors import (
+    FAILED_MESSAGE,
+    bad_request,
+    failed_error,
+    is_rate_limit_error,
+    public_error,
+    rate_limit_error,
+    unavailable_error,
+)
 
 
 # ============================================================
@@ -188,6 +198,49 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+
+# ============================================================
+# ERROR RESPONSES
+#
+# An error meant for the user is raised with public_error() and its
+# detail is {"code", "message"}. Any other HTTPException - including
+# the ones still built from str(exc) - is logged here and its detail
+# replaced, so exception text, file paths and settings never leave this
+# service. Spring applies the same rule again on its side.
+# ============================================================
+
+@app.exception_handler(StarletteHTTPException)
+async def safe_http_exception_handler(request: Request, exc: StarletteHTTPException):
+
+    detail = exc.detail
+
+    if not (
+        isinstance(detail, dict)
+        and isinstance(detail.get("code"), str)
+        and isinstance(detail.get("message"), str)
+    ):
+        print(
+            f"[Errors] {request.method} {request.url.path} -> "
+            f"{exc.status_code}: {detail!r}"
+        )
+
+        if exc.status_code >= 500:
+            detail = {"code": "AI_FAILED", "message": FAILED_MESSAGE}
+        else:
+            detail = {
+                "code": "AI_INVALID_REQUEST",
+                "message": (
+                    "Some of the information sent was not valid. "
+                    "Please check it and try again."
+                ),
+            }
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail},
+        headers=getattr(exc, "headers", None),
+    )
 
 
 # ============================================================
@@ -381,22 +434,11 @@ def query_rag_pipeline(
 
     if not req.question.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Question string cannot be empty.",
-        )
+        raise bad_request("Enter a question first.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured on the server."
-            ),
-        )
+        raise unavailable_error()
 
     try:
 
@@ -446,19 +488,9 @@ def query_rag_pipeline(
         )
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                f"RAG Execution Error: {str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't answer that question right now. Please try again.")
 
 
 # ============================================================
@@ -513,16 +545,7 @@ def reindex_knowledge_base():
                 exist_ok=True,
             )
 
-            raise HTTPException(
-                status_code=(
-                    status.HTTP_404_NOT_FOUND
-                ),
-                detail=(
-                    f"Documents directory does not exist. "
-                    f"Created directory at: {docs_path}. "
-                    "Please add Markdown or PDF documents."
-                ),
-            )
+            raise unavailable_error(404)
 
         raw_docs = load_all_documents(
             docs_path
@@ -535,16 +558,7 @@ def reindex_knowledge_base():
 
         if not raw_docs:
 
-            raise HTTPException(
-                status_code=(
-                    status.HTTP_400_BAD_REQUEST
-                ),
-                detail=(
-                    "No supported documents found. "
-                    "Please add .md, .markdown, or .pdf "
-                    "files to the documents directory."
-                ),
-            )
+            raise unavailable_error(400)
 
         chunks = split_documents(
             raw_docs,
@@ -559,15 +573,7 @@ def reindex_knowledge_base():
 
         if not chunks:
 
-            raise HTTPException(
-                status_code=(
-                    status.HTTP_400_BAD_REQUEST
-                ),
-                detail=(
-                    "Documents were loaded but no "
-                    "usable chunks were created."
-                ),
-            )
+            raise unavailable_error(400)
 
         print(
             "[RAG Index] Rebuilding Chroma Vector Store..."
@@ -617,14 +623,7 @@ def reindex_knowledge_base():
             f"[RAG Index] Error: {e}"
         )
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                f"Indexing Error: {str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't update the knowledge base right now. Please try again.")
 
 
 # ============================================================
@@ -646,22 +645,11 @@ def analyze_resume_endpoint(
 
     if not req.resume_text.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Resume text cannot be empty.",
-        )
+        raise bad_request("We couldn't find any text in this CV. Try exporting your CV as a new PDF, or upload a clearer copy.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured."
-            ),
-        )
+        raise unavailable_error()
 
     try:
 
@@ -691,19 +679,9 @@ def analyze_resume_endpoint(
         )
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                f"Resume analysis failed: {str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't analyse your CV right now. Please try again.")
 
 
 # ============================================================
@@ -725,32 +703,15 @@ def generate_interview_question_endpoint(
 
     if not req.job_description.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Job description cannot be empty.",
-        )
+        raise bad_request("Add a job description first.")
 
     if len(req.job_description.strip()) < 20:
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Job description must contain "
-                "at least 20 characters."
-            ),
-        )
+        raise bad_request("The job description is too short. Add at least 20 characters.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured."
-            ),
-        )
+        raise unavailable_error()
 
     try:
 
@@ -774,12 +735,7 @@ def generate_interview_question_endpoint(
         # generated here would let a candidate preview extra material.
         if session is not None and is_fixed(session):
 
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "A job interview asks only its approved questions."
-                ),
-            )
+            raise bad_request("A job interview asks only the questions its recruiter approved.")
 
         if session is not None:
 
@@ -956,20 +912,9 @@ def generate_interview_question_endpoint(
         )
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "Interview question generation failed: "
-                f"{str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't prepare your interview questions. Please try again.")
 
 
 # ============================================================
@@ -991,32 +936,15 @@ def start_interview_endpoint(
 
     if not req.job_description.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Job description cannot be empty.",
-        )
+        raise bad_request("Add a job description first.")
 
     if len(req.job_description.strip()) < 20:
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Job description must contain "
-                "at least 20 characters."
-            ),
-        )
+        raise bad_request("The job description is too short. Add at least 20 characters.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured."
-            ),
-        )
+        raise unavailable_error()
 
     try:
 
@@ -1250,19 +1178,9 @@ def start_interview_endpoint(
         )
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                f"Interview start failed: {str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't start your interview. Please try again.")
 
 
 # ============================================================
@@ -1344,10 +1262,7 @@ def answer_fixed_interview(
 
     if len(session.answers) >= total:
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Every question in this interview has been answered.",
-        )
+        raise bad_request("Every question in this interview has been answered. Finish the interview to see your results.")
 
     session = add_answer(session.session_id, answer)
 
@@ -1431,10 +1346,7 @@ def resume_interview_endpoint(
 
         elif not is_fixed(session):
 
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only a job interview can be resumed.",
-            )
+            raise bad_request("Only a job interview can be resumed.")
 
         # A live session is trusted over Spring's answers: it is what
         # the interview is graded from, and Spring's copy can only lag
@@ -1484,14 +1396,7 @@ def resume_interview_endpoint(
             f"[InterviewResume] Error: {e}"
         )
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                f"Interview resume failed: {str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't resume your interview. Please try again.")
 
 
 # ============================================================
@@ -1514,22 +1419,11 @@ def answer_interview_endpoint(
 
     if not req.answer.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Answer cannot be empty.",
-        )
+        raise bad_request("Type or record an answer before submitting.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured."
-            ),
-        )
+        raise unavailable_error()
 
     try:
 
@@ -1543,12 +1437,7 @@ def answer_interview_endpoint(
 
         if session.status != "active":
 
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Interview session is not active."
-                ),
-            )
+            raise bad_request("This interview has already ended.")
 
         if is_fixed(session):
 
@@ -2051,20 +1940,9 @@ def answer_interview_endpoint(
         )
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "Interview answer processing failed: "
-                f"{str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't process your answer. Please try again.")
 
 
 # ============================================================
@@ -2095,22 +1973,11 @@ def interview_model_answer_endpoint(
 
     if not question:
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Question cannot be empty.",
-        )
+        raise bad_request("There is no question to show an example answer for.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured."
-            ),
-        )
+        raise unavailable_error()
 
     # --------------------------------------------------------
     # Not during a job interview
@@ -2129,13 +1996,7 @@ def interview_model_answer_endpoint(
 
         if live is not None and is_fixed(live) and live.status == "active":
 
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "Expected answers are not available during a job "
-                    "interview."
-                ),
-            )
+            raise public_error(status.HTTP_403_FORBIDDEN, "FORBIDDEN", "Example answers aren't available during a job interview.")
 
     # --------------------------------------------------------
     # Job field
@@ -2312,15 +2173,7 @@ def finish_interview_endpoint(
             f"[InterviewFinish] Error: {e}"
         )
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "Interview finish failed: "
-                f"{str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't finish your interview. Please try again.")
 
 
 # ============================================================
@@ -2346,10 +2199,7 @@ def review_cv_endpoint(
 
     if not req.resume_text.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Resume text cannot be empty.",
-        )
+        raise bad_request("We couldn't find any text in this CV. Try exporting your CV as a new PDF, or upload a clearer copy.")
 
     try:
 
@@ -2368,12 +2218,7 @@ def review_cv_endpoint(
 
         print(f"[CVReview] Error: {e}")
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=f"CV review failed: {str(e)}",
-        )
+        raise failed_error("We couldn't review your CV right now. Please try again.")
 
 
 # ============================================================
@@ -2414,12 +2259,7 @@ def tune_bullet_endpoint(
 
         print(f"[BulletTuner] Error: {e}")
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=f"Bullet rewrite failed: {str(e)}",
-        )
+        raise failed_error("We couldn't rewrite this bullet point. Please try again.")
 
 
 # ============================================================
@@ -2493,41 +2333,19 @@ def analyze_skill_gap_endpoint(
 
     if not req.job_field.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Job field cannot be empty.",
-        )
+        raise bad_request("Choose a job field first.")
 
     if not req.candidate_resume.strip():
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Candidate resume cannot be empty."
-            ),
-        )
+        raise bad_request("We couldn't find any text in your CV. Try exporting your CV as a new PDF, or upload a clearer copy.")
 
     if len(req.candidate_resume.strip()) < 20:
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Candidate resume must contain "
-                "at least 20 characters."
-            ),
-        )
+        raise bad_request("Your CV has too little text to analyse. Try exporting your CV as a new PDF, or upload a clearer copy.")
 
     if not os.getenv("GEMINI_API_KEY"):
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "GEMINI_API_KEY environment variable "
-                "is not configured."
-            ),
-        )
+        raise unavailable_error()
 
     try:
 
@@ -2557,20 +2375,9 @@ def analyze_skill_gap_endpoint(
         )
 
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
+            raise rate_limit_error(e)
 
-        raise HTTPException(
-            status_code=(
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "Skill gap analysis failed: "
-                f"{str(e)}"
-            ),
-        )
+        raise failed_error("We couldn't compare your CV with this job right now. Please try again.")
 
 
 # ============================================================
@@ -2599,14 +2406,8 @@ def generate_roadmap_endpoint(
     except Exception as e:
         print(f"[RoadmapAPI] Error: {e}")
         if is_rate_limit_error(e):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=RATE_LIMIT_DETAIL,
-            )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Roadmap generation failed: {str(e)}",
-        )
+            raise rate_limit_error(e)
+        raise failed_error("We couldn't create your 14-day learning plan. Please try again.")
 
 
 

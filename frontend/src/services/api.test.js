@@ -1,99 +1,94 @@
-import { handleResponse } from './api';
+import { request, SPRING } from './api';
+import { SERVER_STARTING_MESSAGE } from './http';
 
-// The two meanings of 401.
+// What a sign-in or a page sees when the backend is not there yet or
+// refuses a credential. The wording itself lives in http.js; these pin
+// down the cases that went wrong before.
 //
 // A refused sign-in and an expired session arrive as the same status
 // code, and the response to each is the opposite: one leaves the user
 // on the form with the server's reason, the other throws away the
-// stored login and sends them to sign in again. Getting them the wrong
-// way round told people entering a wrong password that their "session
-// has expired", which was both untrue and unhelpful.
+// stored login and sends them to sign in again.
 
-const json = (status, body, statusText = '') => ({
-  ok: false,
-  status,
-  statusText,
-  json: () => Promise.resolve(body),
-});
+function response(status, body, { raw = false } = {}) {
+  const text = raw ? body : (body === undefined ? '' : JSON.stringify(body));
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => null },
+    text: () => Promise.resolve(text),
+  });
+}
+
+const nginxPage = (status) =>
+  response(status, `<html><body><h1>${status}</h1>nginx</body></html>`, { raw: true });
+
+const anonymous = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+const authed = { headers: { Authorization: 'Bearer stored-token' } };
 
 let assign;
+let originalLocation;
 
 beforeEach(() => {
+  global.fetch = jest.fn();
   assign = jest.fn();
 
   // jsdom will not navigate, and the real location cannot be assigned
   // to. A stand-in makes the redirect observable instead.
-  Object.defineProperty(window, 'location', {
-    value: { pathname: '/dashboard', assign },
-    writable: true,
-    configurable: true,
-  });
+  originalLocation = window.location;
+  delete window.location;
+  window.location = { pathname: '/dashboard', assign };
 
   localStorage.setItem('token', 'stored-token');
   localStorage.setItem('user', '{"name":"Cara"}');
 });
 
-afterEach(() => localStorage.clear());
+afterEach(() => {
+  window.location = originalLocation;
+  localStorage.clear();
+});
 
-describe('a 401 on a request that carries credentials', () => {
+async function failure(promise) {
+  try {
+    await promise;
+  } catch (err) {
+    return err;
+  }
+  throw new Error('expected the request to fail');
+}
 
-  test('reports what the server said, not an expired session', async () => {
-    await expect(
-      handleResponse(
-        json(401, { message: 'Invalid email or password' }),
-        { credentialRequest: true },
-      ),
-    ).rejects.toThrow('Invalid email or password');
-  });
+describe('signing in', () => {
 
-  test('keeps the stored login and does not redirect', async () => {
+  test('a wrong password keeps the stored login and does not redirect', async () => {
     // Someone mistyping a password on a second account must not be
     // signed out of the one they already have, and must not be bounced
     // away from the form they are standing on.
-    await expect(
-      handleResponse(json(401, { message: 'Invalid email or password' }), { credentialRequest: true }),
-    ).rejects.toThrow();
+    fetch.mockReturnValue(response(401, { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid email or password' }));
 
+    const err = await failure(request(`${SPRING}/api/v1/auth/login`, anonymous));
+
+    expect(err.message).not.toMatch(/session/i);
     expect(localStorage.getItem('token')).toBe('stored-token');
     expect(assign).not.toHaveBeenCalled();
   });
 
-  test('falls back to the status when the server sent no message', async () => {
-    await expect(
-      handleResponse(json(401, {}, 'Unauthorized'), { credentialRequest: true }),
-    ).rejects.toThrow('Request failed (401 Unauthorized)');
+  test("a rate-limited sign-in keeps the server's own wording", async () => {
+    fetch.mockReturnValue(response(429, {
+      code: 'RATE_LIMITED',
+      message: 'Too many sign-in attempts. Please wait 15 minutes and try again, or reset your password.',
+    }));
+
+    const err = await failure(request(`${SPRING}/api/v1/auth/login`, anonymous));
+
+    expect(err.message).toContain('Too many sign-in attempts');
   });
 
-  test('a rate-limited sign-in keeps the server\'s own wording', async () => {
-    await expect(
-      handleResponse(
-        json(429, { message: 'Too many sign-in attempts. Please wait 15 minutes and try again, or reset your password.' }),
-        { credentialRequest: true },
-      ),
-    ).rejects.toThrow('Too many sign-in attempts');
-  });
-});
+  test('signing in while the backend boots says so, not "wrong password"', async () => {
+    fetch.mockReturnValue(nginxPage(502));
 
-describe('a 401 on any other request', () => {
+    const err = await failure(request(`${SPRING}/api/v1/auth/login`, anonymous));
 
-  test('still reports an expired session', async () => {
-    await expect(handleResponse(json(401, {}))).rejects.toThrow('session has expired');
-  });
-
-  test('still clears the useless login and redirects', async () => {
-    await expect(handleResponse(json(401, {}))).rejects.toThrow();
-
-    expect(localStorage.getItem('token')).toBeNull();
-    expect(localStorage.getItem('user')).toBeNull();
-    expect(assign).toHaveBeenCalledWith('/login');
-  });
-
-  test('does not redirect when already on the sign-in page', async () => {
-    window.location.pathname = '/login';
-
-    await expect(handleResponse(json(401, {}))).rejects.toThrow();
-
-    expect(assign).not.toHaveBeenCalled();
+    expect(err.message).toBe(SERVER_STARTING_MESSAGE);
   });
 });
 
@@ -102,57 +97,52 @@ describe('the backend being unreachable', () => {
   // nginx answers these, not Spring, so the body is an HTML error page
   // rather than JSON. The old message was "Request failed (502 Bad
   // Gateway)", which named the problem in words no user can act on.
-  const html = (status, statusText) => ({
-    ok: false,
-    status,
-    statusText,
-    json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
+  test.each([502, 503, 504])('%i says it may still be starting, and to try again', async (status) => {
+    fetch.mockReturnValue(nginxPage(status));
+
+    const err = await failure(request(`${SPRING}/api/v1/resumes`, authed));
+
+    expect(err.message).toBe(SERVER_STARTING_MESSAGE);
+    expect(err.message).not.toMatch(/gateway|nginx/i);
   });
 
-  test.each([
-    [502, 'Bad Gateway'],
-    [503, 'Service Unavailable'],
-    [504, 'Gateway Timeout'],
-  ])('%i says it may still be starting, and to try again', async (status, statusText) => {
-    await expect(handleResponse(html(status, statusText)))
-      .rejects.toThrow('may still be starting up');
-  });
-
-  test('does not name a gateway, and does not sign the user out', async () => {
-    await expect(handleResponse(html(502, 'Bad Gateway'))).rejects.toThrow();
-
+  test('does not sign the user out', async () => {
     // A proxy returning 502 says nothing about the stored login.
+    fetch.mockReturnValue(nginxPage(502));
+
+    await failure(request(`${SPRING}/api/v1/resumes`, authed));
+
     expect(localStorage.getItem('token')).toBe('stored-token');
     expect(assign).not.toHaveBeenCalled();
   });
 
-  test('a credential request gets the same treatment', async () => {
-    // Signing in while the backend boots is the commonest way to meet
-    // this, so it must not fall through to "Invalid email or password".
-    await expect(
-      handleResponse(html(502, 'Bad Gateway'), { credentialRequest: true }),
-    ).rejects.toThrow('may still be starting up');
+  test('an AI route still says the AI is unavailable', async () => {
+    fetch.mockReturnValue(nginxPage(502));
+
+    const err = await failure(request(`${SPRING}/api/v1/ai/resume/analyze`, { method: 'POST', ...authed }));
+
+    expect(err.code).toBe('AI_UNAVAILABLE');
   });
 });
 
-describe('the other statuses are untouched', () => {
+describe('an expired session', () => {
 
-  test('403 explains the refusal and keeps the session', async () => {
-    await expect(
-      handleResponse(json(403, { message: 'You do not have permission to do that.' })),
-    ).rejects.toThrow('permission');
+  test('clears the useless login and redirects', async () => {
+    fetch.mockReturnValue(response(401, undefined));
 
-    expect(localStorage.getItem('token')).toBe('stored-token');
+    await failure(request(`${SPRING}/api/v1/resumes`, authed));
+
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
+    expect(assign).toHaveBeenCalledWith('/login');
   });
 
-  test('a FastAPI detail string is used', async () => {
-    await expect(handleResponse(json(422, { detail: 'resume_text is required' })))
-      .rejects.toThrow('resume_text is required');
-  });
+  test('does not redirect when already on the sign-in page', async () => {
+    window.location.pathname = '/login';
+    fetch.mockReturnValue(response(401, undefined));
 
-  test('a successful response returns its body', async () => {
-    const body = { status: 'UP' };
-    await expect(handleResponse({ ok: true, json: () => Promise.resolve(body) }))
-      .resolves.toEqual(body);
+    await failure(request(`${SPRING}/api/v1/resumes`, authed));
+
+    expect(assign).not.toHaveBeenCalled();
   });
 });

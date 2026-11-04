@@ -5,11 +5,8 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import AuthStory from '../components/AuthStory';
 import { authAPI } from '../services/api';
+import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
 import { homePathFor, toStoredUser } from '../constants/accounts';
-
-// The error region both fields reference, so a screen reader reading
-// either one also hears why the form was refused.
-const ERROR_ID = 'login-error';
 
 export default function Login({ onLogin }) {
   const notify = useToast();
@@ -18,12 +15,12 @@ export default function Login({ onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const errors = useFormErrors('login', ['email', 'password']);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    errors.clear();
     try {
       const data = await authAPI.login(form.email, form.password);
       // Spring Boot returns { token, user: { id, name, email, role,
@@ -38,7 +35,9 @@ export default function Login({ onLogin }) {
       // Back to where they were going (an invite link, say), if anywhere.
       navigate(location.state?.from || homePathFor(userData), { replace: true });
     } catch (err) {
-      setError(err.message || 'Invalid email or password.');
+      // A wrong password is a 401 the shared handler recognises; it
+      // never signs anyone out or calls it an expired session.
+      errors.report(err, "We couldn't sign you in. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -64,51 +63,37 @@ export default function Login({ onLogin }) {
         <div className="card auth-card">
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label className="label" htmlFor="login-email">Email address</label>
+              <label className="label" htmlFor={errors.inputId('email')}>Email address</label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input id="login-email" className="input" type="email" placeholder="you@example.com"
-                  autoComplete="email"
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? ERROR_ID : undefined}
+                <input className="input" type="email" placeholder="you@example.com"
                   style={{ paddingLeft: 42 }}
-                  value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+                  {...errors.fieldProps('email')} autoComplete="email"
+                  value={form.email} onChange={e => { errors.clearField('email'); setForm(f => ({ ...f, email: e.target.value })); }} required />
               </div>
+              <FieldError errors={errors} field="email" />
             </div>
 
             <div>
-              <label className="label" htmlFor="login-password">Password</label>
+              <label className="label" htmlFor={errors.inputId('password')}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={16} aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input id="login-password" className="input" type={showPass ? 'text' : 'password'} placeholder="••••••••"
-                  autoComplete="current-password"
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? ERROR_ID : undefined}
+                <input className="input" type={showPass ? 'text' : 'password'} placeholder="••••••••"
                   style={{ paddingLeft: 42, paddingRight: 42 }}
-                  value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+                  {...errors.fieldProps('password')} autoComplete="current-password"
+                  value={form.password} onChange={e => { errors.clearField('password'); setForm(f => ({ ...f, password: e.target.value })); }} required />
                 <button type="button" onClick={() => setShowPass(s => !s)}
                   aria-label={showPass ? 'Hide password' : 'Show password'} aria-pressed={showPass}
                   style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <FieldError errors={errors} field="password" />
             </div>
 
             <Link to="/forgot-password" state={{ email: form.email }} style={{ color: 'var(--accent-cyan)', alignSelf: 'flex-end', fontSize: 'var(--fs-sm)' }}>Forgot password?</Link>
 
-            {error && (
-              <div id={ERROR_ID} role="alert" style={{
-                background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
-                borderRadius: 10,
-                padding: '12px 14px',
-                fontSize: 'var(--fs-sm)',
-                color: 'var(--danger)',
-                animation: 'fadeIn 0.3s ease',
-              }}>
-                {error}
-              </div>
-            )}
+            <FormAlert id="login-alert" message={errors.message} />
 
             <button className="btn btn-primary" type="submit" disabled={loading}
               style={{

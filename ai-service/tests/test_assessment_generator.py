@@ -121,6 +121,51 @@ class TestGenerateQuestions(unittest.TestCase):
                 required_skills=["  "], question_count=5,
             )
 
+    def test_a_requested_difficulty_drops_other_levels_and_asks_again(self, _r):
+        # First reply only has an easy question; the hard one comes on
+        # the second call.
+        with patch.object(
+            generator, "get_llm",
+            return_value=fake_model(reply([Q[0]]), reply([Q[3]])),
+        ):
+            result = generator.generate_questions(
+                job_title="Backend Intern",
+                job_field="backend_development",
+                job_description="Build REST APIs in Spring Boot with PostgreSQL and Kafka.",
+                required_skills=["Spring Boot"],
+                question_count=1,
+                difficulty="hard",
+            )
+
+        self.assertEqual([q["question"] for q in result["questions"]], [Q[3]["question"]])
+        self.assertEqual(result["questions"][0]["difficulty"], "hard")
+
+    def test_a_requested_topic_is_kept_as_written(self, _r):
+        with patch.object(generator, "get_llm", return_value=fake_model(reply([Q[1]]))):
+            result = generator.generate_questions(
+                job_title="Backend Intern",
+                job_field="backend_development",
+                job_description="Build REST APIs in Spring Boot with PostgreSQL and Kafka.",
+                required_skills=["Spring Boot"],
+                question_count=1,
+                topic="  Transaction   isolation ",
+            )
+
+        self.assertEqual(result["questions"][0]["topic"], "Transaction isolation")
+
+    def test_prompt_rules_follow_the_request(self, _r):
+        self.assertIn('"hard" difficulty', generator.difficulty_rule(1, "hard"))
+        self.assertIn("<topic>Kafka consumers</topic>", generator.topic_rule("Kafka consumers"))
+        # Without a topic the set is still spread across the skills.
+        self.assertEqual(generator.topic_rule(""), generator.SPREAD_RULE)
+
+    def test_an_unknown_difficulty_is_refused(self, _r):
+        with self.assertRaises(ValueError):
+            generator.generate_questions(
+                job_title="", job_field="", job_description="x" * 30,
+                required_skills=["Kafka"], question_count=1, difficulty="extreme",
+            )
+
     def test_prompt_has_no_place_for_a_cv(self, _r):
         # The generator signature and prompt take no candidate input.
         self.assertNotIn("resume", generator.GENERATION_PROMPT.input_variables)

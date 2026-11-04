@@ -20,6 +20,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { interviewAPI } from '../services/api';
+import { isApiError, userMessage } from '../services/http';
+import { MODEL_ANSWER_UNAVAILABLE, submitOutcome } from './interviewRecovery';
 import StepBar from '../components/StepBar';
 import ModelAnswer from '../components/ModelAnswer';
 import { CodeText, stripBackticks } from '../components/ui';
@@ -123,6 +125,8 @@ export default function InterviewRoom() {
   const [mode, setMode] = useState(() => (resumeId || getStoredJson('jobInvite') ? 'exam' : null));
   const [pendingMode, setPendingMode] = useState('practice');
   const isExam = mode === 'exam';
+  // A recruiter's job interview: one attempt, resumable from the server.
+  const isJobInterview = Boolean(jobInvite) || Boolean(resumeId);
 
   const [sessionId, setSessionId] = useState(null);
   const [question, setQuestion] = useState('');
@@ -138,6 +142,13 @@ export default function InterviewRoom() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // One action offered beside the error, only where the interview mode
+  // supports it: { label, onClick }.
+  const [errorAction, setErrorAction] = useState(null);
+  // A job interview answer whose arrival could not be confirmed. Until
+  // the server is checked, sending it again could record it twice.
+  const [unconfirmedAnswer, setUnconfirmedAnswer] = useState(false);
+  const [checkingAnswer, setCheckingAnswer] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishStep, setFinishStep] = useState(1);
 
@@ -364,16 +375,10 @@ export default function InterviewRoom() {
           data?.question ||
           '';
 
-        if (!newSessionId) {
-          throw new Error(
-            'Session ID was not returned by AI service.'
-          );
-        }
-
-        if (!newQuestion) {
-          throw new Error(
-            'Question was not returned by AI service.'
-          );
+        if (!newSessionId || !newQuestion) {
+          // Logged for developers; the candidate sees the start failure.
+          console.error('[Frontend] Start response had no session or question:', data);
+          throw new Error('incomplete start response');
         }
 
         setSessionId(newSessionId);
@@ -413,10 +418,18 @@ export default function InterviewRoom() {
           err
         );
 
-        setError(
-          err?.message ||
-          'Could not start the interview.'
-        );
+        if (jobInvite) {
+          // One attempt per job: never retried from here. Without the
+          // invite a retry would quietly start a practice interview.
+          setError(userMessage(err, "We couldn't start your job interview. Please try again from My Applications.", {
+            uncertain: "We couldn't confirm your job interview started. Open My Applications to continue it from there.",
+          }));
+          setErrorAction({ label: 'Go to My Applications', onClick: () => navigate('/applications') });
+        } else {
+          setError(userMessage(err, "We couldn't start your practice interview. Please try again."));
+          // Nothing was under way, so starting over loses nothing.
+          setErrorAction({ label: 'Start again', onClick: () => window.location.reload() });
+        }
 
         // A refused invite (closed job, already taken) must not carry
         // over to the next interview; the join page sets it again if
@@ -469,10 +482,14 @@ export default function InterviewRoom() {
 
         setIsFinishing(false);
 
-        setError(
-          err?.message ||
-          'Could not resume the interview.'
-        );
+        setError(userMessage(err, "We couldn't resume your interview. Please try again."));
+        // A job interview picks up from the server's copy, so loading it
+        // again is a supported way back in - unless the server refused.
+        if (isApiError(err) && [400, 403, 404, 409].includes(err.status)) {
+          setErrorAction({ label: 'Go to My Applications', onClick: () => navigate('/applications') });
+        } else {
+          setErrorAction({ label: 'Try again', onClick: () => window.location.reload() });
+        }
 
       } finally {
         setLoading(false);
@@ -742,13 +759,13 @@ export default function InterviewRoom() {
   // over plain http looked identical to a button that did nothing.
   const MIC_ERRORS = {
     'not-allowed':
-      'Microphone access was blocked. Allow the microphone for this site in your browser settings, then try again.',
+      'Microphone access is blocked. Allow the microphone for this site in your browser settings and try again, or type your answer instead.',
     'service-not-allowed':
-      'Your browser refused speech recognition. This usually means the page is not served over https or localhost.',
+      "Your browser didn't allow voice input. Please type your answer instead.",
     'audio-capture':
-      'No microphone was found. Check that one is connected and selected as the input device.',
+      'No microphone was found. Check that one is connected and selected, or type your answer instead.',
     network:
-      'Speech recognition needs an internet connection and could not reach the service.',
+      "Voice input couldn't connect. Check your internet connection and try again, or type your answer instead.",
     aborted: '',
     'no-speech': '',
   };
@@ -774,7 +791,7 @@ export default function InterviewRoom() {
 
     if (!SpeechRecognition) {
       setError(
-        'Speech recognition is not supported in this browser. Please use Chrome or Edge, or type your answer.'
+        "Voice input isn't supported in this browser. Try Chrome or Edge, or type your answer instead."
       );
 
       return;
@@ -785,7 +802,7 @@ export default function InterviewRoom() {
     // and then fails silently.
     if (!window.isSecureContext) {
       setError(
-        'The microphone needs a secure page. Open the app on http://localhost:3000 (not an IP address) or over https.'
+        "Voice input isn't available on this connection. Please type your answer instead."
       );
 
       return;
@@ -870,7 +887,7 @@ export default function InterviewRoom() {
       // quiet pause, and onend restarts the session.
       if (message === undefined) {
         setError(
-          `Microphone error: ${event.error}. Please type your answer instead.`
+          'The microphone stopped working. Please type your answer instead.'
         );
       } else if (message) {
         setError(message);
@@ -916,7 +933,7 @@ export default function InterviewRoom() {
       shouldListenRef.current = false;
 
       setError(
-        'The microphone could not be started. Check that no other tab is using it, then try again.'
+        "We couldn't start the microphone. Check that no other app or tab is using it and try again, or type your answer instead."
       );
 
       setListening(false);
@@ -979,10 +996,9 @@ export default function InterviewRoom() {
 
 
       if (data?.generated === false) {
-        setModelAnswerError(
-          data?.error ||
-          'The expected answer could not be generated.'
-        );
+        // data.error is for the log only, never the page.
+        console.warn('[Frontend] Expected answer not generated:', data?.error);
+        setModelAnswerError(MODEL_ANSWER_UNAVAILABLE);
       } else {
         setModelAnswer(data);
       }
@@ -993,10 +1009,7 @@ export default function InterviewRoom() {
         err
       );
 
-      setModelAnswerError(
-        err?.message ||
-        'Could not reach the AI service.'
-      );
+      setModelAnswerError(userMessage(err, MODEL_ANSWER_UNAVAILABLE));
 
     } finally {
       setModelAnswerLoading(false);
@@ -1060,10 +1073,10 @@ export default function InterviewRoom() {
 
     // Redirect with session ID param in URL so the scorecard is permanent
     setTimeout(() => {
-      notify(finishData.evaluated === false || finishData.evaluation_error
-        ? 'Interview submitted, but evaluation could not be completed.'
+      notify(finishData.evaluated === false
+        ? "Your interview was submitted, but it couldn't be scored."
         : 'Interview completed—your results are ready.',
-        finishData.evaluated === false || finishData.evaluation_error ? 'warning' : 'success');
+        finishData.evaluated === false ? 'warning' : 'success');
       navigate(`/scorecard?session=${encodeURIComponent(id)}`);
     }, 600);
   };
@@ -1079,21 +1092,26 @@ export default function InterviewRoom() {
 
     if (!sessionId) {
       setError(
-        'Interview session is not ready.'
+        "Your interview hasn't started yet, so this answer can't be sent. Please wait a moment and try again."
       );
 
       return;
     }
 
-    // Prevent duplicate answer request
-    if (submittingAnswerRef.current) {
+    // Prevent duplicate answer request. An answer whose arrival is
+    // unconfirmed is never sent again until the server is checked.
+    if (submittingAnswerRef.current || unconfirmedAnswer || checkingAnswer) {
       return;
     }
+
+    const submittedIndex = qIndex;
+    let answerReceived = false;
 
     submittingAnswerRef.current = true;
 
     setLoading(true);
     setError('');
+    setErrorAction(null);
 
     // --------------------------------------------------------
     // Stop microphone
@@ -1126,6 +1144,7 @@ export default function InterviewRoom() {
           text,
           integrityForAnswer()
         );
+        answerReceived = true;
         resetIntegrity();
 
         await finishAndShowScorecard(sessionId);
@@ -1145,6 +1164,7 @@ export default function InterviewRoom() {
         );
 
       // Sent and stored: the next answer starts counting from zero.
+      answerReceived = true;
       resetIntegrity();
 
 
@@ -1154,9 +1174,8 @@ export default function InterviewRoom() {
         '';
 
       if (!nextQuestion) {
-        throw new Error(
-          'Next question was not returned by AI service.'
-        );
+        console.error('[Frontend] Answer response had no next question:', data);
+        throw new Error('missing next question');
       }
 
       setQuestion(nextQuestion);
@@ -1180,10 +1199,26 @@ export default function InterviewRoom() {
 
       setIsFinishing(false);
 
-      setError(
-        err?.message ||
-        'Failed to submit answer. Please try again.'
-      );
+      if (answerReceived) {
+        // The answer is in; what failed came after it. Sending it again
+        // would record it twice, so it is never re-sent from here.
+        if (submittedIndex + 1 >= totalQuestions) {
+          setError("Your last answer was received, but we couldn't finish scoring your interview. Please try again.");
+          setErrorAction({ label: 'Try finishing again', onClick: () => retryFinish() });
+        } else if (isJobInterview) {
+          await checkSubmission(submittedIndex);
+        } else {
+          setError("Your answer was received, but the next question didn't load. This practice interview can't continue; start a new one from your home page.");
+          setErrorAction({ label: 'Go to home', onClick: () => navigate('/home') });
+        }
+      } else if (isJobInterview && isApiError(err) && (err.uncertain || err.status >= 500)) {
+        // The server may have stored it. Ask before allowing a resend.
+        await checkSubmission(submittedIndex);
+      } else {
+        setError(userMessage(err, "We couldn't submit your answer. It's still in the box below; please try again.", {
+          uncertain: "We couldn't confirm your answer was submitted. It's still in the box below; check your connection and try again.",
+        }));
+      }
 
     } finally {
       setLoading(false);
@@ -1192,11 +1227,105 @@ export default function InterviewRoom() {
   };
 
   // ==========================================================
+  // CHECK A JOB INTERVIEW ANSWER AFTER A FAILED SUBMIT
+  //
+  // Asks the server how many answers it holds (the read-only resume
+  // endpoint), then either moves on - the answer arrived - or allows
+  // the same answer to be sent again. Never sends anything itself.
+  // ==========================================================
+
+  const checkSubmission = async (submittedIndex) => {
+    setCheckingAnswer(true);
+    setUnconfirmedAnswer(true);
+    setError('Checking whether your answer was received…');
+    setErrorAction(null);
+
+    let data = null;
+    let failure = null;
+    try {
+      data = await interviewAPI.resume(sessionId);
+    } catch (err) {
+      failure = err;
+      console.error('[Frontend] Could not check the submitted answer:', err);
+    }
+
+    const outcome = submitOutcome(data, submittedIndex, failure);
+    setCheckingAnswer(false);
+
+    if (outcome === 'complete') {
+      setUnconfirmedAnswer(false);
+      setError('');
+      setAnswer('');
+      try {
+        await finishAndShowScorecard(sessionId);
+      } catch (finishErr) {
+        console.error('[Frontend] Finish after check failed:', finishErr);
+        setIsFinishing(false);
+        setError("Your answers were received, but we couldn't finish scoring your interview. Please try again.");
+        setErrorAction({ label: 'Try finishing again', onClick: () => retryFinish() });
+      }
+      return;
+    }
+
+    if (outcome === 'received') {
+      setUnconfirmedAnswer(false);
+      setError('');
+      setQuestion(data?.question?.question || '');
+      setQIndex(data.answered);
+      setAnswer('');
+      setSubmitted(false);
+      setModelAnswer(null);
+      setModelAnswerError('');
+      notify('Your answer was received.');
+      return;
+    }
+
+    if (outcome === 'not-received') {
+      setUnconfirmedAnswer(false);
+      setError("Your answer wasn't received. It's still in the box below; please submit it again.");
+      return;
+    }
+
+    // Still unknown: keep the resend blocked and let them check again.
+    setError("We couldn't confirm your answer was received. It's still in the box below. Check your connection, then check again before resubmitting.");
+    setErrorAction({ label: 'Check again', onClick: () => checkSubmission(submittedIndex) });
+  };
+
+  // Finishing again after a failure. A stored scorecard means the first
+  // attempt worked; only otherwise is grading asked for again. No answer
+  // is ever re-sent.
+  const retryFinish = async () => {
+    setError('');
+    setErrorAction(null);
+    try {
+      let stored = null;
+      try {
+        stored = await interviewAPI.getScorecard(sessionId);
+      } catch (err) {
+        if (!(isApiError(err) && err.status === 404)) throw err;
+      }
+      if (stored) {
+        sessionStorage.setItem('interviewResult', JSON.stringify(stored));
+        navigate(`/scorecard?session=${encodeURIComponent(sessionId)}`);
+        return;
+      }
+      await finishAndShowScorecard(sessionId);
+    } catch (err) {
+      console.error('[Frontend] Retrying finish failed:', err);
+      setIsFinishing(false);
+      setError(userMessage(err, "We couldn't finish scoring your interview. Please try again.", {
+        uncertain: "We couldn't confirm your interview was scored. Check your connection and try again.",
+      }));
+      setErrorAction({ label: 'Try finishing again', onClick: () => retryFinish() });
+    }
+  };
+
+  // ==========================================================
   // NEXT QUESTION
   // ==========================================================
 
   const handleNext = () => {
-    if (loading) {
+    if (loading || unconfirmedAnswer || checkingAnswer) {
       return;
     }
 
@@ -1489,7 +1618,14 @@ export default function InterviewRoom() {
               textAlign: 'center',
             }}
           >
-            {error}
+            <span className="sr-only">Error: </span>{error}
+            {errorAction && (
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="btn btn-outline" style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }} onClick={errorAction.onClick}>
+                  {errorAction.label}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1865,6 +2001,8 @@ export default function InterviewRoom() {
           <AlertCircle
             size={16}
             color="var(--danger)"
+            aria-hidden="true"
+            style={{ flexShrink: 0 }}
           />
 
           <p
@@ -1872,10 +2010,18 @@ export default function InterviewRoom() {
               fontSize: 'var(--fs-sm)',
               color: 'var(--danger)',
               margin: 0,
+              flex: 1,
             }}
           >
-            {error}
+            <span className="sr-only">Error: </span>{error}
           </p>
+
+          {errorAction && (
+            <button type="button" className="btn btn-outline" style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px', flexShrink: 0 }}
+              onClick={errorAction.onClick} disabled={checkingAnswer}>
+              {errorAction.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -2152,7 +2298,7 @@ export default function InterviewRoom() {
             ref={nextButtonRef}
             className="btn btn-primary"
             onClick={handleNext}
-            disabled={loading || isFinishing}
+            disabled={loading || isFinishing || unconfirmedAnswer || checkingAnswer}
             style={{
               width: '100%',
               justifyContent: 'center',

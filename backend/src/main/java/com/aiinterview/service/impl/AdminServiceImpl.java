@@ -63,7 +63,7 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(userId)
                 .filter(u -> u.getRole() == Role.RECRUITER)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No recruiter account with id " + userId
+                        "We couldn't find that recruiter account."
                 ));
 
         user.setApprovalStatus(decision);

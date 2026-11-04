@@ -1,7 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import Scorecard from './Scorecard';
+import Scorecard, { NOT_SCORED_MESSAGE, gradingUnavailable } from './Scorecard';
+import { ApiError } from '../services/http';
 
 // What a candidate may read about their own answers.
 //
@@ -377,5 +378,59 @@ describe('an interview with no mode and no job', () => {
 
     expect(container.textContent).toContain('Interview #1');
     expect(container.textContent).toContain('Interview #3');
+  });
+});
+
+// ---- Grading that did not run, and history that would not load ----------
+
+describe('an interview grading could not score', () => {
+  const { interviewAPI } = require('../services/api');
+
+  // A failed grading run comes back with zeros in every score field.
+  const UNSCORED = {
+    session_id: 's-1',
+    evaluated: false,
+    evaluation_error: 'Scoring failed: google.api_core.exceptions.ResourceExhausted: 429 quota',
+    overall_score: 0,
+    category_scores: [{ key: 'technical', label: 'Technical', score: 0 }],
+    per_question: [],
+  };
+
+  const renderArchive = async () => {
+    sessionStorage.clear();
+    await act(async () => { root.render(<Scorecard />); });
+  };
+
+  test('failed grading is never shown as a score of zero', async () => {
+    await render(UNSCORED);
+
+    expect(container.textContent).toContain(NOT_SCORED_MESSAGE);
+    expect(container.textContent).not.toMatch(/\b0\s*\/\s*100\b/);
+    // The stored technical reason stays off the page.
+    expect(container.textContent).not.toMatch(/ResourceExhausted|429|Scoring failed/);
+  });
+
+  test('a real zero is a graded result, not a grading failure', () => {
+    expect(gradingUnavailable({ evaluated: true, overall_score: 0 })).toBe(false);
+    expect(gradingUnavailable(UNSCORED)).toBe(true);
+  });
+
+  test('history that fails to load is reported, not shown as having no interviews', async () => {
+    interviewAPI.history.mockRejectedValue(new ApiError({ kind: 'network', code: 'NETWORK', message: 'x' }));
+
+    await renderArchive();
+
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('No interview to show');
+    expect([...container.querySelectorAll('button')].map((b) => b.textContent)).toContain('Try again');
+  });
+
+  test('genuinely no interviews shows the empty state', async () => {
+    interviewAPI.history.mockResolvedValue([]);
+
+    await renderArchive();
+
+    expect(container.textContent).toContain('No interview to show');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 });

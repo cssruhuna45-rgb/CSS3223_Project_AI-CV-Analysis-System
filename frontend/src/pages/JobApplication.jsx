@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import { jobsAPI, resumeAPI } from '../services/api';
 import { applicationsAPI } from '../services/jobApplicationsApi';
+import { publicJobsAPI } from '../services/publicJobsApi';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import { Button, Card, SectionHeader, Badge } from '../components/ui';
+import { isApiError, userMessage } from '../services/http';
 
 function fieldName(id) {
   return PREDEFINED_JOB_FIELDS.find((f) => f.id === id)?.name || id;
@@ -27,7 +29,9 @@ function fieldName(id) {
  */
 export default function JobApplication() {
   const navigate = useNavigate();
-  const { code } = useParams();
+  // /apply/:code from an invite link, or /apply/job/:jobId from Public
+  // Jobs. Either way it is this same page and the same application.
+  const { code, jobId } = useParams();
 
   const [job, setJob] = useState(null);
   const [resumes, setResumes] = useState([]);
@@ -44,17 +48,41 @@ export default function JobApplication() {
   // derived from anything else they did.
   const [consent, setConsent] = useState(false);
 
+  // The CV list loads separately from the job: if it fails, the job
+  // is still shown and the page does not claim "no CV yet".
+  const [resumesError, setResumesError] = useState('');
+  const [resumesAttempt, setResumesAttempt] = useState(0);
+  const [analysisError, setAnalysisError] = useState('');
+
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
-      jobsAPI.preview(code),
-      resumeAPI.getAll().catch(() => []),
-    ])
-      .then(([previewed, mine]) => {
+    (code ? jobsAPI.preview(code) : publicJobsAPI.get(jobId))
+      .then((previewed) => {
         if (cancelled) return;
-
         setJob(previewed);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(userMessage(err, code
+            ? "We couldn't check that invite code. Please try again."
+            : "We couldn't load this job. Please try again."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [code, jobId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResumesError('');
+
+    resumeAPI.getAll()
+      .then((mine) => {
+        if (cancelled) return;
 
         // Only CVs with extracted text are worth sending: one that
         // failed processing has nothing for a recruiter to read.
@@ -64,19 +92,15 @@ export default function JobApplication() {
 
         setResumes(usable);
 
-        if (usable.length > 0) setResumeId(String(usable[0].id));
+        if (usable.length > 0) setResumeId((current) => current || String(usable[0].id));
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err.message || 'That invite code could not be checked.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        console.error('[JobApplication] Could not load CVs:', err);
+        if (!cancelled) setResumesError(userMessage(err, "We couldn't load your CVs. Please try again."));
       });
 
     return () => { cancelled = true; };
-  }, [code]);
+  }, [resumesAttempt]);
 
   // The analysis behind the chosen CV, so the candidate can see what
   // the recruiter will be shown before agreeing to send it.
@@ -87,10 +111,18 @@ export default function JobApplication() {
     }
 
     let cancelled = false;
+    setAnalysisError('');
 
     resumeAPI.getAnalysis(resumeId)
       .then((found) => { if (!cancelled) setAnalysis(found); })
-      .catch(() => { if (!cancelled) setAnalysis(null); });
+      .catch((err) => {
+        if (cancelled) return;
+        setAnalysis(null);
+        // A 404 is a CV with no stored analysis: nothing to preview.
+        if (!(isApiError(err) && err.status === 404)) {
+          setAnalysisError(userMessage(err, "We couldn't load the preview of what the recruiter will see. You can still apply with this CV."));
+        }
+      });
 
     return () => { cancelled = true; };
   }, [resumeId]);
@@ -120,9 +152,13 @@ export default function JobApplication() {
       setSubmitted(await applicationsAPI.apply(job.jobId, {
         resumeId: Number(resumeId),
         consentGranted: true,
+        // An unpublished job takes applications only with its own code.
+        inviteCode: code,
       }));
     } catch (err) {
-      setFormError(err.message || 'Your application could not be submitted. Please try again.');
+      setFormError(userMessage(err, "We couldn't submit your application. Please try again.", {
+        uncertain: "We couldn't confirm your application was sent. Check My Applications before applying again.",
+      }));
     } finally {
       setSubmitting(false);
     }
@@ -146,7 +182,9 @@ export default function JobApplication() {
             <AlertCircle size={18} aria-hidden="true" /> {error}
           </p>
           <div style={{ marginTop: 'var(--space-4)' }}>
-            <Button variant="secondary" onClick={() => navigate('/join')}>Try another code</Button>
+            <Button variant="secondary" onClick={() => navigate('/join')}>
+              {code ? 'Try another code' : 'Back to jobs'}
+            </Button>
           </div>
         </Card>
       </div>
@@ -258,7 +296,12 @@ export default function JobApplication() {
             subtitle="This exact CV is kept with your application, so a later upload will not change what the recruiter reviewed."
           />
 
-          {resumes.length === 0 ? (
+          {resumesError ? (
+            <div role="alert" style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap', color: 'var(--danger)' }}>
+              <span style={{ flex: 1 }}><span className="sr-only">Error: </span>{resumesError}</span>
+              <Button variant="secondary" size="sm" onClick={() => setResumesAttempt((n) => n + 1)}>Try again</Button>
+            </div>
+          ) : resumes.length === 0 ? (
             <div style={{ marginTop: 'var(--space-4)' }}>
               <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
                 You have no analysed CV to apply with yet. Upload one, then come back to this link.
@@ -285,6 +328,10 @@ export default function JobApplication() {
                   ))}
                 </select>
               </div>
+
+              {analysisError && (
+                <p role="status" style={{ ...meta, marginTop: 'var(--space-4)' }}>{analysisError}</p>
+              )}
 
               {/* What the recruiter will read */}
               {analysis && (

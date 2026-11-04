@@ -1,6 +1,7 @@
 package com.aiinterview.repository;
 
 import com.aiinterview.entity.JobPosting;
+import com.aiinterview.entity.JobPublicationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -16,4 +17,17 @@ public interface JobPostingRepository extends JpaRepository<JobPosting, Long> {
     List<JobPosting> findByRecruiterIdOrderByCreatedAtDesc(Long recruiterId);
 
     Optional<JobPosting> findByIdAndRecruiterId(Long id, Long recruiterId);
+
+    // ---- Public Jobs (V13) -----------------------------------------
+
+    /** Every listed job, most recently published first. */
+    List<JobPosting> findByPublicationStatusAndArchivedFalseOrderByPublishedAtDesc(
+            JobPublicationStatus publicationStatus
+    );
+
+    /** One job, only if it is listed: anything else is "not found". */
+    Optional<JobPosting> findByIdAndPublicationStatusAndArchivedFalse(
+            Long id,
+            JobPublicationStatus publicationStatus
+    );
 }

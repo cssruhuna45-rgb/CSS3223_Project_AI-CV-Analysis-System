@@ -10,6 +10,7 @@ import {
 } from '../services/jobApplicationsApi';
 import { Button, Card, SectionHeader, Badge, PageHeader } from '../components/ui';
 import useScrollReveal from '../hooks/useScrollReveal';
+import { userMessage } from '../services/http';
 
 const STATUS_FILTERS = [
   { value: 'ALL', label: 'All' },
@@ -69,7 +70,7 @@ export default function RecruiterApplicants() {
         setJobs(mine || []);
         if (!jobId && mine?.length > 0) setJob(String(mine[0].id));
       })
-      .catch((err) => setError(err.message || 'Your jobs could not be loaded.'));
+      .catch((err) => setError(userMessage(err, "We couldn't load your jobs. Please try again.")));
   }, []);
 
   useEffect(() => {
@@ -80,7 +81,7 @@ export default function RecruiterApplicants() {
 
     applicantsAPI.list(jobId)
       .then(setApplicants)
-      .catch((err) => setError(err.message || 'The applicants could not be loaded.'))
+      .catch((err) => setError(userMessage(err, "We couldn't load the applicants for this job. Please try again.")))
       .finally(() => setLoading(false));
   }, [jobId]);
 
@@ -96,7 +97,7 @@ export default function RecruiterApplicants() {
 
     applicantsAPI.get(openId)
       .then((found) => { if (!cancelled) setDetail(found); })
-      .catch((err) => { if (!cancelled) setError(err.message || 'That applicant could not be loaded.'); })
+      .catch((err) => { if (!cancelled) setError(userMessage(err, "We couldn't load this applicant. Please try again.")); })
       .finally(() => { if (!cancelled) setDetailLoading(false); });
 
     return () => { cancelled = true; };
@@ -180,7 +181,9 @@ export default function RecruiterApplicants() {
       setNotice(`${updated.candidateName} is now ${updated.statusLabel.toLowerCase()}.`);
       setPending(null);
     } catch (err) {
-      setError(err.message || 'That decision could not be saved.');
+      setError(userMessage(err, "We couldn't save that decision. Please try again.", {
+        uncertain: "We couldn't confirm the decision was saved. Reopen the applicant to check before trying again.",
+      }));
       setPending(null);
     } finally {
       setDeciding(false);

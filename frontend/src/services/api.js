@@ -1,3 +1,5 @@
+import { request } from './http';
+
 // Local development calls Spring directly; Docker sets / to use the
 // frontend nginx API proxy on the same origin as the page.
 export const SPRING = (process.env.REACT_APP_API_URL || 'http://localhost:8080').replace(/\/$/, '');
@@ -14,67 +16,10 @@ export const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-/**
- * Turns a fetch Response into data, or throws with something worth
- * showing the user.
- *
- * credentialRequest marks a call that carries credentials instead of a
- * session - signing in, registering, or using a password-reset link. A
- * 401 from one of those means the credentials were refused, and there
- * is no session to have expired: the server's own wording ("Invalid
- * email or password") is passed through by the generic branch below.
- * Everywhere else a 401 really does mean the stored token is no longer
- * any good, which is handled as before.
- */
-export async function handleResponse(res, { credentialRequest = false } = {}) {
-  if (!res.ok) {
-    // 401: no valid session (missing, expired or tampered token). The
-    // stored login is useless, so it is cleared and the user signs in.
-    if (res.status === 401 && !credentialRequest) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
-        window.location.assign('/login');
-      }
-      throw new Error('Your session has expired. Please log in again.');
-    }
-
-    // 403: signed in, but this account may not do this - a recruiter
-    // whose access was just revoked, say. Signing them out would be the
-    // wrong answer and lose their place; the page shows the message.
-    // The backend answers 401 and 403 separately for exactly this
-    // (SecurityConfig's authentication entry point).
-    if (res.status === 403) {
-      const denied = await res.json().catch(() => ({}));
-      throw new Error(denied.message || 'You do not have permission to do that.');
-    }
-
-    // 502/503/504 come from nginx, not from Spring: the proxy is up but
-    // the backend behind it is not answering. In development that is
-    // almost always the twenty seconds it takes to boot after a
-    // restart, and the body is an nginx HTML page, so the generic
-    // branch below could only ever produce "Request failed (502 Bad
-    // Gateway)" - true, and of no use to anyone.
-    if (res.status === 502 || res.status === 503 || res.status === 504) {
-      throw new Error(
-        'The server is not responding yet. It may still be starting up '
-        + '- please wait a few seconds and try again.'
-      );
-    }
-
-    const err = await res.json().catch(() => ({}));
-    // FastAPI uses `detail`, Spring Boot uses `message`/`error`
-    const msg =
-      err.message ||
-      (typeof err.detail === 'string' ? err.detail : null) ||
-      (Array.isArray(err.detail) ? err.detail.map((d) => d.msg).join(', ') : null) ||
-      err.error ||
-      `Request failed (${res.status} ${res.statusText})`;
-    throw new Error(msg);
-  }
-
-  return res.json();
-}
+// Every call goes through request() in http.js, which turns any failure
+// into an ApiError with a message that is safe to show. Re-exported for
+// callers that only import this module.
+export { request, ApiError, userMessage } from './http';
 
 
 // ============================================================
@@ -84,21 +29,21 @@ export async function handleResponse(res, { credentialRequest = false } = {}) {
 
 export const authAPI = {
   forgotPassword: (email) =>
-    fetch(`${SPRING}/api/v1/auth/forgot-password`, {
+    request(`${SPRING}/api/v1/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
-    }).then((res) => handleResponse(res, { credentialRequest: true })),
+    }),
 
   resetPassword: (token, password) =>
-    fetch(`${SPRING}/api/v1/auth/reset-password`, {
+    request(`${SPRING}/api/v1/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
-    }).then((res) => handleResponse(res, { credentialRequest: true })),
+    }),
 
   register: (name, email, password, role) =>
-    fetch(`${SPRING}/api/v1/auth/register`, {
+    request(`${SPRING}/api/v1/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -109,10 +54,10 @@ export const authAPI = {
         password,
         role,
       }),
-    }).then((res) => handleResponse(res, { credentialRequest: true })),
+    }),
 
   login: (email, password) =>
-    fetch(`${SPRING}/api/v1/auth/login`, {
+    request(`${SPRING}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,14 +66,14 @@ export const authAPI = {
         email,
         password,
       }),
-    }).then((res) => handleResponse(res, { credentialRequest: true })),
+    }),
 
   // The signed-in account as the server holds it now. A recruiter
   // waiting for approval polls this rather than logging out and in.
   me: () =>
-    fetch(`${SPRING}/api/v1/users/me`, {
+    request(`${SPRING}/api/v1/users/me`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -141,21 +86,21 @@ export const authAPI = {
 export const adminAPI = {
 
   recruiters: () =>
-    fetch(`${SPRING}/api/v1/admin/recruiters`, {
+    request(`${SPRING}/api/v1/admin/recruiters`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   approve: (id) =>
-    fetch(`${SPRING}/api/v1/admin/recruiters/${id}/approve`, {
+    request(`${SPRING}/api/v1/admin/recruiters/${id}/approve`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   reject: (id) =>
-    fetch(`${SPRING}/api/v1/admin/recruiters/${id}/reject`, {
+    request(`${SPRING}/api/v1/admin/recruiters/${id}/reject`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -172,7 +117,7 @@ export const resumeAPI = {
 
     form.append('file', file);
 
-    return fetch(`${SPRING}/api/v1/resumes`, {
+    return request(`${SPRING}/api/v1/resumes`, {
       method: 'POST',
 
       headers: {
@@ -181,42 +126,36 @@ export const resumeAPI = {
 
       body: form,
 
-    }).then(handleResponse);
+    });
   },
 
 
   getAll: () =>
-    fetch(`${SPRING}/api/v1/resumes`, {
+    request(`${SPRING}/api/v1/resumes`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 
   // The analysis stored when this CV was uploaded. Lets a returning
   // candidate pick up where they left off instead of re-uploading.
   // 404 means the upload's best-effort analysis never completed.
   getAnalysis: (id) =>
-    fetch(`${SPRING}/api/v1/resumes/${id}/analysis`, {
+    request(`${SPRING}/api/v1/resumes/${id}/analysis`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 
   getById: (id) =>
-    fetch(`${SPRING}/api/v1/resumes/${id}`, {
+    request(`${SPRING}/api/v1/resumes/${id}`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
+  // A CV attached to a job application cannot be deleted; the server
+  // says so (409) and that message is shown as it stands.
   delete: (id) =>
-    fetch(`${SPRING}/api/v1/resumes/${id}`, {
+    request(`${SPRING}/api/v1/resumes/${id}`, {
       method: 'DELETE',
-
       headers: authHeaders(),
-
-    }).then((res) => {
-
-      if (!res.ok) {
-        throw new Error('Delete failed');
-      }
-
     }),
 
 };
@@ -233,7 +172,7 @@ export const aiResumeAPI = {
   // documents/cv_resume_standards_guide.md. Separate from analyze,
   // which only extracts what the CV says.
   feedback: (resumeId, resumeText) =>
-    fetch(`${AI}/resume/feedback`, {
+    request(`${AI}/resume/feedback`, {
       method: 'POST',
 
       headers: authHeaders(),
@@ -250,20 +189,20 @@ export const aiResumeAPI = {
 
       }),
 
-    }).then(handleResponse),
+    }),
 
   // Rewrites one bullet in Google's XYZ form. Facts the bullet does not
   // give come back as [bracketed] gaps for the candidate to fill; the
   // AI never supplies the numbers.
   tuneBullet: (bullet, jobField = '') =>
-    fetch(`${AI}/resume/bullet/tune`, {
+    request(`${AI}/resume/bullet/tune`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ bullet, job_field: jobField }),
-    }).then(handleResponse),
+    }),
 
   analyze: (resumeId, resumeText) =>
-    fetch(`${AI}/resume/analyze`, {
+    request(`${AI}/resume/analyze`, {
       method: 'POST',
 
       headers: authHeaders(),
@@ -280,7 +219,7 @@ export const aiResumeAPI = {
 
       }),
 
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -311,7 +250,7 @@ export const interviewAPI = {
   ) => {
 
 
-    return fetch(
+    return request(
       `${AI}/interview/start`,
       {
         method: 'POST',
@@ -375,7 +314,7 @@ export const interviewAPI = {
         }),
 
       }
-    ).then(handleResponse);
+    );
 
   },
 
@@ -389,7 +328,7 @@ export const interviewAPI = {
     answer,
     integrity = null
   ) =>
-    fetch(
+    request(
       `${AI}/interview/answer`,
       {
         method: 'POST',
@@ -412,7 +351,7 @@ export const interviewAPI = {
         }),
 
       }
-    ).then(handleResponse),
+    ),
 
 
   // ----------------------------------------------------------
@@ -429,7 +368,7 @@ export const interviewAPI = {
     answer,
     jobField
   ) =>
-    fetch(
+    request(
       `${AI}/interview/model-answer`,
       {
         method: 'POST',
@@ -453,7 +392,7 @@ export const interviewAPI = {
         }),
 
       }
-    ).then(handleResponse),
+    ),
 
 
   // ----------------------------------------------------------
@@ -463,7 +402,7 @@ export const interviewAPI = {
   finish: (
     sessionId
   ) =>
-    fetch(
+    request(
       `${AI}/interview/finish`,
       {
         method: 'POST',
@@ -478,7 +417,7 @@ export const interviewAPI = {
         }),
 
       }
-    ).then(handleResponse),
+    ),
 
 
   // ----------------------------------------------------------
@@ -493,40 +432,40 @@ export const interviewAPI = {
   // ----------------------------------------------------------
 
   history: () =>
-    fetch(
+    request(
       `${SPRING}/api/v1/interviews/history`,
       {
         method: 'GET',
         headers: authHeaders(),
       }
-    ).then(handleResponse),
+    ),
 
   // A job interview already under way, continued after a reload. The
   // server checks the session is the signed-in candidate's and sends
   // back the question they were on.
   resume: (sessionId) =>
-    fetch(
+    request(
       `${SPRING}/api/v1/interviews/${encodeURIComponent(sessionId)}/resume`,
       { method: 'POST', headers: authHeaders() }
-    ).then(handleResponse),
+    ),
 
   // The stored scorecard for a past interview, so a result can be
   // reopened from the home page rather than only right after finishing.
   getScorecard: (sessionId) =>
-    fetch(
+    request(
       `${SPRING}/api/v1/interviews/${encodeURIComponent(sessionId)}/scorecard`,
       { headers: authHeaders() }
-    ).then(handleResponse),
+    ),
 
 
   progress: () =>
-    fetch(
+    request(
       `${SPRING}/api/v1/interviews/progress`,
       {
         method: 'GET',
         headers: authHeaders(),
       }
-    ).then(handleResponse),
+    ),
 
 
   // ----------------------------------------------------------
@@ -541,12 +480,12 @@ export const interviewAPI = {
   getSession: (
     sessionId
   ) =>
-    fetch(
+    request(
       `${AI}/interview/${sessionId}`,
       {
         headers: authHeaders(),
       }
-    ).then(handleResponse),
+    ),
 
 };
 
@@ -562,35 +501,35 @@ export const recruiterAPI = {
   // totals. jobId narrows to one job. Approved recruiters only: the
   // backend rejects anyone else's token with 403.
   overview: (jobId = null) =>
-    fetch(`${SPRING}/api/v1/recruiter/overview${jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''}`, {
+    request(`${SPRING}/api/v1/recruiter/overview${jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''}`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   jobs: () =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs`, {
+    request(`${SPRING}/api/v1/recruiter/jobs`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   // { title, company, jobField, jobDescription } -> the job with its
   // new invite code.
   createJob: (job) =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs`, {
+    request(`${SPRING}/api/v1/recruiter/jobs`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify(job),
-    }).then(handleResponse),
+    }),
 
   closeJob: (id) =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs/${id}/close`, {
+    request(`${SPRING}/api/v1/recruiter/jobs/${id}/close`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   reopenJob: (id) =>
-    fetch(`${SPRING}/api/v1/recruiter/jobs/${id}/reopen`, {
+    request(`${SPRING}/api/v1/recruiter/jobs/${id}/reopen`, {
       method: 'POST',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -605,9 +544,9 @@ export const jobsAPI = {
   // The job behind an invite code, shown before the candidate agrees
   // to share an interview with its recruiter.
   preview: (code) =>
-    fetch(`${SPRING}/api/v1/jobs/invite/${encodeURIComponent(code)}`, {
+    request(`${SPRING}/api/v1/jobs/invite/${encodeURIComponent(code)}`, {
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
 };
 
@@ -727,7 +666,7 @@ export const skillGapAPI = {
     }
 
 
-    return fetch(
+    return request(
       `${AI}/skill-gap/analyze`,
       {
         method: 'POST',
@@ -737,7 +676,7 @@ export const skillGapAPI = {
         body: JSON.stringify(payload),
 
       }
-    ).then(handleResponse);
+    );
 
   },
 
@@ -752,12 +691,12 @@ export const skillGapAPI = {
 export const healthAPI = {
 
   check: () =>
-    fetch(
+    request(
       `${AI}/health`,
       {
         headers: authHeaders(),
       }
-    ).then(handleResponse),
+    ),
 
 };
 
@@ -770,39 +709,39 @@ export const healthAPI = {
 export const roadmapAPI = {
 
   generate: (data) =>
-    fetch(`${SPRING}/api/v1/roadmaps/generate`, {
+    request(`${SPRING}/api/v1/roadmaps/generate`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify(data),
-    }).then(handleResponse),
+    }),
 
   getBySessionId: (sessionId) =>
-    fetch(`${SPRING}/api/v1/roadmaps/session/${encodeURIComponent(sessionId)}`, {
+    request(`${SPRING}/api/v1/roadmaps/session/${encodeURIComponent(sessionId)}`, {
       method: 'GET',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   getLatest: () =>
-    fetch(`${SPRING}/api/v1/roadmaps/latest`, {
+    request(`${SPRING}/api/v1/roadmaps/latest`, {
       method: 'GET',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   getById: (id) =>
-    fetch(`${SPRING}/api/v1/roadmaps/${id}`, {
+    request(`${SPRING}/api/v1/roadmaps/${id}`, {
       method: 'GET',
       headers: authHeaders(),
-    }).then(handleResponse),
+    }),
 
   updateProgress: (id, dayNumber, completed) =>
-    fetch(`${SPRING}/api/v1/roadmaps/${id}/progress`, {
+    request(`${SPRING}/api/v1/roadmaps/${id}/progress`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({
         day_number: dayNumber,
         completed: completed,
       }),
-    }).then(handleResponse),
+    }),
 
 };
 

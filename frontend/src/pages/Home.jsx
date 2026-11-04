@@ -7,6 +7,7 @@ import {
 import { resumeAPI, interviewAPI } from '../services/api';
 import { Button, Card, PageHeader } from '../components/ui';
 import useScrollReveal from '../hooks/useScrollReveal';
+import { userMessage } from '../services/http';
 
 const ACCENT = 'var(--accent)';
 const ACCENT_LIGHT = 'var(--accent)';
@@ -77,14 +78,38 @@ function Section({ title, action, children, className = '' }) {
   );
 }
 
+/** A section that failed to load, with a way to try again. */
+function LoadError({ message, onRetry }) {
+  return (
+    <div className="card" role="alert" style={{
+      background: 'color-mix(in srgb, var(--danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--danger) 25%, transparent)',
+      padding: 16, marginBottom: 28, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+      animation: 'fadeIn 0.4s ease',
+    }}>
+      <AlertTriangle size={18} color={ROSE} style={{ flexShrink: 0 }} aria-hidden="true" />
+      <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)', flex: 1 }}>
+        <span className="sr-only">Error: </span>{message}
+      </span>
+      <button type="button" className="btn btn-outline" style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }} onClick={onRetry}>
+        Try again
+      </button>
+    </div>
+  );
+}
+
 export default function Home({ user }) {
   const navigate = useNavigate();
 
   const [resumes, setResumes] = useState([]);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const pageRef = useRef(null);
+  // Each section fails on its own: a CV list that could not load is not
+  // "no CV yet", and missing history is not "no interviews yet".
+  const [resumesError, setResumesError] = useState('');
+  const [progressError, setProgressError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => setAttempt((n) => n + 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,21 +120,24 @@ export default function Home({ user }) {
 
         if (resumeResult.status === 'fulfilled') {
           setResumes(resumeResult.value || []);
+          setResumesError('');
         } else {
           console.error('[Home] Could not load resumes:', resumeResult.reason);
-          setError(resumeResult.reason?.message || 'Could not load your CVs.');
+          setResumesError(userMessage(resumeResult.reason, "We couldn't load your CVs. Please try again."));
         }
 
         if (progressResult.status === 'fulfilled') {
           setProgress(progressResult.value);
+          setProgressError('');
         } else {
           console.error('[Home] Could not load progress:', progressResult.reason);
+          setProgressError(userMessage(progressResult.reason, "We couldn't load your interview history. Please try again."));
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [attempt]);
 
   const latestResume = resumes.length
     ? [...resumes].sort(
@@ -159,20 +187,15 @@ export default function Home({ user }) {
     <div ref={pageRef} style={{ maxWidth: 1040, margin: '0 auto', padding: '0 0 var(--space-5)' }} className="workspace-page workspace-page--dashboard animate-fade-in-up">
 
       {/* Greeting Header */}
-      <PageHeader icon={<Briefcase size={20} />} title={`Welcome back, ${firstName}`} subtitle={interviews.length === 0
+      <PageHeader icon={<Briefcase size={20} />} title={`Welcome back, ${firstName}`} subtitle={progressError
+        ? 'Your dashboard is partly unavailable right now.'
+        : interviews.length === 0
         ? 'Upload your CV to identify skill gaps and sit your first practice interview.'
         : `You have completed ${progress.totalInterviews} interview${progress.totalInterviews === 1 ? '' : 's'}. Review your progress or prepare for your next challenge.`}
         action={<Button icon={<Upload size={16} />} onClick={() => navigate('/upload')}>Analyse my CV</Button>} />
 
-      {error && (
-        <div className="card" style={{
-          background: 'color-mix(in srgb, var(--danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--danger) 25%, transparent)',
-          padding: 16, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center',
-          animation: 'fadeIn 0.4s ease',
-        }}>
-          <AlertTriangle size={18} color={ROSE} style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)' }}>{error}</span>
-        </div>
+      {progressError && (
+        <LoadError message={progressError} onRetry={retry} />
       )}
 
       {/* Stats Cards */}
@@ -229,7 +252,9 @@ export default function Home({ user }) {
           )
         }
       >
-        {latestResume ? (
+        {resumesError ? (
+          <LoadError message={resumesError} onRetry={retry} />
+        ) : latestResume ? (
           <div className="card card-glow" style={{ background: CARD, padding: '22px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{

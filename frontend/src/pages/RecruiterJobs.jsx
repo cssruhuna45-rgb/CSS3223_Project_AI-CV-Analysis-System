@@ -1,12 +1,27 @@
 import { useToast } from '../components/ToastProvider';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock, ListChecks } from 'lucide-react';
+import { Briefcase, Plus, Copy, Check, Users, Lock, Unlock, ListChecks, Globe, EyeOff, Archive, ArchiveRestore } from 'lucide-react';
 import { recruiterAPI } from '../services/api';
 import { PREDEFINED_JOB_FIELDS } from '../constants/jobFields';
 import useScrollReveal from '../hooks/useScrollReveal';
 import { Badge, Button, Card, SectionHeader, PageHeader } from '../components/ui';
 import JobQuestionEditor from '../components/JobQuestionEditor';
+import PublishJobDialog from '../components/PublishJobDialog';
+import { jobPublicationAPI } from '../services/publicJobsApi';
+import { userMessage } from '../services/http';
+import { FieldError, FormAlert, useFormErrors } from '../components/FormErrors';
+
+// Server field name -> input id, so its validation message lands beside
+// the right input.
+const JOB_FIELD_IDS = {
+  title: 'job-title',
+  company: 'job-company',
+  jobField: 'job-field',
+  jobDescription: 'job-description',
+  requiredSkills: 'job-skills',
+  questionCount: 'job-count',
+};
 
 const EMPTY_FORM = { title: '', company: '', jobField: '', jobDescription: '', requiredSkills: '', questionCount: 5 };
 
@@ -17,6 +32,23 @@ function fieldName(id) {
 function inviteLink(code) {
   return `${window.location.origin}/join/${code}`;
 }
+
+// Whether candidates can find the job under Public Jobs. Separate from
+// Open/Closed: archived hides it whatever its publication status, and
+// a job with no status yet is a draft.
+function publicationOf(job) {
+  if (job.archived) return 'Archived';
+  return job.publicationStatus === 'PUBLISHED' ? 'Published' : 'Draft';
+}
+
+const PUBLICATION_TONE = { Published: 'info', Draft: 'neutral', Archived: 'warning' };
+
+const PUBLICATION_MESSAGES = {
+  publish: 'Job published. Candidates can now find it under Public Jobs.',
+  unpublish: 'Job unpublished. It no longer appears under Public Jobs.',
+  archive: 'Job archived. It is hidden and its invite link no longer works.',
+  unarchive: 'Job restored from the archive.',
+};
 
 // A recruiter's jobs. Each one has an invite code; candidates who join
 // with it take an exam-mode interview of this job's approved questions,
@@ -33,7 +65,7 @@ export default function RecruiterJobs() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState('');
+  const formErrors = useFormErrors('job', Object.keys(JOB_FIELD_IDS), { ids: JOB_FIELD_IDS });
 
   const [copiedId, setCopiedId] = useState(null);
   const [questionsFor, setQuestionsFor] = useState(null);
@@ -44,6 +76,15 @@ export default function RecruiterJobs() {
   useScrollReveal(pageRef, [jobs.length]);
   const [busyId, setBusyId] = useState(null);
 
+  // The job just created, while the recruiter decides whether to publish it.
+  const [publishPrompt, setPublishPrompt] = useState(null);
+  const [publishingId, setPublishingId] = useState(null);
+  // Archived jobs are kept out of the working list; this shows them
+  // on their own so one can still be found and unarchived.
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedCount = jobs.filter((job) => job.archived).length;
+  const shownJobs = jobs.filter((job) => job.archived === showArchived);
+
   useEffect(() => {
     recruiterAPI.jobs()
       .then((list) => {
@@ -51,16 +92,19 @@ export default function RecruiterJobs() {
         // Nothing to manage yet: open the form straight away.
         if (list.length === 0) setShowForm(true);
       })
-      .catch((err) => setError(err.message || 'Could not load your jobs.'))
+      .catch((err) => setError(userMessage(err, "We couldn't load your jobs. Please try again.")))
       .finally(() => setLoading(false));
   }, []);
 
-  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const update = (key) => (e) => {
+    formErrors.clearField(key);
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+  };
 
   const create = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setFormError('');
+    formErrors.clear();
     try {
       const job = await recruiterAPI.createJob({
         ...form,
@@ -73,8 +117,12 @@ export default function RecruiterJobs() {
       setShowForm(false);
       // Straight on to the questions: candidates cannot start until then.
       setQuestionsFor(job.id);
+      // Saved as a draft; ask whether to make it public as well.
+      setPublishPrompt(job);
     } catch (err) {
-      setFormError(err.message || 'The job was not created. Please try again.');
+      formErrors.report(err, "We couldn't create the job. Please try again.", {
+        uncertain: "We couldn't confirm the job was created. Reload the page to check before creating it again.",
+      });
     } finally {
       setSaving(false);
     }
@@ -102,9 +150,31 @@ export default function RecruiterJobs() {
         ? { ...updated, interviewCount: j.interviewCount, completedCount: j.completedCount }
         : j)));
     } catch (err) {
-      setError(err.message || 'That change was not saved. Please try again.');
+      setError(userMessage(err, "We couldn't update this job. Please try again.", {
+        uncertain: "We couldn't confirm the change was saved. Reload the page to check before trying again.",
+      }));
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // change is publish, unpublish, archive or unarchive.
+  const changePublication = async (job, change) => {
+    setPublishingId(job.id);
+    setError('');
+    try {
+      const updated = await jobPublicationAPI[change](job.id);
+      notify(PUBLICATION_MESSAGES[change], change === 'archive' ? 'info' : 'success');
+      // Only these fields change; the counts already shown are kept.
+      setJobs((list) => list.map((j) => (j.id === job.id
+        ? { ...j, publicationStatus: updated.publicationStatus, publishedAt: updated.publishedAt, archived: updated.archived }
+        : j)));
+    } catch (err) {
+      setError(userMessage(err, "We couldn't update this job. Please try again.", {
+        uncertain: "We couldn't confirm the change was saved. Reload the page to check before trying again.",
+      }));
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -126,57 +196,61 @@ export default function RecruiterJobs() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
               <div>
                 <label className="label" htmlFor="job-title">Job title</label>
-                <input id="job-title" className="input" required maxLength={150}
+                <input className="input" required maxLength={150} {...formErrors.fieldProps('title')}
                   placeholder="e.g. Java Backend Intern" value={form.title} onChange={update('title')} />
+                <FieldError errors={formErrors} field="title" />
               </div>
               <div>
                 <label className="label" htmlFor="job-company">Company (optional)</label>
-                <input id="job-company" className="input" maxLength={150}
+                <input className="input" maxLength={150} {...formErrors.fieldProps('company')}
                   placeholder="Shown to candidates before they join" value={form.company} onChange={update('company')} />
+                <FieldError errors={formErrors} field="company" />
               </div>
             </div>
 
             <div>
               <label className="label" htmlFor="job-field">Job field</label>
-              <select id="job-field" className="input" required value={form.jobField} onChange={update('jobField')}>
+              <select className="input" required value={form.jobField} onChange={update('jobField')} {...formErrors.fieldProps('jobField')}>
                 <option value="">Choose a field</option>
                 {PREDEFINED_JOB_FIELDS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
+              <FieldError errors={formErrors} field="jobField" />
             </div>
 
             <div>
               <label className="label" htmlFor="job-description">Job description</label>
-              <textarea id="job-description" className="input" required minLength={20} maxLength={8000} rows={6}
-                aria-describedby="job-description-hint"
+              <textarea className="input" required minLength={20} maxLength={8000} rows={6}
+                {...formErrors.fieldProps('jobDescription', 'job-description-hint')}
                 placeholder="What the role involves and the skills it needs. Every candidate is interviewed against this text."
                 value={form.jobDescription} onChange={update('jobDescription')} style={{ resize: 'vertical' }} />
               <span id="job-description-hint" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
                 At least 20 characters. The questions are written from this, so be specific.
               </span>
+              <FieldError errors={formErrors} field="jobDescription" />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
               <div>
                 <label className="label" htmlFor="job-skills">Required skills</label>
-                <input id="job-skills" className="input" required
-                  aria-describedby="job-skills-hint"
+                <input className="input" required
+                  {...formErrors.fieldProps('requiredSkills', 'job-skills-hint')}
                   placeholder="e.g. Spring Boot, PostgreSQL, REST APIs"
                   value={form.requiredSkills} onChange={update('requiredSkills')} />
                 <span id="job-skills-hint" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
                   Separate with commas. Each question tests one of these.
                 </span>
+                <FieldError errors={formErrors} field="requiredSkills" />
               </div>
               <div>
                 <label className="label" htmlFor="job-count">Questions per candidate</label>
-                <select id="job-count" className="input" value={form.questionCount} onChange={update('questionCount')}>
+                <select className="input" value={form.questionCount} onChange={update('questionCount')} {...formErrors.fieldProps('questionCount')}>
                   {[5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
+                <FieldError errors={formErrors} field="questionCount" />
               </div>
             </div>
 
-            {formError && (
-              <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)' }}>{formError}</p>
-            )}
+            <FormAlert id="job-alert" message={formErrors.message} />
 
             <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
               <Button type="submit" loading={saving}>Create job</Button>
@@ -192,11 +266,33 @@ export default function RecruiterJobs() {
         <p role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-sm)', marginBottom: 'var(--space-4)' }}>{error}</p>
       )}
 
+      {!loading && jobs.length > 0 && (
+        <div role="group" aria-label="Which jobs to show"
+          style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <Button size="sm" variant={showArchived ? 'ghost' : 'secondary'}
+            aria-pressed={!showArchived} onClick={() => setShowArchived(false)}>
+            Active ({jobs.length - archivedCount})
+          </Button>
+          <Button size="sm" variant={showArchived ? 'secondary' : 'ghost'}
+            icon={<Archive size={14} />}
+            aria-pressed={showArchived} onClick={() => setShowArchived(true)}>
+            Archived ({archivedCount})
+          </Button>
+        </div>
+      )}
+
       {loading ? (
         <p style={{ color: 'var(--text-secondary)' }}>Loading your jobs{'…'}</p>
       ) : (
         <div className="subreveal-stagger" style={{ display: 'grid', gap: 'var(--space-4)' }}>
-          {jobs.map((job) => (
+          {jobs.length > 0 && shownJobs.length === 0 && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+              {showArchived
+                ? 'No archived jobs. A job you archive is kept here with all its applications and results.'
+                : 'Every job is archived. Open Archived to bring one back.'}
+            </p>
+          )}
+          {shownJobs.map((job) => (
             <Card key={job.id} as="article" padding="md" aria-labelledby={`job-${job.id}-title`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0 }}>
@@ -207,11 +303,12 @@ export default function RecruiterJobs() {
                     {[job.company, fieldName(job.jobField)].filter(Boolean).join(' · ')}
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <Badge tone={job.questionsApproved ? 'success' : 'warning'}>
                     {job.questionsApproved ? `${job.questionCount} questions approved` : 'Questions not ready'}
                   </Badge>
                   <Badge tone={job.open ? 'success' : 'neutral'}>{job.open ? 'Open' : 'Closed'}</Badge>
+                  <Badge tone={PUBLICATION_TONE[publicationOf(job)]}>{publicationOf(job)}</Badge>
                 </div>
               </div>
 
@@ -220,7 +317,7 @@ export default function RecruiterJobs() {
                 <code style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lg)', fontWeight: 700, letterSpacing: '0.08em' }}>
                   {job.inviteCode}
                 </code>
-                <Button size="sm" variant="secondary" disabled={!job.open}
+                <Button size="sm" variant="secondary" disabled={!job.open || job.archived}
                   icon={copiedId === job.id ? <Check size={14} /> : <Copy size={14} />}
                   aria-label={`Copy invite link for ${job.title}`}
                   onClick={() => copy(job)}>
@@ -246,6 +343,22 @@ export default function RecruiterJobs() {
                     onClick={() => toggleOpen(job)}>
                     {job.open ? 'Close' : 'Reopen'}
                   </Button>
+                  {!job.archived && (
+                    <Button size="sm" variant="ghost"
+                      loading={publishingId === job.id}
+                      icon={job.publicationStatus === 'PUBLISHED' ? <EyeOff size={14} /> : <Globe size={14} />}
+                      aria-label={`${job.publicationStatus === 'PUBLISHED' ? 'Unpublish' : 'Publish'} ${job.title}`}
+                      onClick={() => changePublication(job, job.publicationStatus === 'PUBLISHED' ? 'unpublish' : 'publish')}>
+                      {job.publicationStatus === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost"
+                    disabled={publishingId === job.id}
+                    icon={job.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                    aria-label={`${job.archived ? 'Unarchive' : 'Archive'} ${job.title}`}
+                    onClick={() => changePublication(job, job.archived ? 'unarchive' : 'archive')}>
+                    {job.archived ? 'Unarchive' : 'Archive'}
+                  </Button>
                   <Button size="sm" icon={<Users size={14} />}
                     onClick={() => navigate(`/recruiter?job=${job.id}`)}>
                     View candidates
@@ -266,6 +379,15 @@ export default function RecruiterJobs() {
             </Card>
           ))}
         </div>
+      )}
+
+      {publishPrompt && (
+        <PublishJobDialog
+          job={publishPrompt}
+          publishing={publishingId === publishPrompt.id}
+          onPublish={async () => { await changePublication(publishPrompt, 'publish'); setPublishPrompt(null); }}
+          onKeepDraft={() => setPublishPrompt(null)}
+        />
       )}
     </div>
   );

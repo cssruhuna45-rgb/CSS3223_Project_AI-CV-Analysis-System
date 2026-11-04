@@ -20,6 +20,17 @@ import {
   Loader2,
 } from 'lucide-react';
 import { roadmapAPI } from '../services/api';
+import { isApiError, userMessage } from '../services/http';
+import { FormAlert } from './FormErrors';
+
+const ROADMAP_FAILED = "We couldn't create your 14-day learning plan. Please try again.";
+
+/**
+ * The one response that means "no learning plan saved for this
+ * interview yet": the backend's 404 for GET /roadmaps/session/{id}.
+ * Anything else is a failed request, not an empty result.
+ */
+export const isNoSavedPlan = (err) => isApiError(err) && err.kind === 'http' && err.status === 404;
 
 const ACCENT = 'var(--accent)';
 const TEXT = 'var(--text-primary)';
@@ -30,7 +41,6 @@ const BORDER_COLOR = 'color-mix(in srgb, var(--fg) 8%, transparent)';
 
 const SUCCESS = 'var(--success)';
 const WARNING = 'var(--warning)';
-const DANGER = 'var(--danger)';
 
 const PHASE_COLORS = {
   1: ACCENT,
@@ -50,6 +60,10 @@ export default function LearningRoadmap({
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+  // A plan that could not be loaded is not "no plan yet": offering to
+  // generate one then could create a second plan for the session.
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [completedDays, setCompletedDays] = useState(new Set());
   const [activePhase, setActivePhase] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'completed'
@@ -72,6 +86,7 @@ export default function LearningRoadmap({
 
     let cancelled = false;
     setLoading(true);
+    setLoadError('');
     roadmapAPI
       .getBySessionId(sessionId)
       .then((data) => {
@@ -83,8 +98,10 @@ export default function LearningRoadmap({
         }
       })
       .catch((err) => {
-        // A 404 simply means no roadmap generated yet for this session
-        console.log('[LearningRoadmap] No saved roadmap yet for session:', sessionId);
+        if (cancelled) return;
+        if (isNoSavedPlan(err)) return; // none generated yet for this session
+        console.error('[LearningRoadmap] Could not load the saved plan:', err);
+        setLoadError(userMessage(err, "We couldn't load your learning plan. Please try again."));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -93,7 +110,7 @@ export default function LearningRoadmap({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, initialRoadmap]);
+  }, [sessionId, initialRoadmap, loadAttempt]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -132,7 +149,26 @@ export default function LearningRoadmap({
       if (onProgressUpdate) onProgressUpdate(data);
     } catch (err) {
       console.error('[LearningRoadmap] Generation failed:', err);
-      setError(err.message || 'Failed to generate 14-day roadmap.');
+      if (isApiError(err) && err.uncertain && sessionId) {
+        // The plan may have been created even though no answer came
+        // back. Look for it before offering to generate another.
+        setError("We couldn't confirm your learning plan was created. Checking for it now…");
+        try {
+          const saved = await roadmapAPI.getBySessionId(sessionId);
+          if (saved) {
+            setRoadmap(saved);
+            if (saved.completed_days) setCompletedDays(new Set(saved.completed_days));
+            setError('');
+            return;
+          }
+        } catch (checkErr) {
+          if (!isNoSavedPlan(checkErr)) {
+            setError("We couldn't confirm your learning plan was created. Reload the page to check before trying again.");
+            return;
+          }
+        }
+      }
+      setError(userMessage(err, ROADMAP_FAILED));
     } finally {
       setGenerating(false);
     }
@@ -161,7 +197,9 @@ export default function LearningRoadmap({
       notify('Progress saved.');
     } catch (err) {
       console.error('[LearningRoadmap] Progress update failed:', err);
-      notify('Progress wasn’t saved; please try again.', 'error');
+      notify(userMessage(err, "Your progress wasn't saved. Please try again.", {
+        uncertain: "We couldn't confirm your progress was saved. Please try again.",
+      }), 'error');
       // Revert optimistic update
       setCompletedDays((prev) => {
         const next = new Set(prev);
@@ -240,6 +278,21 @@ export default function LearningRoadmap({
     );
   }
 
+  if (loadError && !roadmap) {
+    return (
+      <div className="card" style={{ background: CARD_BG, border: `1px solid ${BORDER_COLOR}`, padding: 24, borderRadius: 16, marginBottom: 24 }}>
+        <FormAlert message={loadError}>
+          <div style={{ marginTop: 10 }}>
+            <button type="button" className="btn btn-outline" style={{ fontSize: 'var(--fs-xs)', padding: '6px 12px' }}
+              onClick={() => setLoadAttempt((n) => n + 1)}>
+              Try again
+            </button>
+          </div>
+        </FormAlert>
+      </div>
+    );
+  }
+
   // Not generated yet state
   if (!roadmap) {
     return (
@@ -313,21 +366,7 @@ export default function LearningRoadmap({
           </div>
         </div>
 
-        {error && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: 8,
-              background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-              border: `1px solid ${DANGER}`,
-              color: DANGER,
-              fontSize: 'var(--fs-sm)',
-              marginBottom: 16,
-            }}
-          >
-            {error}
-          </div>
-        )}
+        <FormAlert message={error} style={{ marginBottom: 16 }} />
 
         <button
           className="btn btn-primary"

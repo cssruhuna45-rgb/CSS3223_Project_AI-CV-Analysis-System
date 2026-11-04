@@ -10,6 +10,7 @@ import {
 import { Button, Card, SectionHeader, Badge, PageHeader } from '../components/ui';
 import useScrollReveal from '../hooks/useScrollReveal';
 import HiringDecisionPanel from '../components/HiringDecisionPanel';
+import { userMessage } from '../services/http';
 
 const VERDICT_TONES = {
   strong: 'success',
@@ -58,7 +59,7 @@ export default function RecruiterComparison() {
         setJobs(mine || []);
         if (!jobId && mine?.length > 0) setParams({ job: String(mine[0].id) }, { replace: true });
       })
-      .catch((err) => setError(err.message || 'Your jobs could not be loaded.'));
+      .catch((err) => setError(userMessage(err, "We couldn't load your jobs. Please try again.")));
   }, []);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function RecruiterComparison() {
         setSelected((found.candidates || []).map((c) => c.applicationId));
         setExpanded({});
       })
-      .catch((err) => setError(err.message || 'The comparison could not be loaded.'))
+      .catch((err) => setError(userMessage(err, "We couldn't load the comparison for this job. Please try again.")))
       .finally(() => setLoading(false));
   }, [jobId]);
 

@@ -91,8 +91,14 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             );
         }
 
+        // Open and not archived, and either listed under Public Jobs or
+        // applied for with its own invite code (V13). A private job is
+        // refused with the same message as a missing one, so a guessed
+        // job id says nothing about which private jobs exist.
         JobPosting job = jobPostingRepository.findById(jobId)
                 .filter(JobPosting::isOpen)
+                .filter(j -> !j.isArchived())
+                .filter(j -> j.isPubliclyListed() || sameCode(j.getInviteCode(), request.getInviteCode()))
                 .orElseThrow(() -> new ResourceNotFoundException(UNAVAILABLE_JOB));
 
         // A job with no stated requirements cannot be matched against,
@@ -232,7 +238,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .filter(a -> a.getCandidate().getId().equals(candidate.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "No application with id " + applicationId
+                        "We couldn't find that application."
                 ));
 
         return toDto(application);
@@ -305,8 +311,20 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 .build();
     }
 
+    /**
+     * Whether a typed code is this job's own. Compared without case,
+     * spaces or the dash, the way invite codes are looked up.
+     */
+    private static boolean sameCode(String jobCode, String typed) {
+        if (jobCode == null || typed == null) {
+            return false;
+        }
+        String compact = typed.toUpperCase().replaceAll("[^A-Z0-9]", "");
+        return !compact.isEmpty() && compact.equals(jobCode.replace("-", ""));
+    }
+
     private User user(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find your account. Please sign in again."));
     }
 }
