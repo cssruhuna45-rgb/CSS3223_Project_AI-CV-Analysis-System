@@ -287,21 +287,25 @@ export default function Home({ user }) {
             </div>
           </div>
         ) : (
-          <div className="card card-glow" style={{ background: CARD, padding: '0', textAlign: 'center' }}>
+          /* padding: 0 here let the icon and the button run into the
+             card's own edges. The card keeps its padding; the contents
+             are tightened instead, which is what was making the block
+             feel oversized. */
+          <div className="card card-glow" style={{ background: CARD, padding: 'var(--space-6) var(--space-5)', textAlign: 'center' }}>
             <div style={{
-              width: 56, height: 56, borderRadius: 16,
+              width: 44, height: 44, borderRadius: 12,
               background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
             }} className="animate-float">
-              <Upload size={24} color={CYAN} />
+              <Upload size={20} color={CYAN} />
             </div>
-            <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, marginBottom: 6 }}>No CV uploaded yet</p>
-            <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, marginBottom: 16, maxWidth: 460, margin: '0 auto 22px', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 'var(--fs-base)', fontWeight: 700, color: TEXT, marginBottom: 4 }}>No CV uploaded yet</p>
+            <p style={{ fontSize: 'var(--fs-sm)', color: MUTED, maxWidth: 420, margin: '0 auto 16px', lineHeight: 1.55 }}>
               Upload your resume and our AI will extract your skills, highlight experience gaps, and generate questions tailored to your target job role.
             </p>
             <button
               className="btn btn-cta"
-              style={{ fontSize: 'var(--fs-sm)', padding: '13px 26px' }}
+              style={{ fontSize: 'var(--fs-sm)', padding: '10px 20px' }}
               onClick={() => navigate('/upload')}
             >
               <Upload size={15} /> Upload your CV
