@@ -74,6 +74,17 @@ export default function CandidateHome() {
         </div>
 
         <div className="focus-feature-art">
+          {/* Decoration, so it is hidden from assistive technology
+              entirely: the rings and nodes carry no information the
+              heading beside them does not already give. */}
+          <div className="orbit" aria-hidden="true">
+            <span className="orbit-ring orbit-ring--outer" />
+            <span className="orbit-ring orbit-ring--inner" />
+            <span className="orbit-scan" />
+            <span className="orbit-node orbit-node--outer" />
+            <span className="orbit-node orbit-node--inner" />
+          </div>
+
           {/* The mark alone: this tint changes with the theme, and the
               full lockup's white wordmark would vanish on the light one. */}
           <BrandLogo variant="mark" alt="" className="focus-feature-logo" />
