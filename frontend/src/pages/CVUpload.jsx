@@ -31,6 +31,7 @@ const REVIEW_FAILED =
   "We couldn't review how your CV is written right now. Your analysis is still available.";
 import CVFeedback from '../components/CVFeedback';
 import BulletTuner from '../components/BulletTuner';
+import PreviousCvs from '../components/PreviousCvs';
 import StepBar from '../components/StepBar';
 import { PageHeader } from '../components/ui';
 import useScrollReveal from '../hooks/useScrollReveal';
@@ -1098,6 +1099,13 @@ export default function CVUpload() {
 
         </div>
       )}
+
+      {/* Every CV this candidate has uploaded, and the career fields
+          each has been compared with. Outside the block above on
+          purpose: a candidate arriving to upload a new CV should still
+          be able to reach what their earlier ones were analysed
+          against. */}
+      <PreviousCvs currentResumeId={sessionStorage.getItem('resumeId')} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.service.AiServiceClient;
 import com.aiinterview.service.InterviewPersistenceService;
 import com.aiinterview.service.JobPostingService;
+import com.aiinterview.service.SkillGapPersistenceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +61,9 @@ class AiProxyControllerTest {
     @Mock
     private JobPostingService jobPostingService;
 
+    @Mock
+    private SkillGapPersistenceService skillGapPersistenceService;
+
     private AiProxyController controller;
 
     private Authentication authentication;
@@ -70,7 +74,8 @@ class AiProxyControllerTest {
         controller = new AiProxyController(
                 aiServiceClient,
                 interviewPersistenceService,
-                jobPostingService
+                jobPostingService,
+                skillGapPersistenceService
         );
 
         authentication = new UsernamePasswordAuthenticationToken(
@@ -285,6 +290,46 @@ class AiProxyControllerTest {
         // id does not exist until the AI service answers.
         verify(interviewPersistenceService).requireSessionOwnership(eq(EMAIL), any());
         verify(aiServiceClient).post(eq("/api/v1/interview/start"), any());
+    }
+
+    // ========================================================
+    // Keeping a skill gap analysis
+    // ========================================================
+
+    @Test
+    @DisplayName("A skill gap analysis is kept, with the request and the reply")
+    void recordsTheSkillGapAnalysis() {
+
+        when(aiServiceClient.post(eq("/api/v1/skill-gap/analyze"), any()))
+                .thenReturn(json("{\"job_field\": \"backend_development\", \"match_percentage\": 67}"));
+
+        JsonNode body = json("{\"resume_id\": 42, \"job_field\": \"backend_development\"}");
+
+        ResponseEntity<JsonNode> response = controller.analyzeSkillGap(body, authentication);
+
+        verify(skillGapPersistenceService).record(eq(EMAIL), eq(body), eq(response.getBody()));
+    }
+
+    @Test
+    @DisplayName("A failure to keep it does not take the analysis away from the candidate")
+    void stillReturnsTheAnalysisWhenRecordingFails() {
+
+        when(aiServiceClient.post(eq("/api/v1/skill-gap/analyze"), any()))
+                .thenReturn(json("{\"job_field\": \"backend_development\", \"match_percentage\": 67}"));
+
+        doThrow(new RuntimeException("the database is unreachable"))
+                .when(skillGapPersistenceService)
+                .record(anyString(), any(), any());
+
+        // Best effort: the candidate is already owed this result, and
+        // a storage problem is a worse reason to lose it than to keep
+        // a row nobody can read.
+        ResponseEntity<JsonNode> response = controller.analyzeSkillGap(
+                json("{\"resume_id\": 42}"),
+                authentication
+        );
+
+        assertEquals(67, response.getBody().get("match_percentage").asInt());
     }
 
     // ========================================================

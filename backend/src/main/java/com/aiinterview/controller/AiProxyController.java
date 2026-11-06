@@ -4,6 +4,7 @@ import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.service.AiServiceClient;
 import com.aiinterview.service.InterviewPersistenceService;
 import com.aiinterview.service.JobPostingService;
+import com.aiinterview.service.SkillGapPersistenceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -60,6 +61,8 @@ public class AiProxyController {
 
     private final JobPostingService jobPostingService;
 
+    private final SkillGapPersistenceService skillGapPersistenceService;
+
     // ========================================================
     // Resume analysis
     // ========================================================
@@ -113,7 +116,31 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
-        return forward("/api/v1/skill-gap/analyze", body, authentication);
+        ResponseEntity<JsonNode> response =
+                forward("/api/v1/skill-gap/analyze", body, authentication);
+
+        // Kept so the CV Analysis page can show it again later. Best
+        // effort and deliberately after the fact: the candidate is
+        // already looking at their result, and re-running the analysis
+        // is a model call that need not return the same numbers, so
+        // losing the row is a far better outcome than losing the
+        // answer. The recorder stores nothing unless the request names
+        // a CV this user owns.
+        try {
+            skillGapPersistenceService.record(
+                    authentication.getName(),
+                    body,
+                    response.getBody()
+            );
+        } catch (Exception e) {
+            log.warn(
+                    "Could not persist the skill gap analysis: {}",
+                    e.getMessage(),
+                    e
+            );
+        }
+
+        return response;
     }
 
     // ========================================================
