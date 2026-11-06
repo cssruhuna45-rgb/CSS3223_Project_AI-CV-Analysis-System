@@ -27,6 +27,7 @@ model cannot return 85 and label it "weak".
 """
 
 import json
+import math
 import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -392,10 +393,15 @@ def build_category_block() -> str:
 
 def clamp_score(value: Any) -> int:
 
-    try:
-        score = int(round(float(value)))
-    except (TypeError, ValueError):
+    # `is_number` rejects booleans and non-finite values, which is what
+    # keeps `int(round(...))` below from raising: `round(inf)` is still
+    # a float infinity and converting that to an int is an
+    # OverflowError, which is not a ValueError and would escape the
+    # except clause.
+    if not is_number(value):
         return 0
+
+    score = int(round(float(value)))
 
     return max(0, min(100, score))
 
@@ -458,6 +464,66 @@ def cited_references(
         {**passage, "used": n in numbers}
         for n, passage in enumerate(passages, start=1)
     ]
+
+
+def is_number(value: Any) -> bool:
+    """
+    Whether a value from the model is a usable number.
+
+    Two rejections that `float()` alone would not make:
+
+    * **Booleans.** `float(True)` is 1.0, and a model answering
+      `"score": true` has not scored anything.
+    * **Non-finite values.** `float("NaN")` and `float("inf")` both
+      succeed, so a reply of `"score": "NaN"` would otherwise count as
+      a grade here and then be flattened to 0 by `clamp_score` - which
+      is the exact "failed grading shown as an earned zero" this guard
+      exists to prevent.
+    """
+
+    if value is None or isinstance(value, bool):
+        return False
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+
+    return math.isfinite(number)
+
+
+def carries_any_score(raw: Dict[str, Any]) -> bool:
+    """
+    Whether the model's reply graded anything at all.
+
+    `clamp_score` turns an unreadable value into 0, which is right for
+    one missing field among many and wrong for a reply that carried no
+    scores whatsoever. An empty object is still an object, so it passes
+    the type check above and then normalizes into a full scorecard of
+    zeros - presented to the candidate as a grade they earned, with
+    `evaluated` set to true and no error beside it. That is the one
+    outcome worse than admitting the grading failed, because nothing on
+    the page says it did.
+
+    A reply with no numbers in it is therefore treated as a failed
+    grading and takes the same path as a parse error.
+    """
+
+    raw_categories = raw.get("category_scores")
+
+    if isinstance(raw_categories, dict):
+        for category in CATEGORIES:
+            if is_number(raw_categories.get(category["key"])):
+                return True
+
+    raw_per_question = raw.get("per_question")
+
+    if isinstance(raw_per_question, list):
+        for entry in raw_per_question:
+            if isinstance(entry, dict) and is_number(entry.get("score")):
+                return True
+
+    return False
 
 
 def normalize_evaluation(
@@ -673,6 +739,11 @@ def evaluate_interview(
 
         if not isinstance(parsed, dict):
             raise ValueError("Model did not return a JSON object.")
+
+        # An empty or score-free object would otherwise normalize into
+        # a scorecard of zeros marked as successfully evaluated.
+        if not carries_any_score(parsed):
+            raise ValueError("Model returned no scores to grade with.")
 
         result = normalize_evaluation(
             parsed,
