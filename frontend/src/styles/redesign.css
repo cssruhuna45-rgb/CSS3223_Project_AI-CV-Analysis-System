@@ -840,3 +840,225 @@ textarea.input { resize: vertical; }
   .orbit-scan { display: none; }
   .orbit-node { animation: none; }
 }
+
+
+/* ==========================================================================
+   POINTER-REACTIVE BRAND PANEL
+
+   The art panel beside the hero copy answers the pointer. `usePointerGlow`
+   publishes three values on .focus-feature-art and every layer below is
+   CSS reading them:
+
+     --px, --py   where the pointer is, 0 to 1 of the panel's own box
+     --pointer    1 while the pointer is inside it, 0 otherwise
+
+   Four layers, back to front:
+
+     .art-mesh    a slow blurred drift. The only layer that moves on its
+                  own, so the panel is alive before anything is touched.
+     .art-grid    a dot field masked to a disc around the pointer, so the
+                  pattern lights up where the cursor is and fades out
+                  behind it. This is the piece that reads as reactive.
+     .art-glow    the spotlight itself, present only while hovering.
+     .orbit       drifts against the mark to give the two some depth.
+
+   The mark then tilts toward the pointer and a bright band crosses it,
+   masked to the artwork so it rides the V and never the image rectangle.
+
+   Transform, opacity, filter and mask only - no layer triggers layout.
+   The hook attaches nothing on a touch screen or under reduced motion,
+   so the variables keep the defaults set here and the panel stays still.
+   ========================================================================== */
+
+.focus-feature-art {
+  --px: 0.5;
+  --py: 0.5;
+  --pointer: 0;
+  perspective: 900px;
+}
+
+.focus-feature-art[data-pointer="on"] { --pointer: 1; }
+
+.art-mesh, .art-grid, .art-glow {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Two soft blooms, drifting against each other. Inset past the edges so
+   the blur never reveals a hard boundary; the panel clips it. */
+.art-mesh {
+  inset: -30%;
+  background:
+    radial-gradient(circle at 32% 30%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 58%),
+    radial-gradient(circle at 70% 72%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 55%);
+  filter: blur(30px);
+  opacity: 0.9;
+  animation: art-mesh-drift 19s ease-in-out infinite alternate;
+}
+
+@keyframes art-mesh-drift {
+  from { transform: translate3d(-3%, -2%, 0) scale(1); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.09); }
+}
+
+/* The dots are always drawn; the mask decides which of them are visible.
+   Centred at 50% before the pointer arrives, so the unlit state is a
+   soft vignette under the mark rather than an empty panel. */
+.art-grid {
+  inset: 0;
+  background-image: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--accent) 58%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 20px 20px;
+  -webkit-mask-image: radial-gradient(
+    circle 170px at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%
+  );
+          mask-image: radial-gradient(
+    circle 170px at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%
+  );
+  opacity: calc(0.3 + var(--pointer) * 0.7);
+  transition: opacity 340ms ease;
+}
+
+.art-glow {
+  inset: 0;
+  background: radial-gradient(
+    circle 230px at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    color-mix(in srgb, var(--accent) 28%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 9%, transparent) 42%,
+    transparent 70%
+  );
+  opacity: var(--pointer);
+  transition: opacity 320ms ease;
+}
+
+/* Against the mark, not with it: the rings lag the opposite way and by
+   less, which is what makes the two read as sitting at different depths
+   rather than as one picture sliding about. */
+.focus-feature-art .orbit {
+  translate:
+    calc(-50% - (var(--px) - 0.5) * 11px)
+    calc(-50% - (var(--py) - 0.5) * 9px);
+  transition: translate 440ms var(--ease-smooth);
+}
+
+.focus-feature-art .orbit-ring { transition: border-color 320ms ease; }
+
+.focus-feature-art[data-pointer="on"] .orbit-ring {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
+}
+
+/* Brightened rather than sped up. Changing the duration of a running
+   spin recalculates its position and the arc visibly jumps. */
+.focus-feature-art .orbit-scan {
+  opacity: 0.85;
+  transition: opacity 320ms ease, filter 320ms ease;
+}
+
+.focus-feature-art[data-pointer="on"] .orbit-scan {
+  opacity: 1;
+  filter: saturate(1.45);
+}
+
+.focus-feature-art .orbit-node::after { transition: box-shadow 320ms ease; }
+
+.focus-feature-art[data-pointer="on"] .orbit-node::after {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* Tilts toward the pointer and leans a little with it. The rotation is
+   small on purpose: past about 16deg the flat artwork starts to read as
+   a sheet of paper rather than a mark sitting in space. */
+.focus-feature-logo {
+  transform:
+    translate3d(
+      calc((var(--px) - 0.5) * 14px),
+      calc((var(--py) - 0.5) * 10px),
+      0
+    )
+    rotateX(calc((0.5 - var(--py)) * 12deg))
+    rotateY(calc((var(--px) - 0.5) * 16deg));
+  transition: transform 340ms var(--ease-smooth), filter 340ms ease;
+}
+
+.focus-feature-art[data-pointer="on"] .focus-feature-logo {
+  filter: drop-shadow(0 14px 26px color-mix(in srgb, var(--accent) 30%, transparent));
+}
+
+/* Both sheens live inside .brand-logo-shine, which is already masked to
+   the artwork, so neither can spill onto the image's transparent
+   corners. ::before is the idle sweep, ::after follows the pointer. */
+.focus-feature-logo .brand-logo-shine::before {
+  content: "";
+  position: absolute;
+  inset: -25% -60%;
+  background: linear-gradient(
+    110deg,
+    transparent 40%,
+    color-mix(in srgb, var(--on-accent) 38%, transparent) 50%,
+    transparent 60%
+  );
+  animation: brand-sheen-idle 7.5s var(--ease-smooth) infinite;
+  /* Dimmed through `filter`, not `opacity`: the keyframes own opacity,
+     and a second declaration of it would simply lose to them. */
+  filter: opacity(calc(1 - var(--pointer) * 0.85));
+  transition: filter 280ms ease;
+}
+
+@keyframes brand-sheen-idle {
+  0%        { transform: translateX(-90%); opacity: 0; }
+  14%       { opacity: 0.6; }
+  38%       { opacity: 0.6; }
+  52%, 100% { transform: translateX(90%); opacity: 0; }
+}
+
+/* The band the pointer carries. Brighter and tighter than the idle
+   sweep, and positioned rather than animated, so it tracks the cursor
+   across the mark in real time. */
+.focus-feature-logo .brand-logo-shine::after {
+  animation: none;
+  background: linear-gradient(
+    104deg,
+    transparent 38%,
+    color-mix(in srgb, var(--on-accent) 82%, transparent) 50%,
+    transparent 62%
+  );
+  transform: translateX(calc((var(--px) - 0.5) * 95%));
+  opacity: calc(var(--pointer) * 0.9);
+  transition: transform 160ms linear, opacity 300ms ease;
+}
+
+/* The panel is around 180px tall here, so the lit disc and the spotlight
+   have to shrink with it or they simply cover the whole surface and stop
+   reading as a pointer at all. */
+@media (max-width: 760px) {
+  .art-grid {
+    background-size: 16px 16px;
+    -webkit-mask-image: radial-gradient(circle 110px at calc(var(--px) * 100%) calc(var(--py) * 100%), #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%);
+            mask-image: radial-gradient(circle 110px at calc(var(--px) * 100%) calc(var(--py) * 100%), #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%);
+  }
+  .art-glow {
+    background: radial-gradient(circle 150px at calc(var(--px) * 100%) calc(var(--py) * 100%), color-mix(in srgb, var(--accent) 28%, transparent) 0%, transparent 70%);
+  }
+  .art-mesh { filter: blur(22px); }
+}
+
+/* Everything that moves on its own stops; everything that answers the
+   pointer keeps its resting value. The hook attaches no listeners here,
+   so --px and --py never leave 0.5 and the panel is simply a lit
+   pattern behind a still mark. */
+@media (prefers-reduced-motion: reduce) {
+  .art-mesh { animation: none; }
+  .art-grid, .art-glow, .focus-feature-art .orbit,
+  .focus-feature-art .orbit-ring, .focus-feature-art .orbit-scan,
+  .focus-feature-art .orbit-node::after, .focus-feature-logo {
+    transition: none;
+  }
+  .focus-feature-logo { transform: none; }
+  .focus-feature-logo .brand-logo-shine::before { animation: none; opacity: 0; }
+  .focus-feature-logo .brand-logo-shine::after { opacity: 0; }
+}
