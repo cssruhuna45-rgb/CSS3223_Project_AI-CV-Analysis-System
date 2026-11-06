@@ -7,6 +7,7 @@ import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
 import com.aiinterview.entity.ApplicationStatus;
 import com.aiinterview.entity.JobApplication;
+import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.repository.InterviewSessionRepository;
 import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
@@ -28,9 +29,11 @@ import org.mockito.quality.Strictness;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -843,5 +846,83 @@ class InterviewPersistenceServiceTest {
         assertEquals(ApplicationStatus.REJECTED, application.getStatus());
         assertEquals(InterviewSession.STATUS_COMPLETED, captureSaved().getStatus());
         verify(jobApplicationRepository, never()).save(any(JobApplication.class));
+    }
+
+    // ========================================================
+    // Ownership gate
+    //
+    // The recording methods above decline to write into a session
+    // somebody else owns. These cover the gate that runs instead
+    // before the AI service is called, so a guessed session id cannot
+    // buy a graded answer the recorder then quietly drops.
+    // ========================================================
+
+    @Test
+    @DisplayName("The gate refuses a session another candidate owns")
+    void ownershipGateRefusesForeignSession() {
+
+        User otherCandidate = User.builder().id(99L).email("other@example.com").build();
+
+        InterviewSession session = activeSessionWithOpenQuestion();
+        session.setUser(otherCandidate);
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(session));
+
+        UnauthorizedAccessException refused = assertThrows(
+                UnauthorizedAccessException.class,
+                () -> persistenceService.requireSessionOwnership(
+                        EMAIL,
+                        json("{\"session_id\": \"sess-abc123\", \"answer\": \"...\"}")
+                )
+        );
+
+        // The message reaches the browser, so it says what is wrong
+        // without naming the other candidate.
+        assertTrue(refused.getMessage().contains("does not belong to you"));
+        assertTrue(refused.getMessage().length() < 120);
+    }
+
+    @Test
+    @DisplayName("The gate lets a candidate through to their own session")
+    void ownershipGateAllowsOwnSession() {
+
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.of(activeSessionWithOpenQuestion()));
+
+        assertDoesNotThrow(() -> persistenceService.requireSessionOwnership(
+                EMAIL,
+                json("{\"session_id\": \"sess-abc123\", \"answer\": \"...\"}")
+        ));
+    }
+
+    @Test
+    @DisplayName("A session the database never stored is not blocked")
+    void ownershipGateAllowsUnknownSession() {
+
+        // An interview that began before the session was persisted has
+        // no owner to defend, and closing it off mid-interview would
+        // break it to protect nothing.
+        when(interviewSessionRepository.findBySessionId(SESSION_ID))
+                .thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> persistenceService.requireSessionOwnership(
+                EMAIL,
+                json("{\"session_id\": \"sess-abc123\"}")
+        ));
+    }
+
+    @Test
+    @DisplayName("A request naming no session claims nothing and passes")
+    void ownershipGateAllowsRequestWithoutSessionId() {
+
+        // How every /interview/start request arrives: the id does not
+        // exist until the AI service answers.
+        assertDoesNotThrow(() -> persistenceService.requireSessionOwnership(
+                EMAIL,
+                json("{\"job_description\": \"Backend engineer\"}")
+        ));
+
+        verify(interviewSessionRepository, never()).findBySessionId(any());
     }
 }

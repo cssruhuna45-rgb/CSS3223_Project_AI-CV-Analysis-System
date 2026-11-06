@@ -5,6 +5,7 @@ import com.aiinterview.service.AiServiceClient;
 import com.aiinterview.service.InterviewPersistenceService;
 import com.aiinterview.service.JobPostingService;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
  * only the endpoints the product actually needs are exposed. In
  * particular {@code /api/v1/rag/index} stays unreachable from here: a
  * reindex is an expensive operator action, not something any logged-in
- * user should be able to trigger.
+ * user should be able to trigger. Leaving the route out is not enough
+ * on its own, though - the query endpoint takes a {@code force_rebuild}
+ * flag that does the same thing, so {@link #withoutIndexRebuild} strips
+ * it on the way through.
  *
  * <p>Bodies pass through as {@link JsonNode}. The AI service owns the
  * request and response schemas; mirroring them as Java DTOs would only
@@ -43,6 +47,12 @@ public class AiProxyController {
 
     private static final Logger log =
             LoggerFactory.getLogger(AiProxyController.class);
+
+    /**
+     * Field on the AI service's RAG query schema that deletes and
+     * rebuilds the vector store. Never forwarded from here.
+     */
+    private static final String FORCE_REBUILD = "force_rebuild";
 
     private final AiServiceClient aiServiceClient;
 
@@ -204,6 +214,15 @@ public class AiProxyController {
     ) {
         requireAuthenticated(authentication);
 
+        // The session id arrives from the browser, and this route
+        // returns the expected answer to the question that session is
+        // sitting on. Somebody else's session must not be readable
+        // through it.
+        interviewPersistenceService.requireSessionOwnership(
+                authentication.getName(),
+                body
+        );
+
         // Not while a job interview is running: the expected answer
         // would hand over what the candidate is being graded on.
         jobPostingService.requireNoJobInterviewInProgress(authentication.getName(), body);
@@ -220,6 +239,18 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
+        requireAuthenticated(authentication);
+
+        // The AI service looks this session up and, when it finds one,
+        // generates from its adaptive state - the difficulty, topic and
+        // context built from somebody's CV and their answers so far. A
+        // request naming no session is generating a standalone question
+        // and passes straight through.
+        interviewPersistenceService.requireSessionOwnership(
+                authentication.getName(),
+                body
+        );
+
         return forward("/api/v1/interview/question", body, authentication);
     }
 
@@ -236,7 +267,11 @@ public class AiProxyController {
             @RequestBody JsonNode body,
             Authentication authentication
     ) {
-        return forward("/api/v1/rag/query", body, authentication);
+        return forward(
+                "/api/v1/rag/query",
+                withoutIndexRebuild(body),
+                authentication
+        );
     }
 
     // ========================================================
@@ -264,6 +299,38 @@ public class AiProxyController {
     // ========================================================
     // Internals
     // ========================================================
+
+    /**
+     * Strips the index-rebuild flag from a RAG query.
+     *
+     * <p>The AI service accepts {@code force_rebuild} on its query
+     * endpoint, and acting on it deletes the Chroma directory and
+     * re-parses every document. That is an operator action against
+     * shared state: one candidate setting the flag would wipe the
+     * knowledge base every other user is searching, and rebuild it
+     * under their own request's timeout.
+     *
+     * <p>The route itself stays open to any signed-in user - asking
+     * the knowledge base a question is what it is for. Only the flag
+     * is removed, and the rest of the body is forwarded untouched, so
+     * the AI service still owns the schema and applies its default.
+     */
+    private static JsonNode withoutIndexRebuild(JsonNode body) {
+
+        if (body == null || !body.has(FORCE_REBUILD)) {
+            return body;
+        }
+
+        log.warn(
+                "Ignoring {} on a RAG query: rebuilding the index is not a user action",
+                FORCE_REBUILD
+        );
+
+        ObjectNode sanitised = (ObjectNode) body.deepCopy();
+        sanitised.remove(FORCE_REBUILD);
+
+        return sanitised;
+    }
 
     private ResponseEntity<JsonNode> forward(
             String path,
@@ -299,6 +366,18 @@ public class AiProxyController {
             Authentication authentication,
             InterviewRecorder recorder
     ) {
+        requireAuthenticated(authentication);
+
+        // Before the AI service is touched. The recorder below refuses
+        // to write into a session this user does not own, but refusing
+        // after the fact is too late: the answer would already have
+        // been graded and the grade handed back. A start request names
+        // no session yet and passes straight through.
+        interviewPersistenceService.requireSessionOwnership(
+                authentication.getName(),
+                body
+        );
+
         ResponseEntity<JsonNode> response = forward(path, body, authentication);
 
         try {
