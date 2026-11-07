@@ -1062,3 +1062,116 @@ textarea.input { resize: vertical; }
   .focus-feature-logo .brand-logo-shine::before { animation: none; opacity: 0; }
   .focus-feature-logo .brand-logo-shine::after { opacity: 0; }
 }
+
+
+/* ==========================================================================
+   SITE BACKDROP
+
+   Three blue curves drifting behind every page. The brief was
+   "attractive, without drawing focus", and the second half is the
+   harder one: this sits under a timed interview and under a recruiter
+   comparing candidates, so it has to be the kind of thing nobody
+   mentions.
+
+   Three decisions follow from that:
+
+   * The ink is a few percent of the accent. High enough to read as
+     colour on a large area, low enough that text contrast over it is
+     unchanged - the bands never reach a surface, because every card
+     and panel is opaque and paints over them.
+   * The cycles are long and mutually prime-ish (34s, 41s, 53s), so the
+     three never return to the same arrangement. A short loop is what
+     makes a background watchable.
+   * Nothing scales or blurs per frame. Softness is baked into the
+     gradients and only `translate` animates, which the compositor
+     handles without repainting.
+
+   Fixed rather than scrolled with the page: the curves are the room,
+   not part of the document.
+   ========================================================================== */
+
+.site-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+
+  /* Tuned per theme below. Light surfaces need less of it to read. */
+  --backdrop-ink: var(--accent);
+  --backdrop-strength: 0.07;
+}
+
+.site-backdrop-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: var(--backdrop-strength);
+}
+
+.site-backdrop-band {
+  /* The compositor is told once, rather than guessing from the
+     animation, that these layers move and nothing else about them
+     changes. */
+  will-change: transform;
+}
+
+.site-backdrop-band--a {
+  animation: backdrop-drift-a 34s ease-in-out infinite alternate;
+}
+
+.site-backdrop-band--b {
+  animation: backdrop-drift-b 41s ease-in-out infinite alternate;
+}
+
+.site-backdrop-band--c {
+  animation: backdrop-drift-c 53s ease-in-out infinite alternate;
+}
+
+/* Translation only, and small. A band that travels far enough to
+   notice is a band being watched. */
+@keyframes backdrop-drift-a {
+  from { transform: translate3d(-3%, -1.5%, 0); }
+  to   { transform: translate3d(3%, 1.5%, 0); }
+}
+
+@keyframes backdrop-drift-b {
+  from { transform: translate3d(3%, 2%, 0); }
+  to   { transform: translate3d(-3%, -2%, 0); }
+}
+
+@keyframes backdrop-drift-c {
+  from { transform: translate3d(-2%, 2.5%, 0); }
+  to   { transform: translate3d(2.5%, -2%, 0); }
+}
+
+/* A dark surface swallows a tint, so it takes a little more of it to
+   read as colour at all. */
+:root:not([data-theme="light"]) .site-backdrop { --backdrop-strength: 0.07; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-backdrop { --backdrop-strength: 0.11; }
+}
+
+:root[data-theme="dark"] .site-backdrop { --backdrop-strength: 0.11; }
+
+/* A phone shows a narrow slice of the artwork, which makes each band
+   proportionally larger and the whole thing heavier. */
+@media (max-width: 640px) {
+  .site-backdrop { --backdrop-strength: 0.05; }
+}
+
+/* Stop, rather than hide. A curve standing still is simply a shape -
+   there is no half-finished state to be caught in, which is why the
+   spinners elsewhere are removed under this rule and these are not. */
+@media (prefers-reduced-motion: reduce) {
+  .site-backdrop-band {
+    animation: none;
+    will-change: auto;
+  }
+}
+
+/* Ink on paper, and it would be the page's only full-bleed colour. */
+@media print {
+  .site-backdrop { display: none; }
+}
