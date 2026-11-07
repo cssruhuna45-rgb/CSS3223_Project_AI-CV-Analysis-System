@@ -336,7 +336,31 @@ class QuestionEvaluation(BaseModel):
 class InterviewFinishResponse(BaseModel):
     session_id: str
     status: str
-    total_questions: int
+
+    total_questions: int = Field(
+        description=(
+            "What the interview is measured against. For a job "
+            "interview this is the recruiter's approved set, not the "
+            "questions that happened to be asked before the candidate "
+            "finished."
+        ),
+    )
+
+    answered_count: int = Field(
+        default=0,
+        description="How many of those questions were answered.",
+    )
+
+    fully_answered: bool = Field(
+        default=True,
+        description=(
+            "False when the candidate finished before answering every "
+            "question. Named apart from the answer route's `complete`, "
+            "which only means the interview is over. A partial sitting "
+            "is not comparable with a full one and must not be "
+            "presented as though it were."
+        ),
+    )
 
     # ------------------------------------------------------------
     # Scorecard
