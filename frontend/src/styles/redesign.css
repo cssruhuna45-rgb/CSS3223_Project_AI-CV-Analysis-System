@@ -1079,10 +1079,10 @@ textarea.input { resize: vertical; }
      colour on a large area, low enough that text contrast over it is
      unchanged - the bands never reach a surface, because every card
      and panel is opaque and paints over them.
-   * The cycles are prime (23s, 29s, 37s), so the three never return to
+   * The cycles are prime (13s, 17s, 23s), so the three never return to
      the same arrangement - the combined period is their product, far
-     past anyone's session. A short loop is what makes a background
-     watchable.
+     past anyone's session. A loop that resolves is what makes a
+     background watchable, and three primes have no common one.
    * Nothing scales or blurs per frame. Softness is baked into the
      gradients and only `translate` animates, which the compositor
      handles without repainting.
@@ -1118,15 +1118,15 @@ textarea.input { resize: vertical; }
 }
 
 .site-backdrop-band--a {
-  animation: backdrop-drift-a 23s ease-in-out infinite alternate;
+  animation: backdrop-drift-a 13s ease-in-out infinite alternate;
 }
 
 .site-backdrop-band--b {
-  animation: backdrop-drift-b 29s ease-in-out infinite alternate;
+  animation: backdrop-drift-b 17s ease-in-out infinite alternate;
 }
 
 .site-backdrop-band--c {
-  animation: backdrop-drift-c 37s ease-in-out infinite alternate;
+  animation: backdrop-drift-c 23s ease-in-out infinite alternate;
 }
 
 /* Translation only, and small. A band that travels far enough to
