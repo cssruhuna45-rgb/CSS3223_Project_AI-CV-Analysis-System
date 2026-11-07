@@ -1079,9 +1079,10 @@ textarea.input { resize: vertical; }
      colour on a large area, low enough that text contrast over it is
      unchanged - the bands never reach a surface, because every card
      and panel is opaque and paints over them.
-   * The cycles are long and mutually prime-ish (34s, 41s, 53s), so the
-     three never return to the same arrangement. A short loop is what
-     makes a background watchable.
+   * The cycles are prime (23s, 29s, 37s), so the three never return to
+     the same arrangement - the combined period is their product, far
+     past anyone's session. A short loop is what makes a background
+     watchable.
    * Nothing scales or blurs per frame. Softness is baked into the
      gradients and only `translate` animates, which the compositor
      handles without repainting.
@@ -1099,7 +1100,7 @@ textarea.input { resize: vertical; }
 
   /* Tuned per theme below. Light surfaces need less of it to read. */
   --backdrop-ink: var(--accent);
-  --backdrop-strength: 0.07;
+  --backdrop-strength: 0.11;
 }
 
 .site-backdrop-art {
@@ -1117,48 +1118,48 @@ textarea.input { resize: vertical; }
 }
 
 .site-backdrop-band--a {
-  animation: backdrop-drift-a 34s ease-in-out infinite alternate;
+  animation: backdrop-drift-a 23s ease-in-out infinite alternate;
 }
 
 .site-backdrop-band--b {
-  animation: backdrop-drift-b 41s ease-in-out infinite alternate;
+  animation: backdrop-drift-b 29s ease-in-out infinite alternate;
 }
 
 .site-backdrop-band--c {
-  animation: backdrop-drift-c 53s ease-in-out infinite alternate;
+  animation: backdrop-drift-c 37s ease-in-out infinite alternate;
 }
 
 /* Translation only, and small. A band that travels far enough to
    notice is a band being watched. */
 @keyframes backdrop-drift-a {
-  from { transform: translate3d(-3%, -1.5%, 0); }
-  to   { transform: translate3d(3%, 1.5%, 0); }
+  from { transform: translate3d(-4.5%, -2.5%, 0); }
+  to   { transform: translate3d(4.5%, 2.5%, 0); }
 }
 
 @keyframes backdrop-drift-b {
-  from { transform: translate3d(3%, 2%, 0); }
-  to   { transform: translate3d(-3%, -2%, 0); }
+  from { transform: translate3d(4.5%, 3%, 0); }
+  to   { transform: translate3d(-4.5%, -3%, 0); }
 }
 
 @keyframes backdrop-drift-c {
-  from { transform: translate3d(-2%, 2.5%, 0); }
-  to   { transform: translate3d(2.5%, -2%, 0); }
+  from { transform: translate3d(-3%, 3.5%, 0); }
+  to   { transform: translate3d(3.5%, -3%, 0); }
 }
 
-/* A dark surface swallows a tint, so it takes a little more of it to
-   read as colour at all. */
-:root:not([data-theme="light"]) .site-backdrop { --backdrop-strength: 0.07; }
-
+/* A dark surface swallows a tint, so it takes more of it to read as
+   colour at all. The base above is the light value; these two are one
+   rule written for the two ways dark is reached - the system setting,
+   and the explicit choice that overrides it. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .site-backdrop { --backdrop-strength: 0.11; }
+  :root:not([data-theme="light"]) .site-backdrop { --backdrop-strength: 0.16; }
 }
 
-:root[data-theme="dark"] .site-backdrop { --backdrop-strength: 0.11; }
+:root[data-theme="dark"] .site-backdrop { --backdrop-strength: 0.16; }
 
 /* A phone shows a narrow slice of the artwork, which makes each band
    proportionally larger and the whole thing heavier. */
 @media (max-width: 640px) {
-  .site-backdrop { --backdrop-strength: 0.05; }
+  .site-backdrop { --backdrop-strength: 0.08; }
 }
 
 /* Stop, rather than hide. A curve standing still is simply a shape -
