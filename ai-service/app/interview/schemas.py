@@ -293,6 +293,16 @@ class CategoryScore(BaseModel):
     label: str
     score: int = Field(..., ge=0, le=100)
 
+    scored: bool = Field(
+        default=True,
+        description=(
+            "False when the model did not assess this category. The "
+            "score is then 0 because something has to be sent, not "
+            "because the candidate earned nothing, and it is left out "
+            "of the overall mean."
+        ),
+    )
+
 
 class ReferencePassage(BaseModel):
     """
@@ -402,4 +412,18 @@ class InterviewFinishResponse(BaseModel):
     evaluation_error: str = Field(
         default="",
         description="Why grading failed, when it did.",
+    )
+
+    partial: bool = Field(
+        default=False,
+        description=(
+            "True when grading ran but did not cover every category. "
+            "The overall score is then a mean of fewer categories and "
+            "is not comparable with a full one."
+        ),
+    )
+
+    unscored_categories: List[str] = Field(
+        default_factory=list,
+        description="Categories the model did not assess, by label.",
     )

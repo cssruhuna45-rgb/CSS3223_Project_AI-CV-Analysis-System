@@ -206,6 +206,107 @@ class TestGradingReportsItsOwnFailure(unittest.TestCase):
         self.assertFalse(result["evaluated"])
         self.assertEqual(result["evaluation_error"], evaluator.NOT_SCORED_FAILED)
 
+    def test_per_question_scores_alone_are_not_an_overall_score(self):
+        # The overall is the mean of the category scores. With none of
+        # them scored that mean is empty, and the 0 falling out of it
+        # is a number the model never arrived at - which would be
+        # stored as the candidate's score and compared with real ones.
+        result = grade(json.dumps({
+            "per_question": [{"question_number": 1, "score": 55}],
+        }))
+
+        self.assertFalse(result["evaluated"])
+        self.assertEqual(result["evaluation_error"], evaluator.NOT_SCORED_FAILED)
+
+    def test_one_scored_category_is_still_a_grade(self):
+        # The line is "no category at all", not "fewer than four".
+        result = grade(json.dumps({
+            "category_scores": {"communication": 60},
+        }))
+
+        self.assertTrue(result["evaluated"])
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["overall_score"], 60)
+
+    def test_a_partial_grade_averages_only_what_was_assessed(self):
+        # Reproduced from the follow-up review: one category at 80 used
+        # to become an overall of 20, because the three the model
+        # skipped were averaged in as zeros.
+        result = grade(json.dumps({
+            "category_scores": {"technical_knowledge": 80},
+            "per_question": [{"question_number": 1, "score": 80}],
+        }))
+
+        self.assertTrue(result["evaluated"])
+        self.assertTrue(result["partial"])
+        self.assertEqual(result["overall_score"], 80)
+
+    def test_a_partial_grade_names_what_was_not_assessed(self):
+        result = grade(json.dumps({
+            "category_scores": {"technical_knowledge": 80, "communication": 60},
+        }))
+
+        self.assertEqual(
+            sorted(result["unscored_categories"]),
+            ["Depth of Detail", "Problem Solving"],
+        )
+
+    def test_an_unassessed_category_is_marked_rather_than_zeroed(self):
+        result = grade(json.dumps({
+            "category_scores": {"technical_knowledge": 80},
+        }))
+
+        by_key = {c["key"]: c for c in result["category_scores"]}
+
+        self.assertTrue(by_key["technical_knowledge"]["scored"])
+        self.assertEqual(by_key["technical_knowledge"]["score"], 80)
+
+        # Still 0, because something has to be sent - but said to be
+        # unscored, so the page can show it as "not assessed".
+        self.assertFalse(by_key["depth"]["scored"])
+        self.assertEqual(by_key["depth"]["score"], 0)
+
+    def test_a_complete_grade_is_not_partial_and_keeps_its_old_mean(self):
+        # The guarantee that makes this safe to change late: a reply
+        # covering every category scores exactly as it did before.
+        result = grade(json.dumps({
+            "category_scores": {
+                "technical_knowledge": 80,
+                "depth": 60,
+                "problem_solving": 70,
+                "communication": 50,
+            },
+        }))
+
+        self.assertTrue(result["evaluated"])
+        self.assertFalse(result["partial"])
+        self.assertEqual(result["unscored_categories"], [])
+        self.assertEqual(result["overall_score"], 65)
+        self.assertTrue(all(c["scored"] for c in result["category_scores"]))
+
+    def test_a_non_finite_category_counts_as_unassessed(self):
+        result = grade(json.dumps({
+            "category_scores": {"technical_knowledge": 80, "depth": "NaN"},
+        }))
+
+        by_key = {c["key"]: c for c in result["category_scores"]}
+
+        self.assertFalse(by_key["depth"]["scored"])
+        self.assertIn("Depth of Detail", result["unscored_categories"])
+
+        # "NaN" is not a zero the candidate earned, so it stays out of
+        # the mean rather than halving their score.
+        self.assertEqual(result["overall_score"], 80)
+
+    def test_a_failed_grade_is_not_called_partial(self):
+        # Nothing was graded at all; `evaluated` already says so, and
+        # calling it partial would imply part of it is usable.
+        result = grade("{}")
+
+        self.assertFalse(result["evaluated"])
+        self.assertFalse(result["partial"])
+        self.assertEqual(result["unscored_categories"], [])
+
     def test_a_genuine_all_zero_grade_is_still_reported_as_graded(self):
         # Someone who answered everything wrongly has been graded, and
         # the guard must not turn their 0 into "we could not score it".

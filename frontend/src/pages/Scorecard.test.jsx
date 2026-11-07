@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import Scorecard, { NOT_SCORED_MESSAGE, gradingUnavailable } from './Scorecard';
+import Scorecard, { NOT_SCORED_MESSAGE, gradingPartial, gradingUnavailable } from './Scorecard';
 import { ApiError } from '../services/http';
 
 // What a candidate may read about their own answers.
@@ -382,6 +382,71 @@ describe('an interview with no mode and no job', () => {
 });
 
 // ---- Grading that did not run, and history that would not load ----------
+
+
+describe('a grading that did not cover every area', () => {
+  // The model returned some categories and skipped others. Averaging
+  // zeros in for the skipped ones turned an 80 into a 20 and showed it
+  // as an earned result; the mean now covers only what was assessed,
+  // and the page has to say that is what it is.
+  const FOUR = (overall) => ({
+    ...PRACTICE,
+    overall_score: overall,
+    partial: true,
+    unscored_categories: ['Depth of Detail', 'Problem Solving'],
+    category_scores: [
+      { key: 'technical_knowledge', label: 'Technical Knowledge', score: 80, scored: true },
+      { key: 'depth', label: 'Depth of Detail', score: 0, scored: false },
+      { key: 'problem_solving', label: 'Problem Solving', score: 0, scored: false },
+      { key: 'communication', label: 'Communication', score: 60, scored: true },
+    ],
+  });
+
+  test('says how much of the interview the score covers', async () => {
+    await render(FOUR(70));
+
+    expect(container.textContent).toMatch(/Scored on 2 of 4 areas/i);
+  });
+
+  test('names the areas that were not assessed', async () => {
+    await render(FOUR(70));
+
+    expect(container.textContent).toContain('Depth of Detail');
+    expect(container.textContent).toContain('Problem Solving');
+    expect(container.textContent).toMatch(/not assessed/i);
+  });
+
+  test('an unassessed area is not shown as a score of zero', async () => {
+    await render(FOUR(70));
+
+    // Its 0 is a placeholder the API has to send, not a mark the
+    // candidate earned, and it is already out of the mean.
+    expect(container.textContent).not.toMatch(/0\s*\/\s*100/);
+  });
+
+  test('a complete grading says nothing about coverage', async () => {
+    await render({
+      ...PRACTICE,
+      partial: false,
+      unscored_categories: [],
+      category_scores: [
+        { key: 'technical_knowledge', label: 'Technical Knowledge', score: 80, scored: true },
+        { key: 'communication', label: 'Communication', score: 60, scored: true },
+      ],
+    });
+
+    expect(container.textContent).not.toMatch(/Scored on \d+ of/i);
+    expect(container.textContent).not.toMatch(/not assessed/i);
+  });
+
+  test('a failed grading is not called partial', () => {
+    // `evaluated: false` already says nothing was graded; calling it
+    // partial would imply part of the result is usable.
+    expect(gradingPartial({ evaluated: false, partial: true })).toBe(false);
+    expect(gradingPartial({ evaluated: true, partial: true })).toBe(true);
+    expect(gradingPartial({ evaluated: true })).toBe(false);
+  });
+});
 
 describe('an interview grading could not score', () => {
   const { interviewAPI } = require('../services/api');

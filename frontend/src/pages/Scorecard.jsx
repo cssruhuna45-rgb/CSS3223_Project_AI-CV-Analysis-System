@@ -179,6 +179,18 @@ function EmptyState({ navigate, title, message, onRetry, alert = false }) {
  */
 export const gradingUnavailable = (result) => Boolean(result) && result.evaluated === false;
 
+/**
+ * True when grading ran but did not cover every category.
+ *
+ * The overall score is then a mean of the categories that were
+ * assessed. That is the honest number - averaging in zeros for the
+ * ones the model skipped turned an 80 into a 20 - but it is not
+ * comparable with a full result, so the page has to say so rather
+ * than printing it like any other score.
+ */
+export const gradingPartial = (result) =>
+  Boolean(result) && result.evaluated !== false && result.partial === true;
+
 // Fixed wording: a stored evaluation_error may hold technical text from
 // before it was cleaned up, so it is never shown.
 export const NOT_SCORED_MESSAGE =
@@ -620,6 +632,11 @@ export default function Scorecard() {
 
   const overall = result.overall_score ?? 0;
 
+  // `scored: false` marks a category the model did not assess. Its 0
+  // is a placeholder, not a mark, and it is already out of `overall`.
+  const unscored = categories.filter((c) => c.scored === false).map((c) => c.label);
+  const assessedCount = categories.length - unscored.length;
+
   // One label for the score. There used to be two side by side
   // ("Average" and "Developing Competency") saying the same thing.
   const readiness =
@@ -724,6 +741,20 @@ export default function Scorecard() {
             <TrendingUp size={14} /> {readiness}
           </span>
         </div>
+
+        {gradingPartial(result) && (
+          <p
+            style={{
+              marginTop: 14, marginBottom: 0,
+              fontSize: 'var(--fs-sm)', lineHeight: 1.7,
+              color: 'var(--warning)',
+            }}
+            role="status"
+          >
+            Scored on {assessedCount} of {categories.length} areas.
+            {unscored.length > 0 && ` ${unscored.join(' and ')} ${unscored.length === 1 ? 'was' : 'were'} not assessed, so ${unscored.length === 1 ? 'it is' : 'they are'} left out of this average.`}
+          </p>
+        )}
       </div>
 
       {/* Category scores */}
@@ -737,7 +768,8 @@ export default function Scorecard() {
         // produced exactly the 3+1 orphan the line above rules out.
         <div className="scorecard-categories" style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
           {categories.map(c => {
-            const tone = scoreTone(c.score);
+            const assessed = c.scored !== false;
+            const tone = assessed ? scoreTone(c.score) : 'var(--text-muted)';
             return (
               <div key={c.key} className="card" style={{
                 padding: 16, background: CARD,
@@ -753,13 +785,23 @@ export default function Scorecard() {
                   <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 600, color: TEXT }}>{c.label}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 10 }}>
-                  <span style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, color: tone, lineHeight: 1 }}>{c.score}</span>
-                  <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, marginBottom: 4 }}>/100</span>
+                  {assessed ? (
+                    <>
+                      <span style={{ fontSize: 'var(--fs-2xl)', fontWeight: 700, color: tone, lineHeight: 1 }}>{c.score}</span>
+                      <span style={{ fontSize: 'var(--fs-sm)', color: TEXT, marginBottom: 4 }}>/100</span>
+                    </>
+                  ) : (
+                    // Not "0 / 100": the model did not assess this, and
+                    // a zero here reads as a mark the candidate earned.
+                    <span style={{ fontSize: 'var(--fs-base)', fontWeight: 600, color: tone, lineHeight: 1.4 }}>
+                      Not assessed
+                    </span>
+                  )}
                 </div>
                 <div style={{ height: 6, background: TRACK, borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: 3, background: tone,
-                    width: `${c.score}%`, transition: 'width 1s ease',
+                    width: assessed ? `${c.score}%` : '0%', transition: 'width 1s ease',
                   }} />
                 </div>
               </div>
