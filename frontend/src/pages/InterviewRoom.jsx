@@ -97,6 +97,34 @@ const getStoredJson = (key) => {
 // INTERVIEW ROOM
 // ============================================================
 
+/**
+ * Whether to put up the "preparing the next question" screen.
+ *
+ * Exported and kept pure because the alternative is rendering a
+ * 2,000-line component with speech recognition and timers to find out
+ * what it decided, and the ways this can be wrong are all decisions
+ * rather than markup: leaving it up through the finish, showing it
+ * over a practice interview that is not waiting for anything, or
+ * putting it over an empty page before the first question exists.
+ *
+ * @param isExam          only an exam waits here; practice shows the
+ *                        model answer and moves on a click
+ * @param submittingAnswer an answer is with the server
+ * @param question        the question just answered, still on screen;
+ *                        absent means the first one has not arrived
+ *                        and the first-question screen owns the page
+ * @param isFinishing     the last answer puts up its own screen
+ */
+export function shouldWaitForNextQuestion({
+  isExam,
+  submittingAnswer,
+  question,
+  isFinishing,
+}) {
+  return Boolean(isExam && submittingAnswer && question && !isFinishing);
+}
+
+
 export default function InterviewRoom() {
   const notify = useToast();
   const navigate = useNavigate();
@@ -152,6 +180,12 @@ export default function InterviewRoom() {
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishStep, setFinishStep] = useState(1);
 
+  // An answer is with the server and the next question has not come
+  // back yet. A state as well as the ref below, because the ref
+  // guards against a double submit and does not re-render, and this
+  // one has a screen to put up.
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+
   const [aiTyping, setAiTyping] = useState(false);
   const [displayedQ, setDisplayedQ] = useState('');
 
@@ -184,6 +218,10 @@ export default function InterviewRoom() {
   // take a minute, and a spinner with no change for that long looks
   // like a frozen page.
   const [waitSeconds, setWaitSeconds] = useState(0);
+
+  // The same, for the wait between questions. Separate from the one
+  // above so neither resets the other.
+  const [nextQuestionSeconds, setNextQuestionSeconds] = useState(0);
 
   // ==========================================================
   // REFS
@@ -597,6 +635,41 @@ export default function InterviewRoom() {
     const id = setInterval(() => setWaitSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, [waitingForFirstQuestion]);
+
+  // ==========================================================
+  // WAITING FOR THE NEXT QUESTION
+  //
+  // An exam answers one question at a time and the next one is
+  // generated on submit, so there is a gap with nothing in it. Until
+  // now the page left the question that had just been answered on
+  // screen with the box greyed out, which reads as a frozen form
+  // rather than as work in progress - and on a slow service a
+  // candidate could sit watching their own submitted answer, unsure
+  // whether it had gone.
+  //
+  // Only in an exam. A practice interview shows the model answer at
+  // this point and moves on when the candidate clicks Next, so there
+  // is nothing to wait through.
+  //
+  // Not while finishing: the last answer puts up its own screen.
+  // ==========================================================
+
+  const waitingForNextQuestion = shouldWaitForNextQuestion({
+    isExam,
+    submittingAnswer,
+    question,
+    isFinishing,
+  });
+
+  useEffect(() => {
+    if (!waitingForNextQuestion) {
+      setNextQuestionSeconds(0);
+      return undefined;
+    }
+
+    const id = setInterval(() => setNextQuestionSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [waitingForNextQuestion]);
 
   // ==========================================================
   // KEYBOARD FOCUS
@@ -1110,6 +1183,7 @@ export default function InterviewRoom() {
     submittingAnswerRef.current = true;
 
     setLoading(true);
+    setSubmittingAnswer(true);
     setError('');
     setErrorAction(null);
 
@@ -1222,6 +1296,7 @@ export default function InterviewRoom() {
 
     } finally {
       setLoading(false);
+      setSubmittingAnswer(false);
       submittingAnswerRef.current = false;
     }
   };
@@ -2371,6 +2446,97 @@ export default function InterviewRoom() {
       {/* ====================================================
           AI EVALUATION PROGRESS OVERLAY
       ==================================================== */}
+      {/* The gap between answering and the next question. Styled like
+          the finishing screen below, because it is the same promise:
+          the system has your answer and is working. No stages - this
+          is one request, and inventing steps for it would be
+          decoration pretending to be progress.
+
+          role="status" rather than a dialog: there is nothing to
+          interact with and nothing to focus, so a screen reader should
+          announce it and move on rather than treat it as a window the
+          user has been moved into. */}
+      {waitingForNextQuestion && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9998,
+            background: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          className="animate-fade-in"
+        >
+          <div style={{
+            maxWidth: 460, width: '100%',
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderTop: '3px solid var(--accent)',
+            borderRadius: 16, padding: '36px 32px', textAlign: 'center',
+            boxShadow: '0 25px 60px color-mix(in srgb, var(--shadow-ink) 85%, transparent)',
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+              border: '2px solid color-mix(in srgb, var(--accent) 40%, transparent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+            }}>
+              <Loader2
+                size={30}
+                color="var(--accent)"
+                style={{ animation: 'spin 1s linear infinite' }}
+              />
+            </div>
+
+            <h2 style={{
+              fontSize: 'var(--fs-lg)', fontWeight: 700,
+              color: 'var(--text-primary)', marginBottom: 8,
+            }}>
+              Answer received
+            </h2>
+
+            <p style={{
+              color: 'var(--text-muted)', fontSize: 'var(--fs-sm)',
+              lineHeight: 1.6, margin: 0,
+            }}>
+              {/* Says the answer is in before it says to wait. That is
+                  the part the candidate is actually unsure about. */}
+              Your answer to question {Math.min(qIndex + 1, totalQuestions)} is
+              saved. Preparing question {Math.min(qIndex + 2, totalQuestions)} of
+              {' '}{totalQuestions}&hellip;
+            </p>
+
+            {/* A plain progress bar over the questions, so the wait sits
+                in the context of how much is left. */}
+            <div style={{
+              height: 6, borderRadius: 3, marginTop: 20, overflow: 'hidden',
+              background: 'color-mix(in srgb, var(--fg) 8%, transparent)',
+            }}>
+              <div style={{
+                height: '100%', borderRadius: 3, background: 'var(--accent)',
+                width: `${Math.round((Math.min(qIndex + 1, totalQuestions) / totalQuestions) * 100)}%`,
+                transition: 'width 400ms ease',
+              }} />
+            </div>
+
+            {/* After eight seconds, say the wait is normal. A spinner
+                that has not changed for that long reads as a hang, and
+                a candidate under exam time pressure may start clicking
+                at things. */}
+            {nextQuestionSeconds >= 8 && (
+              <p style={{
+                color: 'var(--warning-light)', fontSize: 'var(--fs-sm)',
+                lineHeight: 1.6, margin: '16px 0 0',
+              }}>
+                Still working. Your answer is safe and the exam clock for
+                the next question has not started.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {isFinishing && (
         <div
           role="dialog"
