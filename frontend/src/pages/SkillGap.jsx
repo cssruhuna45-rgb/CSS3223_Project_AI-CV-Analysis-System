@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Zap,
@@ -71,6 +71,16 @@ export default function SkillGap() {
   const [result, setResult] = useState(null);
   const [showFieldSelector, setShowFieldSelector] = useState(false);
 
+  // The field the newest request was made for. Two analyses of
+  // different fields can be in flight at once - picking a second field
+  // does not cancel the first - and they can finish in either order.
+  // Without this, a slow earlier response arriving last would write its
+  // own field into the page and into sessionStorage, so the candidate
+  // would be shown one role's gaps under another role's name and then
+  // carry the wrong jobRole into the interview. A response is only
+  // allowed to write if its field is still the one being asked about.
+  const latestField = useRef(null);
+
   // Fetch skill gap analysis on mount or when career field changes
   useEffect(() => {
     if (!resumeText || resumeText.trim().length < 20) {
@@ -81,10 +91,14 @@ export default function SkillGap() {
   }, [currentField]);
 
   const runSkillGapAnalysis = async (fieldId) => {
+    latestField.current = fieldId;
     setLoading(true);
     setError('');
     try {
       const data = await skillGapAPI.analyze(resumeId, fieldId, resumeText);
+
+      if (latestField.current !== fieldId) return;
+
       setResult(data);
       sessionStorage.setItem('skillGapResult', JSON.stringify(data));
       sessionStorage.setItem('selectedJobField', fieldId);
@@ -97,10 +111,14 @@ export default function SkillGap() {
         `I am interviewing for a ${name} position. Please evaluate my technical competence and ask relevant interview questions suited for this role.`
       );
     } catch (err) {
+      if (latestField.current !== fieldId) return;
+
       console.error('Skill gap analysis error:', err);
       setError(userMessage(err, "We couldn't compare your CV with this job field right now. Please try again."));
     } finally {
-      setLoading(false);
+      // A superseded request must not clear the spinner: the newer one
+      // is still running and the page is still waiting for it.
+      if (latestField.current === fieldId) setLoading(false);
     }
   };
 
@@ -118,10 +136,18 @@ export default function SkillGap() {
   const matchPct = result?.match_percentage ?? 0;
   const gapPct = result?.gap_percentage ?? (result ? 100 - matchPct : 0);
 
-  // Status badge description based on backend match percentage
+  // The badge has to agree with the words underneath it. The AI
+  // service bands the same percentage in `analyze_skill_gap`
+  // (ai-service/app/skill_gap/analyzer.py) and writes the band into
+  // the summary it returns, so a cut-off invented here would print
+  // "Strong Alignment" above a summary that reads "a moderate skill
+  // match". These four tiers are that function's four levels -
+  // strong, moderate, developing, limited - and the thresholds must
+  // be changed in both places or neither.
   const getMatchTier = (pct) => {
-    if (pct >= 70) return { label: 'Strong Alignment', color: 'var(--success)', bg: 'color-mix(in srgb, var(--success) 12%, transparent)' };
-    if (pct >= 45) return { label: 'Moderate Match', color: 'var(--warning)', bg: 'color-mix(in srgb, var(--warning) 12%, transparent)' };
+    if (pct >= 80) return { label: 'Strong Alignment', color: 'var(--success)', bg: 'color-mix(in srgb, var(--success) 12%, transparent)' };
+    if (pct >= 60) return { label: 'Moderate Match', color: 'var(--success)', bg: 'color-mix(in srgb, var(--success) 12%, transparent)' };
+    if (pct >= 40) return { label: 'Developing Match', color: 'var(--warning)', bg: 'color-mix(in srgb, var(--warning) 12%, transparent)' };
     return { label: 'Growth Opportunity', color: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 12%, transparent)' };
   };
 

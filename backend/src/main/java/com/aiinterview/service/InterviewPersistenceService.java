@@ -17,6 +17,30 @@ import com.fasterxml.jackson.databind.JsonNode;
 public interface InterviewPersistenceService {
 
     /**
+     * Refuses a request that names an interview session belonging to
+     * somebody else.
+     *
+     * <p>Unlike everything below, this is a gate rather than a write,
+     * and it is meant to run <em>before</em> the AI service is called.
+     * The recording methods already decline to write into a session the
+     * caller does not own, but by the time they run the AI has already
+     * answered: a candidate who guessed another candidate's session id
+     * would still be handed the next question, the grade, or the final
+     * scorecard, with only a log line to show for it.
+     *
+     * <p>A session id the database does not know is allowed through. It
+     * is the normal case for interviews that began before the session
+     * was persisted, and failing those closed would break a running
+     * interview to guard data that was never stored.
+     *
+     * @param userEmail authenticated user, from the JWT subject
+     * @param request   body about to be forwarded to the AI service
+     * @throws com.aiinterview.exception.UnauthorizedAccessException
+     *         if the session is stored and another user owns it
+     */
+    void requireSessionOwnership(String userEmail, JsonNode request);
+
+    /**
      * Creates the session row and stores the first question.
      *
      * @param userEmail  authenticated user, from the JWT subject

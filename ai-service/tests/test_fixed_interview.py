@@ -371,5 +371,97 @@ class PracticeRegressionTest(unittest.TestCase):
         self.assertEqual(session.mode, "adaptive")
 
 
+class PartialFixedExamTest(unittest.TestCase):
+    """
+    Finishing a job interview early must not look like finishing it.
+
+    The finish route marks a session completed without requiring every
+    approved question to be answered, and it used to report the number
+    of questions that happened to have been asked. Answering one of
+    three and finishing therefore came back as a tidy two-question
+    assessment, which a recruiter then read beside candidates who had
+    answered all three. Comparability is the only reason a job
+    interview uses a fixed set, so the count has to be that set.
+    """
+
+    def setUp(self):
+        # Sessions in this process only, fresh for each test.
+        self.env = patch.dict(os.environ, {"REDIS_URL": ""})
+        self.env.start()
+        session_manager._store = None
+
+        self.client = TestClient(main.app)
+        self.client.headers[INTERNAL_API_KEY_HEADER] = os.environ["INTERNAL_API_KEY"]
+
+    def tearDown(self):
+        session_manager._store = None
+        self.env.stop()
+
+    def start(self):
+        res = self.client.post("/api/v1/interview/start", json={
+            "job_description": JOB_DESCRIPTION,
+            "job_field": "backend_development",
+            "candidate_resume": "",
+            "fixed_questions": FIXED,
+        })
+        self.assertEqual(res.status_code, 200, res.text)
+        return res.json()["session_id"]
+
+    def answer(self, sid, text="An answer about B-tree lookups."):
+        return self.client.post(
+            "/api/v1/interview/answer",
+            json={"session_id": sid, "answer": text},
+        )
+
+    def finish(self, sid):
+        with patch.object(evaluator, "retrieve_reference", side_effect=fail_retrieval),                 patch.object(evaluator, "get_llm",
+                             return_value=GenericFakeChatModel(messages=iter([AIMessage(content=GRADE)]))):
+            res = self.client.post("/api/v1/interview/finish", json={"session_id": sid})
+
+        self.assertEqual(res.status_code, 200, res.text)
+        return res.json()
+
+    def test_finishing_early_counts_against_the_approved_set(self):
+        sid = self.start()
+        self.answer(sid)
+
+        body = self.finish(sid)
+
+        # Three questions were approved, so three is the denominator -
+        # not the two that had been asked by then.
+        self.assertEqual(body["total_questions"], len(FIXED))
+        self.assertEqual(body["answered_count"], 1)
+        self.assertFalse(body["fully_answered"])
+
+    def test_answering_everything_is_a_full_sitting(self):
+        sid = self.start()
+
+        for _ in FIXED:
+            self.answer(sid)
+
+        body = self.finish(sid)
+
+        self.assertEqual(body["total_questions"], len(FIXED))
+        self.assertEqual(body["answered_count"], len(FIXED))
+        self.assertTrue(body["fully_answered"])
+
+    def test_the_cached_scorecard_reports_the_same_counts(self):
+        # A repeated finish returns the stored evaluation without
+        # grading again, and used to recompute the count from the
+        # asked questions on that path too.
+        sid = self.start()
+        self.answer(sid)
+
+        first = self.finish(sid)
+        again = self.client.post("/api/v1/interview/finish", json={"session_id": sid})
+
+        self.assertEqual(again.status_code, 200, again.text)
+        body = again.json()
+
+        self.assertEqual(body["total_questions"], first["total_questions"])
+        self.assertEqual(body["answered_count"], first["answered_count"])
+        self.assertEqual(body["fully_answered"], first["fully_answered"])
+
+
 if __name__ == "__main__":
     unittest.main()

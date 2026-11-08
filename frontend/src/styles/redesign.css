@@ -241,8 +241,8 @@ textarea.input { resize: vertical; }
 .focus-feature-text { max-width: 42ch; line-height: 1.8; font-size: var(--fs-sm); }
 .focus-feature-art { position: relative; background: var(--bg-card2); border-left: 1px solid var(--border); overflow: hidden; }
 .focus-feature-logo { display: block; width: min(65%, 200px); height: auto; aspect-ratio: var(--brand-ratio); margin: auto; opacity: 1; filter: none; }
-.focus-feature-art::before, .focus-feature-art::after { content: ''; position: absolute; width: 76%; aspect-ratio: 1; border: 1px solid var(--border-strong); border-radius: 50%; pointer-events: none; }
-.focus-feature-art::after { width: 58%; }
+/* The rings moved into .orbit below: a pseudo-element pair cannot
+   carry a scan arc and two travelling nodes as well. */
 .focus-actions { gap: 20px; margin-top: 24px; }
 .focus-action { min-height: 104px; padding: 24px; border-radius: var(--radius-md); background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
 .focus-action:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-md); }
@@ -741,3 +741,438 @@ textarea.input { resize: vertical; }
 @media (max-width: 1040px) { .progress-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 720px)  { .progress-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 440px)  { .progress-metrics { grid-template-columns: minmax(0, 1fr); } }
+
+
+/* ==========================================================================
+   BRAND ORBIT
+   The mark sits at the centre of a small orbital system: two hairline
+   rings for structure, one arc sweeping the outer ring, and two nodes
+   travelling at different radii and speeds in opposite directions.
+
+   The arc is the piece that reads as a machine working - a plain circle
+   rotating is invisible, so the motion has to live in something with a
+   start and an end. The nodes give it intent: two of them, at different
+   periods, never line up the same way twice, which is what separates
+   this from a loading spinner.
+
+   Decorative only, and marked aria-hidden in the markup. Transform and
+   opacity exclusively, so none of it triggers layout.
+   ========================================================================== */
+
+.orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(80%, 320px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+
+.orbit-ring {
+  position: absolute;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+}
+
+.orbit-ring--outer { inset: 0; }
+.orbit-ring--inner { inset: 11%; }
+
+/* A single bright arc, masked down to the ring's own stroke so it rides
+   the line rather than filling the disc. */
+.orbit-scan {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 296deg,
+    color-mix(in srgb, var(--accent) 42%, transparent) 344deg,
+    transparent 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  animation: orbitSpin 16s linear infinite;
+}
+
+/* Each node is a square the size of its ring, spun about its centre,
+   with the dot pinned to the top edge - so the dot travels the ring. */
+.orbit-node {
+  position: absolute;
+  animation: orbitSpin 22s linear infinite;
+}
+
+.orbit-node::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.orbit-node--outer { inset: 0; }
+
+.orbit-node--inner {
+  inset: 11%;
+  animation-duration: 30s;
+  animation-direction: reverse;
+}
+
+.focus-feature-logo { position: relative; z-index: 1; }
+
+@keyframes orbitSpin { to { rotate: 360deg; } }
+
+/* The art panel is only 180px tall here; a 320px orbit would be clipped
+   by its overflow. */
+@media (max-width: 760px) {
+  .orbit { width: min(72%, 150px); }
+  .orbit-node::after { width: 5px; height: 5px; margin-left: -2.5px; }
+}
+
+/* Frozen rather than slowed: an arc stopped at an arbitrary angle reads
+   as a rendering fault, so it is removed and the rings stay. */
+@media (prefers-reduced-motion: reduce) {
+  .orbit-scan { display: none; }
+  .orbit-node { animation: none; }
+}
+
+
+/* ==========================================================================
+   POINTER-REACTIVE BRAND PANEL
+
+   The art panel beside the hero copy answers the pointer. `usePointerGlow`
+   publishes three values on .focus-feature-art and every layer below is
+   CSS reading them:
+
+     --px, --py   where the pointer is, 0 to 1 of the panel's own box
+     --pointer    1 while the pointer is inside it, 0 otherwise
+
+   Four layers, back to front:
+
+     .art-mesh    a slow blurred drift. The only layer that moves on its
+                  own, so the panel is alive before anything is touched.
+     .art-grid    a dot field masked to a disc around the pointer, so the
+                  pattern lights up where the cursor is and fades out
+                  behind it. This is the piece that reads as reactive.
+     .art-glow    the spotlight itself, present only while hovering.
+     .orbit       drifts against the mark to give the two some depth.
+
+   The mark then tilts toward the pointer and a bright band crosses it,
+   masked to the artwork so it rides the V and never the image rectangle.
+
+   Transform, opacity, filter and mask only - no layer triggers layout.
+   The hook attaches nothing on a touch screen or under reduced motion,
+   so the variables keep the defaults set here and the panel stays still.
+   ========================================================================== */
+
+.focus-feature-art {
+  --px: 0.5;
+  --py: 0.5;
+  --pointer: 0;
+  perspective: 900px;
+}
+
+.focus-feature-art[data-pointer="on"] { --pointer: 1; }
+
+.art-mesh, .art-grid, .art-glow {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Two soft blooms, drifting against each other. Inset past the edges so
+   the blur never reveals a hard boundary; the panel clips it. */
+.art-mesh {
+  inset: -30%;
+  background:
+    radial-gradient(circle at 32% 30%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 58%),
+    radial-gradient(circle at 70% 72%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 55%);
+  filter: blur(30px);
+  opacity: 0.9;
+  animation: art-mesh-drift 19s ease-in-out infinite alternate;
+}
+
+@keyframes art-mesh-drift {
+  from { transform: translate3d(-3%, -2%, 0) scale(1); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.09); }
+}
+
+/* The dots are always drawn; the mask decides which of them are visible.
+   Centred at 50% before the pointer arrives, so the unlit state is a
+   soft vignette under the mark rather than an empty panel. */
+.art-grid {
+  inset: 0;
+  background-image: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--accent) 58%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 20px 20px;
+  -webkit-mask-image: radial-gradient(
+    circle 170px at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%
+  );
+          mask-image: radial-gradient(
+    circle 170px at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%
+  );
+  opacity: calc(0.3 + var(--pointer) * 0.7);
+  transition: opacity 340ms ease;
+}
+
+.art-glow {
+  inset: 0;
+  background: radial-gradient(
+    circle 230px at calc(var(--px) * 100%) calc(var(--py) * 100%),
+    color-mix(in srgb, var(--accent) 28%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 9%, transparent) 42%,
+    transparent 70%
+  );
+  opacity: var(--pointer);
+  transition: opacity 320ms ease;
+}
+
+/* Against the mark, not with it: the rings lag the opposite way and by
+   less, which is what makes the two read as sitting at different depths
+   rather than as one picture sliding about. */
+.focus-feature-art .orbit {
+  translate:
+    calc(-50% - (var(--px) - 0.5) * 11px)
+    calc(-50% - (var(--py) - 0.5) * 9px);
+  transition: translate 440ms var(--ease-smooth);
+}
+
+.focus-feature-art .orbit-ring { transition: border-color 320ms ease; }
+
+.focus-feature-art[data-pointer="on"] .orbit-ring {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
+}
+
+/* Brightened rather than sped up. Changing the duration of a running
+   spin recalculates its position and the arc visibly jumps. */
+.focus-feature-art .orbit-scan {
+  opacity: 0.85;
+  transition: opacity 320ms ease, filter 320ms ease;
+}
+
+.focus-feature-art[data-pointer="on"] .orbit-scan {
+  opacity: 1;
+  filter: saturate(1.45);
+}
+
+.focus-feature-art .orbit-node::after { transition: box-shadow 320ms ease; }
+
+.focus-feature-art[data-pointer="on"] .orbit-node::after {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* Tilts toward the pointer and leans a little with it. The rotation is
+   small on purpose: past about 16deg the flat artwork starts to read as
+   a sheet of paper rather than a mark sitting in space. */
+.focus-feature-logo {
+  transform:
+    translate3d(
+      calc((var(--px) - 0.5) * 14px),
+      calc((var(--py) - 0.5) * 10px),
+      0
+    )
+    rotateX(calc((0.5 - var(--py)) * 12deg))
+    rotateY(calc((var(--px) - 0.5) * 16deg));
+  transition: transform 340ms var(--ease-smooth), filter 340ms ease;
+}
+
+.focus-feature-art[data-pointer="on"] .focus-feature-logo {
+  filter: drop-shadow(0 14px 26px color-mix(in srgb, var(--accent) 30%, transparent));
+}
+
+/* Both sheens live inside .brand-logo-shine, which is already masked to
+   the artwork, so neither can spill onto the image's transparent
+   corners. ::before is the idle sweep, ::after follows the pointer. */
+.focus-feature-logo .brand-logo-shine::before {
+  content: "";
+  position: absolute;
+  inset: -25% -60%;
+  background: linear-gradient(
+    110deg,
+    transparent 40%,
+    color-mix(in srgb, var(--on-accent) 38%, transparent) 50%,
+    transparent 60%
+  );
+  animation: brand-sheen-idle 7.5s var(--ease-smooth) infinite;
+  /* Dimmed through `filter`, not `opacity`: the keyframes own opacity,
+     and a second declaration of it would simply lose to them. */
+  filter: opacity(calc(1 - var(--pointer) * 0.85));
+  transition: filter 280ms ease;
+}
+
+@keyframes brand-sheen-idle {
+  0%        { transform: translateX(-90%); opacity: 0; }
+  14%       { opacity: 0.6; }
+  38%       { opacity: 0.6; }
+  52%, 100% { transform: translateX(90%); opacity: 0; }
+}
+
+/* The band the pointer carries. Brighter and tighter than the idle
+   sweep, and positioned rather than animated, so it tracks the cursor
+   across the mark in real time. */
+.focus-feature-logo .brand-logo-shine::after {
+  animation: none;
+  background: linear-gradient(
+    104deg,
+    transparent 38%,
+    color-mix(in srgb, var(--on-accent) 82%, transparent) 50%,
+    transparent 62%
+  );
+  transform: translateX(calc((var(--px) - 0.5) * 95%));
+  opacity: calc(var(--pointer) * 0.9);
+  transition: transform 160ms linear, opacity 300ms ease;
+}
+
+/* The panel is around 180px tall here, so the lit disc and the spotlight
+   have to shrink with it or they simply cover the whole surface and stop
+   reading as a pointer at all. */
+@media (max-width: 760px) {
+  .art-grid {
+    background-size: 16px 16px;
+    -webkit-mask-image: radial-gradient(circle 110px at calc(var(--px) * 100%) calc(var(--py) * 100%), #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%);
+            mask-image: radial-gradient(circle 110px at calc(var(--px) * 100%) calc(var(--py) * 100%), #000 0%, rgba(0, 0, 0, 0.42) 46%, transparent 72%);
+  }
+  .art-glow {
+    background: radial-gradient(circle 150px at calc(var(--px) * 100%) calc(var(--py) * 100%), color-mix(in srgb, var(--accent) 28%, transparent) 0%, transparent 70%);
+  }
+  .art-mesh { filter: blur(22px); }
+}
+
+/* Everything that moves on its own stops; everything that answers the
+   pointer keeps its resting value. The hook attaches no listeners here,
+   so --px and --py never leave 0.5 and the panel is simply a lit
+   pattern behind a still mark. */
+@media (prefers-reduced-motion: reduce) {
+  .art-mesh { animation: none; }
+  .art-grid, .art-glow, .focus-feature-art .orbit,
+  .focus-feature-art .orbit-ring, .focus-feature-art .orbit-scan,
+  .focus-feature-art .orbit-node::after, .focus-feature-logo {
+    transition: none;
+  }
+  .focus-feature-logo { transform: none; }
+  .focus-feature-logo .brand-logo-shine::before { animation: none; opacity: 0; }
+  .focus-feature-logo .brand-logo-shine::after { opacity: 0; }
+}
+
+
+/* ==========================================================================
+   SITE BACKDROP
+
+   Three blue curves drifting behind every page. The brief was
+   "attractive, without drawing focus", and the second half is the
+   harder one: this sits under a timed interview and under a recruiter
+   comparing candidates, so it has to be the kind of thing nobody
+   mentions.
+
+   Three decisions follow from that:
+
+   * The ink is a few percent of the accent. High enough to read as
+     colour on a large area, low enough that text contrast over it is
+     unchanged - the bands never reach a surface, because every card
+     and panel is opaque and paints over them.
+   * The cycles are prime (13s, 17s, 23s), so the three never return to
+     the same arrangement - the combined period is their product, far
+     past anyone's session. A loop that resolves is what makes a
+     background watchable, and three primes have no common one.
+   * Nothing scales or blurs per frame. Softness is baked into the
+     gradients and only `translate` animates, which the compositor
+     handles without repainting.
+
+   Fixed rather than scrolled with the page: the curves are the room,
+   not part of the document.
+   ========================================================================== */
+
+.site-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+
+  /* Tuned per theme below. Light surfaces need less of it to read. */
+  --backdrop-ink: var(--accent);
+  --backdrop-strength: 0.11;
+}
+
+.site-backdrop-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: var(--backdrop-strength);
+}
+
+.site-backdrop-band {
+  /* The compositor is told once, rather than guessing from the
+     animation, that these layers move and nothing else about them
+     changes. */
+  will-change: transform;
+}
+
+.site-backdrop-band--a {
+  animation: backdrop-drift-a 13s ease-in-out infinite alternate;
+}
+
+.site-backdrop-band--b {
+  animation: backdrop-drift-b 17s ease-in-out infinite alternate;
+}
+
+.site-backdrop-band--c {
+  animation: backdrop-drift-c 23s ease-in-out infinite alternate;
+}
+
+/* Translation only, and small. A band that travels far enough to
+   notice is a band being watched. */
+@keyframes backdrop-drift-a {
+  from { transform: translate3d(-4.5%, -2.5%, 0); }
+  to   { transform: translate3d(4.5%, 2.5%, 0); }
+}
+
+@keyframes backdrop-drift-b {
+  from { transform: translate3d(4.5%, 3%, 0); }
+  to   { transform: translate3d(-4.5%, -3%, 0); }
+}
+
+@keyframes backdrop-drift-c {
+  from { transform: translate3d(-3%, 3.5%, 0); }
+  to   { transform: translate3d(3.5%, -3%, 0); }
+}
+
+/* A dark surface swallows a tint, so it takes more of it to read as
+   colour at all. The base above is the light value; these two are one
+   rule written for the two ways dark is reached - the system setting,
+   and the explicit choice that overrides it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-backdrop { --backdrop-strength: 0.16; }
+}
+
+:root[data-theme="dark"] .site-backdrop { --backdrop-strength: 0.16; }
+
+/* A phone shows a narrow slice of the artwork, which makes each band
+   proportionally larger and the whole thing heavier. */
+@media (max-width: 640px) {
+  .site-backdrop { --backdrop-strength: 0.08; }
+}
+
+/* Stop, rather than hide. A curve standing still is simply a shape -
+   there is no half-finished state to be caught in, which is why the
+   spinners elsewhere are removed under this rule and these are not. */
+@media (prefers-reduced-motion: reduce) {
+  .site-backdrop-band {
+    animation: none;
+    will-change: auto;
+  }
+}
+
+/* Ink on paper, and it would be the page's only full-bleed colour. */
+@media print {
+  .site-backdrop { display: none; }
+}

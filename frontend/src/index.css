@@ -331,9 +331,18 @@ body {
 /* ============================================================
    WORKSPACE SHELL (signed in): sidebar + page bar
    ------------------------------------------------------------
-   Solid surfaces and single-pixel borders only. The palette
-   rules out gradients, glow and animated backgrounds, so the
-   structure here is carried by spacing, weight and one accent.
+   Solid surfaces and single-pixel borders only: the structure
+   here is carried by spacing, weight and one accent, not by
+   gradients or glow on the panels themselves.
+
+   The one moving thing on the page is .site-backdrop, which
+   drifts behind everything at a few percent of the accent. It is
+   deliberately outside this rule and deliberately under it. Most
+   surfaces here are opaque and paint over it entirely; the
+   translucent ones (down to 40% in the roadmap and feedback
+   panels) let a little through, which was measured rather than
+   assumed - worst case the body-text ratio moves from 15.4:1 to
+   13.9:1, so nothing comes near the 4.5:1 floor.
    ============================================================ */
 
 .shell {

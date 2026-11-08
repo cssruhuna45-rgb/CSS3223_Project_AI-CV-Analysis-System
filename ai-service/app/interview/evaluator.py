@@ -27,6 +27,7 @@ model cannot return 85 and label it "weak".
 """
 
 import json
+import math
 import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -392,10 +393,15 @@ def build_category_block() -> str:
 
 def clamp_score(value: Any) -> int:
 
-    try:
-        score = int(round(float(value)))
-    except (TypeError, ValueError):
+    # `is_number` rejects booleans and non-finite values, which is what
+    # keeps `int(round(...))` below from raising: `round(inf)` is still
+    # a float infinity and converting that to an int is an
+    # OverflowError, which is not a ValueError and would escape the
+    # except clause.
+    if not is_number(value):
         return 0
+
+    score = int(round(float(value)))
 
     return max(0, min(100, score))
 
@@ -460,6 +466,66 @@ def cited_references(
     ]
 
 
+def is_number(value: Any) -> bool:
+    """
+    Whether a value from the model is a usable number.
+
+    Two rejections that `float()` alone would not make:
+
+    * **Booleans.** `float(True)` is 1.0, and a model answering
+      `"score": true` has not scored anything.
+    * **Non-finite values.** `float("NaN")` and `float("inf")` both
+      succeed, so a reply of `"score": "NaN"` would otherwise count as
+      a grade here and then be flattened to 0 by `clamp_score` - which
+      is the exact "failed grading shown as an earned zero" this guard
+      exists to prevent.
+    """
+
+    if value is None or isinstance(value, bool):
+        return False
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+
+    return math.isfinite(number)
+
+
+def carries_any_score(raw: Dict[str, Any]) -> bool:
+    """
+    Whether the model's reply graded anything at all.
+
+    `clamp_score` turns an unreadable value into 0, which is right for
+    one missing field among many and wrong for a reply that carried no
+    scores whatsoever. An empty object is still an object, so it passes
+    the type check above and then normalizes into a full scorecard of
+    zeros - presented to the candidate as a grade they earned, with
+    `evaluated` set to true and no error beside it. That is the one
+    outcome worse than admitting the grading failed, because nothing on
+    the page says it did.
+
+    A reply with no numbers in it is therefore treated as a failed
+    grading and takes the same path as a parse error.
+    """
+
+    raw_categories = raw.get("category_scores")
+
+    if isinstance(raw_categories, dict):
+        for category in CATEGORIES:
+            if is_number(raw_categories.get(category["key"])):
+                return True
+
+    raw_per_question = raw.get("per_question")
+
+    if isinstance(raw_per_question, list):
+        for entry in raw_per_question:
+            if isinstance(entry, dict) and is_number(entry.get("score")):
+                return True
+
+    return False
+
+
 def normalize_evaluation(
     raw: Dict[str, Any],
     questions: List[str],
@@ -471,22 +537,44 @@ def normalize_evaluation(
     promises, filling gaps rather than failing.
     """
 
-    raw_categories = raw.get("category_scores") or {}
+    raw_categories = raw.get("category_scores")
 
-    category_scores = [
-        {
+    if not isinstance(raw_categories, dict):
+        raw_categories = {}
+
+    # A category the model did not score is marked as such rather than
+    # quietly left at 0. The two are not the same thing, and the
+    # difference used to disappear into the mean.
+    category_scores = []
+
+    for c in CATEGORIES:
+
+        value = raw_categories.get(c["key"])
+        assessed = is_number(value)
+
+        category_scores.append({
             "key": c["key"],
             "label": c["label"],
-            "score": clamp_score(raw_categories.get(c["key"])),
-        }
-        for c in CATEGORIES
-    ]
+            "score": clamp_score(value) if assessed else 0,
+            "scored": assessed,
+        })
+
+    assessed_categories = [c for c in category_scores if c["scored"]]
+    unscored_categories = [c["label"] for c in category_scores if not c["scored"]]
 
     # Computed here, not asked of the model: the headline number is
     # arithmetic over the category scores and should be reproducible.
+    #
+    # Averaged over the categories that were actually assessed, not
+    # over all of them. There are four, so a reply carrying only
+    # technical_knowledge at 80 used to produce (80+0+0+0)/4 = 20 and
+    # present it as an earned result - a candidate marked down to a
+    # quarter of their score because the model omitted three fields.
+    # A complete reply is unaffected: every category is assessed, and
+    # the mean is the same one as before.
     overall = (
-        round(sum(c["score"] for c in category_scores) / len(category_scores))
-        if category_scores
+        round(sum(c["score"] for c in assessed_categories) / len(assessed_categories))
+        if assessed_categories
         else 0
     )
 
@@ -541,6 +629,13 @@ def normalize_evaluation(
         "strengths": clean_list(raw.get("strengths")),
         "improvements": clean_list(raw.get("improvements")),
         "per_question": per_question,
+
+        # The grading ran, but not on everything. Said out loud so the
+        # scorecard can show which part of the result is missing
+        # instead of presenting an average of fewer categories as
+        # though it were the usual one.
+        "partial": bool(unscored_categories),
+        "unscored_categories": unscored_categories,
     }
 
 
@@ -571,7 +666,7 @@ def empty_evaluation(
     return {
         "overall_score": 0,
         "category_scores": [
-            {"key": c["key"], "label": c["label"], "score": 0}
+            {"key": c["key"], "label": c["label"], "score": 0, "scored": False}
             for c in CATEGORIES
         ],
         "strengths": [],
@@ -592,6 +687,12 @@ def empty_evaluation(
         ],
         "evaluated": False,
         "evaluation_error": reason,
+
+        # Not partial: nothing was graded at all, and `evaluated`
+        # already says so. Calling this partial would imply some of
+        # the result is usable.
+        "partial": False,
+        "unscored_categories": [],
     }
 
 
@@ -674,12 +775,28 @@ def evaluate_interview(
         if not isinstance(parsed, dict):
             raise ValueError("Model did not return a JSON object.")
 
+        # An empty or score-free object would otherwise normalize into
+        # a scorecard of zeros marked as successfully evaluated.
+        if not carries_any_score(parsed):
+            raise ValueError("Model returned no scores to grade with.")
+
         result = normalize_evaluation(
             parsed,
             questions,
             answers,
             references,
         )
+
+        # The overall score is the mean of the category scores, so a
+        # reply that scored no category produced no overall score at
+        # all. Reporting the 0 that falls out of an empty mean would
+        # put a number the model never arrived at into the candidate's
+        # stored score, and from there next to real ones in the
+        # recruiter's comparison. Per-question feedback alone cannot
+        # stand in for it.
+        if not any(c["scored"] for c in result["category_scores"]):
+            raise ValueError("Model scored none of the categories.")
+
         result["evaluated"] = True
         result["evaluation_error"] = ""
 

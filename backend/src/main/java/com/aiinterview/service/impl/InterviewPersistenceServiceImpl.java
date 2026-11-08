@@ -7,6 +7,7 @@ import com.aiinterview.entity.JobApplication;
 import com.aiinterview.entity.JobPosting;
 import com.aiinterview.entity.Resume;
 import com.aiinterview.entity.User;
+import com.aiinterview.exception.UnauthorizedAccessException;
 import com.aiinterview.repository.InterviewSessionRepository;
 import com.aiinterview.repository.JobApplicationRepository;
 import com.aiinterview.repository.JobPostingRepository;
@@ -55,6 +56,48 @@ public class InterviewPersistenceServiceImpl implements InterviewPersistenceServ
     private final JobPostingRepository jobPostingRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final ObjectMapper objectMapper;
+
+    // ========================================================
+    // Ownership gate
+    //
+    // The one method here that is not best effort. It throws, and it
+    // runs before the AI call rather than after it.
+    // ========================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public void requireSessionOwnership(String userEmail, JsonNode request) {
+
+        String sessionId = text(request, "session_id");
+
+        if (sessionId == null) {
+            // Nothing is being claimed, so there is nothing to refuse.
+            // The AI service rejects a request it cannot route.
+            return;
+        }
+
+        InterviewSession session =
+                interviewSessionRepository.findBySessionId(sessionId).orElse(null);
+
+        if (session == null) {
+            // Not stored, so no owner to defend. See the interface note.
+            return;
+        }
+
+        User user = userRepository.findByEmail(userEmail).orElse(null);
+
+        if (user == null || !user.getId().equals(session.getUser().getId())) {
+            log.warn(
+                    "User {} tried to use interview session {} owned by someone else",
+                    userEmail,
+                    sessionId
+            );
+
+            throw new UnauthorizedAccessException(
+                    "This interview session does not belong to you."
+            );
+        }
+    }
 
     // ========================================================
     // Start

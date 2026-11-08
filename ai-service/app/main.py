@@ -2072,6 +2072,36 @@ def interview_model_answer_endpoint(
 # ============================================================
 
 
+def interview_completeness(session) -> tuple:
+    """
+    What the interview is measured against, and how much of it was
+    actually attempted.
+
+    For a job interview the total is the recruiter's approved set, not
+    the questions that happened to be asked before the candidate
+    finished. Reporting the asked count made an abandoned exam look
+    like a short complete one: answering one of five and finishing
+    returned "2 questions", which a recruiter then saw beside
+    candidates who had answered all five. Comparability is the whole
+    reason a job interview uses a fixed set, so the denominator has to
+    be that set.
+
+    A practice interview has no approved set - it adapts as it goes -
+    so there the questions asked are the questions there were.
+
+    Returns (total, answered, fully_answered).
+    """
+
+    answered = len(session.answers)
+
+    if is_fixed(session) and session.fixed_questions:
+        total = len(session.fixed_questions)
+    else:
+        total = len(session.questions)
+
+    return total, answered, answered >= total
+
+
 @app.post(
     "/api/v1/interview/finish",
     response_model=InterviewFinishResponse,
@@ -2099,10 +2129,14 @@ def finish_interview_endpoint(
 
         if session.status == "completed" and session.evaluation:
 
+            total, answered, fully_answered = interview_completeness(session)
+
             return InterviewFinishResponse(
                 session_id=session.session_id,
                 status=session.status,
-                total_questions=len(session.questions),
+                total_questions=total,
+                answered_count=answered,
+                fully_answered=fully_answered,
                 **session.evaluation,
             )
 
@@ -2149,10 +2183,14 @@ def finish_interview_endpoint(
             f"evaluated={evaluation.get('evaluated')}"
         )
 
+        total, answered, fully_answered = interview_completeness(finished_session)
+
         return InterviewFinishResponse(
             session_id=finished_session.session_id,
             status=finished_session.status,
-            total_questions=len(finished_session.questions),
+            total_questions=total,
+            answered_count=answered,
+            fully_answered=fully_answered,
             **evaluation,
         )
 

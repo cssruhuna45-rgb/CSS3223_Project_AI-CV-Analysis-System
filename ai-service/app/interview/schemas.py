@@ -293,6 +293,16 @@ class CategoryScore(BaseModel):
     label: str
     score: int = Field(..., ge=0, le=100)
 
+    scored: bool = Field(
+        default=True,
+        description=(
+            "False when the model did not assess this category. The "
+            "score is then 0 because something has to be sent, not "
+            "because the candidate earned nothing, and it is left out "
+            "of the overall mean."
+        ),
+    )
+
 
 class ReferencePassage(BaseModel):
     """
@@ -336,7 +346,31 @@ class QuestionEvaluation(BaseModel):
 class InterviewFinishResponse(BaseModel):
     session_id: str
     status: str
-    total_questions: int
+
+    total_questions: int = Field(
+        description=(
+            "What the interview is measured against. For a job "
+            "interview this is the recruiter's approved set, not the "
+            "questions that happened to be asked before the candidate "
+            "finished."
+        ),
+    )
+
+    answered_count: int = Field(
+        default=0,
+        description="How many of those questions were answered.",
+    )
+
+    fully_answered: bool = Field(
+        default=True,
+        description=(
+            "False when the candidate finished before answering every "
+            "question. Named apart from the answer route's `complete`, "
+            "which only means the interview is over. A partial sitting "
+            "is not comparable with a full one and must not be "
+            "presented as though it were."
+        ),
+    )
 
     # ------------------------------------------------------------
     # Scorecard
@@ -378,4 +412,18 @@ class InterviewFinishResponse(BaseModel):
     evaluation_error: str = Field(
         default="",
         description="Why grading failed, when it did.",
+    )
+
+    partial: bool = Field(
+        default=False,
+        description=(
+            "True when grading ran but did not cover every category. "
+            "The overall score is then a mean of fewer categories and "
+            "is not comparable with a full one."
+        ),
+    )
+
+    unscored_categories: List[str] = Field(
+        default_factory=list,
+        description="Categories the model did not assess, by label.",
     )

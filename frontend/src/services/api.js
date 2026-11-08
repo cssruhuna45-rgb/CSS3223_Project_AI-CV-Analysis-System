@@ -150,6 +150,15 @@ export const resumeAPI = {
       headers: authHeaders(),
     }),
 
+
+  // Every skill gap analysis stored against this CV, newest first.
+  // An empty list is the normal answer for a CV that was uploaded but
+  // never taken to the skill gap page - not an error.
+  getSkillGaps: (id) =>
+    request(`${SPRING}/api/v1/resumes/${id}/skill-gaps`, {
+      headers: authHeaders(),
+    }),
+
   // A CV attached to a job application cannot be deleted; the server
   // says so (409) and that message is shown as it stands.
   delete: (id) =>

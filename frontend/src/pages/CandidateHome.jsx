@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Users, ArrowRight, ChevronRight } from 'lucide-react';
 
 import BrandLogo from '../components/BrandLogo';
+import usePointerGlow from '../hooks/usePointerGlow';
 import useScrollReveal from '../hooks/useScrollReveal';
 
 /**
@@ -21,7 +22,10 @@ import useScrollReveal from '../hooks/useScrollReveal';
 export default function CandidateHome() {
   const navigate = useNavigate();
   const pageRef = useRef(null);
+  const artRef = useRef(null);
+
   useScrollReveal(pageRef);
+  usePointerGlow(artRef);
 
   const actions = [
     {
@@ -73,10 +77,38 @@ export default function CandidateHome() {
           </button>
         </div>
 
-        <div className="focus-feature-art">
+        {/* The pointer's position arrives as CSS variables on this
+            element; every layer below reads them. Nothing here renders
+            on a touch screen or under reduced motion, and the panel is
+            designed to look finished without any of it. */}
+        <div className="focus-feature-art" ref={artRef}>
+          {/* Decoration, so it is hidden from assistive technology
+              entirely: the rings and nodes carry no information the
+              heading beside them does not already give. */}
+          <span className="art-mesh" aria-hidden="true" />
+          <span className="art-grid" aria-hidden="true" />
+          <span className="art-glow" aria-hidden="true" />
+
+          <div className="orbit" aria-hidden="true">
+            <span className="orbit-ring orbit-ring--outer" />
+            <span className="orbit-ring orbit-ring--inner" />
+            <span className="orbit-scan" />
+            <span className="orbit-node orbit-node--outer" />
+            <span className="orbit-node orbit-node--inner" />
+          </div>
+
           {/* The mark alone: this tint changes with the theme, and the
-              full lockup's white wordmark would vanish on the light one. */}
-          <BrandLogo variant="mark" alt="" className="focus-feature-logo" />
+              full lockup's white wordmark would vanish on the light one.
+
+              `shine={false}` turns off the component's own timed sweep.
+              This instance drives the same masked layer from the
+              pointer instead, and the two would fight for it. */}
+          <BrandLogo
+            variant="mark"
+            alt=""
+            className="focus-feature-logo"
+            shine={false}
+          />
         </div>
       </section>
 

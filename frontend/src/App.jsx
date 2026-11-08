@@ -7,6 +7,7 @@ import Navbar from './components/Navbar';
 import AppShell, { BLEED_ROUTES } from './components/AppShell';
 import Footer from './components/Footer';
 import RouteErrorBoundary from './components/ErrorBoundary';
+import SiteBackdrop from './components/SiteBackdrop';
 import { ToastProvider, useToast } from './components/ToastProvider';
 import Landing from './pages/Landing';
 import Home from './pages/Home';
@@ -149,6 +150,13 @@ function AppContent() {
 
   return (
     <BrowserRouter>
+      {/* Outside .app-shell on purpose. That element clips its
+          overflow to stop wide decoration scrolling the page
+          sideways, and whether `clip` also crops a fixed-position
+          descendant is exactly the sort of thing that differs between
+          engines - so the backdrop is simply not put inside it. */}
+      <SiteBackdrop />
+
       <div className="app-shell">
         {/* Skip to content link for keyboard/screen reader users (WCAG 2.1) */}
         <a href="#main-content" className="skip-to-content">
