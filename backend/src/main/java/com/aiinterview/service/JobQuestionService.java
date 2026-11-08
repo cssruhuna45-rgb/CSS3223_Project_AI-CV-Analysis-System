@@ -1,6 +1,7 @@
 package com.aiinterview.service;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionAddRequestDto;
 import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
@@ -40,6 +41,13 @@ public interface JobQuestionService {
      */
     JobAssessmentDto regenerate(String recruiterEmail, Long jobId, Long questionId,
                                 JobQuestionRegenerateRequestDto request);
+
+    /**
+     * Writes one new question at the requested difficulty (and topic,
+     * when given) and adds it after the saved questions. Nothing already
+     * in the set changes. Refused once the set is at the maximum size.
+     */
+    JobAssessmentDto addGenerated(String recruiterEmail, Long jobId, JobQuestionAddRequestDto request);
 
     /** Saves the recruiter's edited draft, in the order given. */
     JobAssessmentDto saveDraft(String recruiterEmail, Long jobId, List<JobQuestionRequestDto> questions);

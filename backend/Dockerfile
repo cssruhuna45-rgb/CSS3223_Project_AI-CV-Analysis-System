@@ -19,18 +19,31 @@ COPY mvnw pom.xml ./
 # Retry dropped downloads rather than failing the image.
 #
 # Maven Central cutting one connection short should not cost the whole
-# build - it did exactly that here, on mockito-core: "Premature end of
-# Content-Length delimited message body (expected: 707,680; received:
-# 442,368)". requestSentEnabled is the part that matters for a
-# truncated response: without it Maven will not retry a request it
-# already sent, which is precisely this case. The pip steps in
-# ai-service/Dockerfile carry the same protection for the same reason.
-ENV MAVEN_HTTP_OPTS="-Dmaven.wagon.http.retryHandler.count=5 \
-    -Dmaven.wagon.http.retryHandler.requestSentEnabled=true \
-    -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
-    -Dmaven.wagon.rto=60000"
+# build - it has done exactly that here, once mid-download on
+# mockito-core ("Premature end of Content-Length delimited message
+# body") and once mid-handshake on the parent POM ("Remote host
+# terminated the handshake / SSL peer shut down incorrectly").
+#
+# Two layers, because neither covers everything alone:
+#  - The aether.* flags tune the resolver's own HTTP retries. Maven
+#    3.9 resolves through the native transport, not Wagon, so the old
+#    maven.wagon.* flags were silently ignored.
+#  - The shell loop re-runs the whole step. Resolver retries skip SSL
+#    handshake failures by design; the loop does not. Artifacts already
+#    in ~/.m2 are kept, so each attempt resumes rather than restarts.
+# The pip steps in ai-service/Dockerfile carry the same protection.
+ENV MAVEN_HTTP_OPTS="-Daether.connector.http.retryHandler.count=5 \
+    -Daether.connector.http.retryHandler.requestSentEnabled=true \
+    -Daether.connector.http.connectionMaxTtl=120 \
+    -Daether.connector.requestTimeout=60000"
 
-RUN chmod +x mvnw && ./mvnw -B -q $MAVEN_HTTP_OPTS dependency:go-offline
+RUN chmod +x mvnw \
+    && for i in 1 2 3 4 5; do \
+         ./mvnw -B -q $MAVEN_HTTP_OPTS dependency:go-offline && exit 0; \
+         echo "dependency download failed (attempt $i/5), retrying in $((i * 10))s" >&2; \
+         sleep $((i * 10)); \
+       done; \
+    exit 1
 
 COPY src/ src/
 
@@ -42,7 +55,15 @@ COPY src/ src/
 #
 # jar rather than unzip: it ships with the JDK that is already here,
 # so the check costs no extra package.
-RUN ./mvnw -B -q $MAVEN_HTTP_OPTS clean package -DskipTests \
+#
+# Same retry loop as above: go-offline is known to miss a few plugins,
+# which package then fetches over the network.
+RUN for i in 1 2 3; do \
+         ./mvnw -B -q $MAVEN_HTTP_OPTS clean package -DskipTests && break; \
+         [ "$i" = 3 ] && exit 1; \
+         echo "package failed (attempt $i/3), retrying in $((i * 10))s" >&2; \
+         sleep $((i * 10)); \
+       done \
     && jarfile=$(ls target/*.jar | head -1) \
     && test -s "$jarfile" \
     && jar tf "$jarfile" > /dev/null \

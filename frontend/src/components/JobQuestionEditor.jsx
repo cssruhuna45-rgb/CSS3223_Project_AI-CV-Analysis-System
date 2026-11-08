@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowDown, ArrowUp, CheckCircle2, Lock, Plus, RefreshCw, Save, Sparkles, Trash2,
+  ArrowDown, ArrowUp, CheckCircle2, Lock, PenLine, Plus, RefreshCw, Save, Sparkles, Trash2,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { Badge, Button, ConfirmDialog } from './ui';
@@ -30,6 +30,10 @@ const ACTION_ERRORS = {
   regenerate: {
     fallback: "We couldn't write a new question. The current question is unchanged; please try again.",
     uncertain: "We couldn't confirm the question was replaced. Reload the page to check.",
+  },
+  add: {
+    fallback: "We couldn't write a new question. Your draft is unchanged; please try again.",
+    uncertain: "We couldn't confirm whether a new question was added. Your draft is unchanged here; try again, or reload the page to check.",
   },
 };
 
@@ -77,9 +81,22 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   // 'approve', or null for none.
   const [confirming, setConfirming] = useState(null);
 
-  const apply = (data) => {
+  // Adding a question: null (closed), 'choose' (AI or manual), or 'ai'
+  // (difficulty and topic for the AI question).
+  const [adding, setAdding] = useState(null);
+  const [addDifficulty, setAddDifficulty] = useState('medium');
+  const [addTopic, setAddTopic] = useState('');
+  // Set synchronously, so a second click cannot send a second request
+  // before the first one's busy state has rendered.
+  const addInFlight = useRef(false);
+  // Index of a just-added question whose text box should take focus.
+  const [focusIndex, setFocusIndex] = useState(null);
+
+  // keepDraft: the action did not change the questions (settings), so
+  // the recruiter's unsaved edits stay as they are.
+  const apply = (data, { keepDraft = false } = {}) => {
     setAssessment(data);
-    setDraft((data.questions || []).map(toDraft));
+    if (!keepDraft) setDraft((data.questions || []).map(toDraft));
     setSkillsText((data.requiredSkills || []).join(', '));
     setCount(data.questionCount || 5);
     if (onChange) onChange(data);
@@ -112,11 +129,11 @@ export default function JobQuestionEditor({ jobId, onChange }) {
   );
 
   // Runs one server action, showing its error inline.
-  const run = async (name, action, success) => {
+  const run = async (name, action, success, applyOptions) => {
     setBusy(name);
     setError('');
     try {
-      apply(await action());
+      apply(await action(), applyOptions);
       if (success) notify(success);
     } catch (err) {
       const messages = ACTION_ERRORS[name];
@@ -181,15 +198,84 @@ export default function JobQuestionEditor({ jobId, onChange }) {
     }
   };
 
-  const add = () => setDraft((list) => [
-    ...list,
-    { id: null, question: '', difficulty: 'medium', topic: '', keyPointsText: '', source: 'RECRUITER' },
-  ]);
+  useEffect(() => {
+    if (focusIndex === null) return;
+    const box = document.getElementById(`q-${jobId}-${focusIndex}`);
+    if (box) box.focus();
+    setFocusIndex(null);
+  }, [focusIndex, jobId]);
+
+  const atLimit = draft.length >= MAX_QUESTIONS;
+
+  // The AI writes from the saved skills, so unsaved settings must be
+  // saved first, as for "Generate questions".
+  const aiBlockedReason = !(assessment?.requiredSkills || []).length
+    ? 'Add at least one required skill and save the settings to generate a question.'
+    : settingsChanged
+      ? 'Save the question settings first; the new question is written from the saved skills.'
+      : '';
+
+  const openAdd = () => {
+    setError('');
+    setAdding((open) => (open ? null : 'choose'));
+  };
+
+  const addManually = () => {
+    if (atLimit) return;
+    const index = draft.length;
+    setDraft((list) => [
+      ...list,
+      { id: null, question: '', difficulty: 'medium', topic: '', keyPointsText: '', source: 'RECRUITER' },
+    ]);
+    setAdding(null);
+    setFocusIndex(index);
+  };
+
+  // Writes one question and adds it to the end of the draft. Only the
+  // new question is added: every other card, saved or not, stays as the
+  // recruiter left it.
+  const addWithAi = async (e) => {
+    if (e) e.preventDefault();
+    if (addInFlight.current || atLimit || aiBlockedReason) return;
+    addInFlight.current = true;
+    setBusy('add');
+    setError('');
+
+    const known = new Set([
+      ...(assessment.questions || []).map((q) => q.id),
+      ...draft.map((q) => q.id).filter(Boolean),
+    ]);
+    const difficulty = addDifficulty;
+
+    try {
+      const data = await jobQuestionsAPI.add(jobId, {
+        difficulty,
+        topic: addTopic,
+        draftQuestions: draft.map((q) => q.question),
+      });
+      const fresh = (data.questions || []).filter((q) => !known.has(q.id));
+      setAssessment(data);
+      if (onChange) onChange(data);
+      if (fresh.length) {
+        const index = draft.length;
+        setDraft((list) => [...list, ...fresh.map(toDraft)]);
+        setFocusIndex(index);
+      }
+      setAdding(null);
+      setAddTopic('');
+      notify(`A new ${difficulty} question was added at the end. Review it before approving.`);
+    } catch (err) {
+      setError(userMessage(err, ACTION_ERRORS.add.fallback, { uncertain: ACTION_ERRORS.add.uncertain }));
+    } finally {
+      addInFlight.current = false;
+      setBusy('');
+    }
+  };
 
   const saveSettings = () => run('settings', () => jobQuestionsAPI.updateSettings(jobId, {
     requiredSkills: skillsText.split(',').map((s) => s.trim()).filter(Boolean),
     questionCount: Number(count),
-  }), 'Question settings saved.');
+  }), 'Question settings saved.', { keepDraft: true });
 
   const doGenerate = () =>
     run('generate', () => jobQuestionsAPI.generate(jobId), 'Questions generated. Review them before approving.');
@@ -364,16 +450,105 @@ export default function JobQuestionEditor({ jobId, onChange }) {
         </ol>
       )}
 
-      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
         <Button size="sm" variant="secondary" icon={<Plus size={14} />}
-          disabled={draft.length >= MAX_QUESTIONS || Boolean(busy)} onClick={add}>
+          aria-expanded={Boolean(adding)} aria-controls={`add-${jobId}`}
+          aria-describedby={atLimit ? `add-limit-${jobId}` : undefined}
+          disabled={atLimit || Boolean(busy)} onClick={openAdd}>
           Add question
         </Button>
         <Button size="sm" variant="secondary" icon={<Save size={14} />}
           disabled={!dirty || Boolean(busy)} loading={busy === 'save'} onClick={save}>
           Save draft
         </Button>
+        {atLimit && (
+          <span id={`add-limit-${jobId}`} style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+            This job has the maximum of {MAX_QUESTIONS} questions. Remove one to add another.
+          </span>
+        )}
       </div>
+
+      {adding && !atLimit && (
+        <div id={`add-${jobId}`} role="group" aria-label="Add a question"
+          style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', display: 'grid', gap: 'var(--space-3)' }}>
+          {adding === 'choose' && (
+            <>
+              <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
+                How would you like to add question {draft.length + 1}?
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                <Button size="sm" icon={<Sparkles size={14} />} disabled={Boolean(aiBlockedReason)}
+                  aria-describedby={aiBlockedReason ? `add-ai-blocked-${jobId}` : undefined}
+                  onClick={() => setAdding('ai')}>
+                  Generate with AI
+                </Button>
+                <Button size="sm" variant="secondary" icon={<PenLine size={14} />} onClick={addManually}>
+                  Add manually
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setAdding(null)}>Cancel</Button>
+              </div>
+              {aiBlockedReason && (
+                <p id={`add-ai-blocked-${jobId}`} style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+                  {aiBlockedReason}
+                </p>
+              )}
+            </>
+          )}
+
+          {adding === 'ai' && (
+            <form onSubmit={addWithAi} style={{ display: 'grid', gap: 'var(--space-3)' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'flex-end' }}>
+                <div style={{ flex: '0 1 160px', minWidth: 140 }}>
+                  <label className="label" htmlFor={`add-d-${jobId}`}>Difficulty</label>
+                  <select id={`add-d-${jobId}`} className="input" value={addDifficulty}
+                    disabled={busy === 'add'} onChange={(e) => setAddDifficulty(e.target.value)}>
+                    {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                  <label className="label" htmlFor={`add-t-${jobId}`}>Topic (optional)</label>
+                  <input id={`add-t-${jobId}`} className="input" maxLength={120} value={addTopic}
+                    disabled={busy === 'add'} placeholder="e.g. REST APIs, SQL joins"
+                    onChange={(e) => setAddTopic(e.target.value)} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
+                <Button type="submit" size="sm" icon={<Sparkles size={14} />}
+                  loading={busy === 'add'} disabled={Boolean(busy) || Boolean(aiBlockedReason)}>
+                  Generate question
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={busy === 'add'} onClick={() => setAdding('choose')}>
+                  Back
+                </Button>
+                <span role="status" style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
+                  {busy === 'add'
+                    ? 'Writing a new question. This can take up to a minute.'
+                    : "Written from the job's description and required skills, and added after the existing questions."}
+                </span>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {draft.length > 0 && draft.length !== assessment.questionCount && (
+        <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
+          This draft has {draft.length} question{draft.length === 1 ? '' : 's'}, but each candidate is set to be
+          asked {assessment.questionCount}. Before approving,{' '}
+          {draft.length >= 5 && draft.length <= MAX_QUESTIONS
+            ? <>change “Questions per candidate” to {draft.length} and save the settings, or {draft.length > assessment.questionCount ? 'remove' : 'add'} questions to match.</>
+            : <>{draft.length > assessment.questionCount ? 'remove' : 'add'} questions to match.</>}
+          {draft.length >= 5 && draft.length <= MAX_QUESTIONS && count !== draft.length && (
+            <>
+              {' '}
+              <button type="button" onClick={() => setCount(draft.length)}
+                style={{ background: 'none', border: 0, padding: 0, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', font: 'inherit' }}>
+                Set to {draft.length}
+              </button>
+            </>
+          )}
+        </p>
+      )}
 
       {(dirty || assessment.issues.length > 0) && (
         <div role="status" style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)' }}>
