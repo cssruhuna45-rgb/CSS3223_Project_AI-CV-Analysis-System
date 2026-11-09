@@ -50,6 +50,21 @@ export const jobQuestionsAPI = {
       body: JSON.stringify({ difficulty: difficulty || null, topic: (topic || '').trim() || null }),
     }),
 
+  // Writes one new question at { difficulty } (and { topic }, when given)
+  // and adds it after the saved questions; nothing else in the set
+  // changes. draftQuestions is the text in the editor, saved or not, so
+  // the new question repeats none of it.
+  add: (jobId, { difficulty, topic, draftQuestions = [] }) =>
+    request(`${base(jobId)}/questions/add`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        difficulty,
+        topic: (topic || '').trim() || null,
+        draftQuestions: draftQuestions.map((q) => (q || '').trim()).filter(Boolean),
+      }),
+    }),
+
   // The whole draft, in the order it should be asked. A question
   // without an id is new.
   save: (jobId, questions) =>

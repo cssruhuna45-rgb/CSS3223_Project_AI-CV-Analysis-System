@@ -1,6 +1,7 @@
 package com.aiinterview.controller;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionAddRequestDto;
 import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
 import com.aiinterview.dto.JobQuestionsSaveRequestDto;
@@ -78,6 +79,17 @@ public class JobQuestionController {
         return ResponseEntity.ok(
                 jobQuestionService.regenerate(authentication.getName(), jobId, questionId, request)
         );
+    }
+
+    @Operation(summary = "Write one new question with AI at a chosen difficulty and optional topic, "
+            + "and add it after the existing draft questions")
+    @PostMapping("/questions/add")
+    public ResponseEntity<JobAssessmentDto> addGenerated(
+            @PathVariable Long jobId,
+            @Valid @RequestBody JobQuestionAddRequestDto request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(jobQuestionService.addGenerated(authentication.getName(), jobId, request));
     }
 
     @Operation(summary = "Save the edited draft, in the order given")

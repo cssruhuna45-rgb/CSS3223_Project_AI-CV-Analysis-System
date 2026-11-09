@@ -1,6 +1,7 @@
 package com.aiinterview.service.impl;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionAddRequestDto;
 import com.aiinterview.dto.JobQuestionDto;
 import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionRequestDto;
@@ -225,6 +226,89 @@ public class JobQuestionServiceImpl implements JobQuestionService {
             question.setSource(JobQuestion.SOURCE_AI);
 
             jobQuestionRepository.save(question);
+
+            return assessment(job);
+        });
+    }
+
+    @Override
+    public JobAssessmentDto addGenerated(String recruiterEmail, Long jobId, JobQuestionAddRequestDto wanted) {
+
+        String wantedDifficulty = wanted == null || wanted.getDifficulty() == null
+                ? null
+                : wanted.getDifficulty().trim().toLowerCase(Locale.ROOT);
+        String wantedTopic = wanted == null ? null : clean(wanted.getTopic());
+
+        if (wantedDifficulty == null || !JobQuestion.DIFFICULTIES.contains(wantedDifficulty)) {
+            throw new BadRequestException("Choose easy, medium or hard for the new question.");
+        }
+
+        if (wantedTopic != null && wantedTopic.length() > JobAssessmentRules.MAX_TOPIC_LENGTH) {
+            throw new BadRequestException("Keep the topic under " + JobAssessmentRules.MAX_TOPIC_LENGTH + " characters.");
+        }
+
+        // The saved questions and whatever is in the recruiter's editor,
+        // saved or not: the new question must repeat none of them.
+        List<String> avoid = new ArrayList<>();
+
+        ObjectNode request = transactions.execute(status -> {
+            JobPosting job = ownedJob(recruiterEmail, jobId);
+            requireDraft(job);
+            requireSkills(job);
+
+            List<JobQuestion> saved = jobQuestionRepository.findByJobPostingIdOrderByPositionAsc(job.getId());
+            requireRoom(saved.size());
+
+            for (JobQuestion q : saved) {
+                addUnique(avoid, q.getQuestionText());
+            }
+            for (String text : wanted.getDraftQuestions() == null ? List.<String>of() : wanted.getDraftQuestions()) {
+                addUnique(avoid, clean(text));
+            }
+
+            ObjectNode body = generationRequest(job, 1, avoid);
+            body.put("difficulty", wantedDifficulty);
+            if (wantedTopic != null) {
+                body.put("topic", wantedTopic);
+            }
+            return body;
+        });
+
+        List<JobQuestion> drafted = draftedQuestions(aiServiceClient.post(GENERATE_PATH, request));
+
+        if (drafted.isEmpty()) {
+            throw noQuestions();
+        }
+
+        JobQuestion added = drafted.get(0);
+
+        // Checked here as well as by the AI service: a question at the
+        // wrong level, or one the set already asks, is not added.
+        if (!wantedDifficulty.equals(added.getDifficulty())
+                || JobAssessmentRules.isDuplicate(added.getQuestionText(), avoid)) {
+            throw noQuestions();
+        }
+
+        if (wantedTopic != null) {
+            added.setTopic(wantedTopic);
+        }
+
+        return transactions.execute(status -> {
+            // Looked up again: the set may have been approved or grown
+            // while the model was writing.
+            JobPosting job = ownedJob(recruiterEmail, jobId);
+            requireDraft(job);
+
+            List<JobQuestion> saved = jobQuestionRepository.findByJobPostingIdOrderByPositionAsc(job.getId());
+            requireRoom(saved.size());
+
+            int last = saved.stream().mapToInt(JobQuestion::getPosition).max().orElse(0);
+
+            added.setJobPosting(job);
+            added.setPosition(last + 1);
+            jobQuestionRepository.save(added);
+
+            log.info("Added AI question {} to job {}", added.getPosition(), job.getId());
 
             return assessment(job);
         });
@@ -493,6 +577,19 @@ public class JobQuestionServiceImpl implements JobQuestionService {
     private static void requireDraft(JobPosting job) {
         if (job.isQuestionsApproved()) {
             throw new ConflictException(LOCKED);
+        }
+    }
+
+    private static void requireRoom(int savedCount) {
+        if (savedCount >= JobPosting.MAX_QUESTION_COUNT) {
+            throw new BadRequestException("This job already has the maximum of " + JobPosting.MAX_QUESTION_COUNT
+                    + " questions. Remove one and save the draft before adding another.");
+        }
+    }
+
+    private static void addUnique(List<String> list, String text) {
+        if (text != null && !text.isBlank() && !list.contains(text)) {
+            list.add(text);
         }
     }
 

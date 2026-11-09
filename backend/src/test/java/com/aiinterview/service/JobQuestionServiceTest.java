@@ -1,6 +1,7 @@
 package com.aiinterview.service;
 
 import com.aiinterview.dto.JobAssessmentDto;
+import com.aiinterview.dto.JobQuestionAddRequestDto;
 import com.aiinterview.dto.JobQuestionRegenerateRequestDto;
 import com.aiinterview.dto.JobQuestionRequestDto;
 import com.aiinterview.dto.JobQuestionSettingsDto;
@@ -315,6 +316,148 @@ class JobQuestionServiceTest {
 
         assertThrows(BadRequestException.class, () -> service.regenerate(RITA, 5L, stored.get(0).getId(),
                 JobQuestionRegenerateRequestDto.builder().difficulty("extreme").build()));
+        verify(aiServiceClient, never()).post(anyString(), any());
+    }
+
+    // ---- Adding one question ------------------------------------------
+
+    private static JobQuestionAddRequestDto addRequest(String difficulty, String topic, String... draft) {
+        return JobQuestionAddRequestDto.builder()
+                .difficulty(difficulty)
+                .topic(topic)
+                .draftQuestions(new ArrayList<>(List.of(draft)))
+                .build();
+    }
+
+    @Test
+    @DisplayName("adding with AI appends one question and leaves the others as they were")
+    void addAppendsOne() {
+        storeGoodSet();
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
+                {"How would you design pagination for a large REST collection?", "hard"}}));
+
+        JobAssessmentDto result = service.addGenerated(RITA, 5L,
+                addRequest("HARD", "  REST  pagination ", "An unsaved edit the recruiter typed into the editor?"));
+
+        ArgumentCaptor<JsonNode> sent = ArgumentCaptor.forClass(JsonNode.class);
+        verify(aiServiceClient).post(eq("/api/v1/assessment/questions/generate"), sent.capture());
+        JsonNode body = sent.getValue();
+        assertEquals(1, body.get("question_count").asInt());
+        assertEquals("hard", body.get("difficulty").asText());
+        assertEquals("REST pagination", body.get("topic").asText());
+        // Saved questions and the editor's unsaved text are both avoided.
+        assertEquals(6, body.get("existing_questions").size());
+        assertEquals(job.getJobDescription(), body.get("job_description").asText());
+        assertFalse(body.has("candidate_resume"));
+
+        assertEquals(6, result.getQuestions().size());
+        for (int i = 0; i < GOOD.length; i++) {
+            assertEquals(GOOD[i][0], result.getQuestions().get(i).getQuestion());
+        }
+        var added = result.getQuestions().get(5);
+        assertEquals("How would you design pagination for a large REST collection?", added.getQuestion());
+        assertEquals(6, added.getPosition());
+        assertEquals("hard", added.getDifficulty());
+        assertEquals("REST pagination", added.getTopic());
+        assertEquals(JobQuestion.SOURCE_AI, added.getSource());
+    }
+
+    @Test
+    @DisplayName("adding does not change the question count; the mismatch is reported, not hidden")
+    void addKeepsCountRule() {
+        storeGoodSet();
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
+                {"How would you design pagination for a large REST collection?", "medium"}}));
+
+        JobAssessmentDto result = service.addGenerated(RITA, 5L, addRequest("medium", null));
+
+        assertEquals(5, result.getQuestionCount());
+        assertTrue(result.getIssues().contains("Expected 5 questions, found 6."), result.getIssues().toString());
+    }
+
+    @Test
+    @DisplayName("a full set takes no more questions, and the AI is not called")
+    void addRefusedAtLimit() {
+        for (int i = 1; i <= JobPosting.MAX_QUESTION_COUNT; i++) {
+            question(i, "Distinct question number " + i + " about databases and APIs?", "medium");
+        }
+
+        BadRequestException refused = assertThrows(BadRequestException.class,
+                () -> service.addGenerated(RITA, 5L, addRequest("easy", null)));
+        assertTrue(refused.getMessage().contains("maximum of 10"));
+        verify(aiServiceClient, never()).post(anyString(), any());
+        assertEquals(10, stored.size());
+    }
+
+    @Test
+    @DisplayName("a generated question that repeats one in the set is not added")
+    void addRefusesDuplicate() {
+        storeGoodSet();
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
+                {GOOD[0][0], "easy"}}));
+
+        assertThrows(RuntimeException.class, () -> service.addGenerated(RITA, 5L, addRequest("easy", null)));
+        assertEquals(5, stored.size());
+    }
+
+    @Test
+    @DisplayName("a generated question matching an unsaved draft question is not added")
+    void addRefusesDuplicateOfUnsavedText() {
+        storeGoodSet();
+        String unsaved = "What is the purpose of a foreign key constraint in PostgreSQL?";
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{{unsaved, "easy"}}));
+
+        assertThrows(RuntimeException.class, () -> service.addGenerated(RITA, 5L, addRequest("easy", null, unsaved)));
+        assertEquals(5, stored.size());
+    }
+
+    @Test
+    @DisplayName("a failed or empty generation leaves the set unchanged")
+    void addFailureKeepsSet() {
+        storeGoodSet();
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[0][]));
+
+        assertThrows(RuntimeException.class, () -> service.addGenerated(RITA, 5L, addRequest("easy", null)));
+        assertEquals(5, stored.size());
+    }
+
+    @Test
+    @DisplayName("an added question at the wrong difficulty is refused")
+    void addWrongDifficultyRefused() {
+        storeGoodSet();
+        when(aiServiceClient.post(anyString(), any())).thenReturn(aiDraft(new String[][]{
+                {"What does a primary key guarantee in a relational table?", "easy"}}));
+
+        assertThrows(RuntimeException.class, () -> service.addGenerated(RITA, 5L, addRequest("hard", null)));
+        assertEquals(5, stored.size());
+    }
+
+    @Test
+    @DisplayName("adding needs a difficulty, and checks it before the AI is called")
+    void addNeedsDifficulty() {
+        storeGoodSet();
+
+        assertThrows(BadRequestException.class, () -> service.addGenerated(RITA, 5L, addRequest(null, null)));
+        assertThrows(BadRequestException.class, () -> service.addGenerated(RITA, 5L, addRequest("extreme", null)));
+        verify(aiServiceClient, never()).post(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("an approved set cannot have questions added")
+    void addRefusedWhenApproved() {
+        storeGoodSet();
+        job.setQuestionsApprovedAt(LocalDateTime.now());
+
+        assertThrows(ConflictException.class, () -> service.addGenerated(RITA, 5L, addRequest("easy", null)));
+        verify(aiServiceClient, never()).post(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("another recruiter cannot add to this job")
+    void addOwnJobOnly() {
+        storeGoodSet();
+
+        assertThrows(ResourceNotFoundException.class, () -> service.addGenerated(OSCAR, 5L, addRequest("easy", null)));
         verify(aiServiceClient, never()).post(anyString(), any());
     }
 
